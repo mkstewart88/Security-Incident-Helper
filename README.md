@@ -215,6 +215,7 @@ For high-severity or suspected Business Email Compromise (BEC) incidents:
 
 For a comprehensive technical breakdown detailing internal LDAP queries, RFC 4511 protocol calls, Microsoft Graph REST endpoints, GAM7 commands, security event IDs, and DPI scaling engine internals, please refer to the extended documentation:
 
+* **Quick Start Guide:** [`QUICK_START.md`](QUICK_START.md)
 * **Markdown Edition:** [`README-extended.md`](README-extended.md)
 * **Plain-Text Edition:** [`README-extended.txt`](README-extended.txt)
 

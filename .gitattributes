@@ -1,0 +1,16 @@
+# Enforce line endings automatically on checkout
+* text=auto
+
+# Windows Batch, Command, PowerShell & Plain-Text files MUST use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.txt text eol=crlf
+
+# Markdown & Git configuration files use LF
+*.md text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+LICENSE text eol=lf
+NOTICE text eol=lf
+VERSION text eol=lf

@@ -1,0 +1,62 @@
+# ==============================================================================
+# Security Incident Response Automator - Git Ignore Rules
+# ==============================================================================
+
+# Web App & Development Server Scaffolding (Ignore all AI Studio web preview files)
+node_modules/
+dist/
+.aistudio/
+.playwright-cli/
+package.json
+package-lock.json
+bun.lock
+bun.lockb
+yarn.lock
+pnpm-lock.yaml
+vite.config.*
+tsconfig.*
+index.html
+metadata.json
+src/
+public/
+
+# Windows & OS Temporary Files
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Compiled Binaries & Build Staging Artifacts
+*.exe
+IncidentResponse.exe
+IncidentResponse.build-*.exe
+*.dll
+*.obj
+*.pdb
+
+# Local Runtime & Temporary Extraction Artifacts
+*.csv
+AuditLog.csv
+*Setup_*.ps1
+*CompileEXE_*.ps1
+*Compiler_*.ps1
+*RSATSetup_*.ps1
+*GAM7_Setup_*.ps1
+*MicrosoftGraphSetup_*.ps1
+*IRBuild_*.ps1
+
+# Local OAuth / Credential Files (Never commit credentials)
+client_secrets.json
+oauth2.txt
+oauth2service.json
+gam.cfg
+*.pfx
+*.cer
+*.key
+.vs/
+.vscode/

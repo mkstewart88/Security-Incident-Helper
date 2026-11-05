@@ -1,0 +1,61 @@
+Security Incident Response Automator
+Copyright (c) 2026 The Security Incident Response Automator Project Contributors
+
+This project is free and open-source software licensed under the Apache License, Version 2.0.
+
+===============================================================================
+1. FREE USE, FORKING & FOR-PROFIT / COMMERCIAL SHOUT-OUT POLICY
+===============================================================================
+Anyone can download, use, inspect, fork, modify, and redistribute this project
+and its source code.
+
+If you use, bundle, or incorporate any part of this project for profit or
+within any paid or commercial product/service:
+
+  1. Simply post a quick shout-out on the official GitHub repository first
+     (by opening an Issue or posting in GitHub Discussions) mentioning how or
+     where you are using it.
+
+  2. YOU DO NOT NEED TO WAIT FOR A REPLY OR APPROVAL.
+     Once you post your shout-out on the GitHub repository, you are free to
+     proceed immediately.
+
+===============================================================================
+2. NO MAINTENANCE OBLIGATION ("AS-IS" / TAKE IT OR LEAVE IT)
+===============================================================================
+The author is NOT responsible for updating, patching, supporting, or
+maintaining this application. This software is provided 100% "AS IS" with no
+support SLA and no obligation to respond to issues, pull requests, or changes
+in external APIs (Active Directory, Microsoft Graph, or GAM7).
+
+===============================================================================
+3. UNIVERSAL BLANKET ZERO-LIABILITY & MANDATORY CODE REVIEW DISCLAIMER
+===============================================================================
+USE AT YOUR OWN RISK. IT IS THE USER'S RESPONSIBILITY TO READ AND AUDIT ALL
+SOURCE CODE BEFORE EXECUTING.
+
+THE AUTHOR(S), CONTRIBUTOR(S), MAINTAINER(S), AND DISTRIBUTOR(S) ARE NOT
+RESPONSIBLE FOR ANYTHING HAPPENING AS A RESULT OF SOMEONE USING THIS TOOL AND
+TAKE ABSOLUTELY ZERO RESPONSIBILITY AND ZERO LIABILITY FOR LITERALLY ANYTHING
+RESULTING FROM OR RELATING TO THIS SOFTWARE, ITS CODE, OR ITS EXECUTION.
+
+THIS APPLIES TO ANY AND ALL ACTIONS, DIRECT OR INDIRECT, INTENDED OR UNINTENDED,
+THAT THIS PROGRAM COULD POSSIBLY PERFORM, ATTEMPT, TRIGGER, OR CAUSE AT ANY TIME.
+
+Whether an action involves:
+- Resetting, locking, disabling, enabling, expiring, restricting workstations,
+  modifying, or altering ANY Active Directory account or password;
+- Revoking, blocking, suspending, deprovisioning, wiping MFA/OAuth tokens, or
+  signing out ANY Microsoft 365 / Entra ID or Google Workspace account or session;
+- Auditing, disabling, modifying, or deleting ANY Microsoft 365 or Gmail inbox
+  rule, filter, or forwarding configuration;
+- Querying, binding, scanning, connecting, or authenticating across ANY Active
+  Directory domain controller, event log, cloud tenant, or network;
+- Causing data loss, email loss, system downtime, business interruption,
+  software crash, operating system failure, or ANY other consequence whatsoever;
+
+THE AUTHOR(S), CONTRIBUTOR(S), MAINTAINER(S), AND DISTRIBUTOR(S) CANNOT AND
+WILL NOT BE HELD LIABLE UNDER ANY LEGAL THEORY OR IN ANY JURISDICTION WHATSOEVER.
+
+The user, operator, and organization executing this tool assume 100% of all
+operational, legal, and financial risk.

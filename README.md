@@ -19,47 +19,72 @@ The console is organized into five structured tabs corresponding to standard inc
 ### Tab 1: Integrations & Pre-Flight Setup
 Live diagnostic status of all directory and cloud services, with automated one-click installation and verification scripts.
 
-**Dark Mode:**
-![Tab 1 - Integrations & Pre-Flight Setup (Dark Mode)](docs/screenshots/tab1-integrations-setup.png)
-
-**Light Mode:**
-![Tab 1 - Integrations & Pre-Flight Setup (Light Mode)](docs/screenshots/tab1-integrations-setup-light.png)
+<table>
+  <tr>
+    <td align="center"><b>Dark Mode</b></td>
+    <td align="center"><b>Light Mode</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/tab1-integrations-setup.png" alt="Tab 1 Dark Mode" width="480"/></td>
+    <td><img src="docs/screenshots/tab1-integrations-setup-light.png" alt="Tab 1 Light Mode" width="480"/></td>
+  </tr>
+</table>
 
 ### Tab 2: Incident Containment Deck
 Multi-attribute Active Directory user search, live multi-provider session telemetry, safety lock verification gate, and primary containment actions.
 
-**Dark Mode:**
-![Tab 2 - Incident Containment Deck (Dark Mode)](docs/screenshots/tab2-incident-containment.png)
-
-**Light Mode:**
-![Tab 2 - Incident Containment Deck (Light Mode)](docs/screenshots/tab2-incident-containment-light.png)
+<table>
+  <tr>
+    <td align="center"><b>Dark Mode</b></td>
+    <td align="center"><b>Light Mode</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/tab2-incident-containment.png" alt="Tab 2 Dark Mode" width="480"/></td>
+    <td><img src="docs/screenshots/tab2-incident-containment-light.png" alt="Tab 2 Light Mode" width="480"/></td>
+  </tr>
+</table>
 
 ### Tab 3: Deep Isolation & Mailbox Forwarding Rules Auditor
 Instant cloud sign-in blocking, Google Workspace account suspension, rogue MFA/OAuth grant eviction, Kerberos KDC hard-locking, and mailbox rule exfiltration scanner.
 
-**Dark Mode:**
-![Tab 3 - Deep Isolation & Mailbox Forwarding Rules Auditor (Dark Mode)](docs/screenshots/tab3-deep-isolation-mailbox-rules.png)
-
-**Light Mode:**
-![Tab 3 - Deep Isolation & Mailbox Forwarding Rules Auditor (Light Mode)](docs/screenshots/tab3-deep-isolation-mailbox-rules-light.png)
+<table>
+  <tr>
+    <td align="center"><b>Dark Mode</b></td>
+    <td align="center"><b>Light Mode</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/tab3-deep-isolation-mailbox-rules.png" alt="Tab 3 Dark Mode" width="480"/></td>
+    <td><img src="docs/screenshots/tab3-deep-isolation-mailbox-rules-light.png" alt="Tab 3 Light Mode" width="480"/></td>
+  </tr>
+</table>
 
 ### Tab 4: Multi-Source Security Event Triage
 Live telemetry ingestion across Domain Controllers, Entra ID sign-in logs, and Google audit records with automated plain-English translation and response recommendations.
 
-**Dark Mode:**
-![Tab 4 - Multi-Source Security Event Triage (Dark Mode)](docs/screenshots/tab4-security-event-triage.png)
-
-**Light Mode:**
-![Tab 4 - Multi-Source Security Event Triage (Light Mode)](docs/screenshots/tab4-security-event-triage-light.png)
+<table>
+  <tr>
+    <td align="center"><b>Dark Mode</b></td>
+    <td align="center"><b>Light Mode</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/tab4-security-event-triage.png" alt="Tab 4 Dark Mode" width="480"/></td>
+    <td><img src="docs/screenshots/tab4-security-event-triage-light.png" alt="Tab 4 Light Mode" width="480"/></td>
+  </tr>
+</table>
 
 ### Tab 5: Forensic Compliance Audit Trail
 Filterable, searchable audit logging with CSV field sanitization, recording every administrative operation locally for compliance, forensic verification, and insurance reporting.
 
-**Dark Mode:**
-![Tab 5 - Forensic Compliance Audit Trail (Dark Mode)](docs/screenshots/tab5-forensic-audit-trail.png)
-
-**Light Mode:**
-![Tab 5 - Forensic Compliance Audit Trail (Light Mode)](docs/screenshots/tab5-forensic-audit-trail-light.png)
+<table>
+  <tr>
+    <td align="center"><b>Dark Mode</b></td>
+    <td align="center"><b>Light Mode</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/tab5-forensic-audit-trail.png" alt="Tab 5 Dark Mode" width="480"/></td>
+    <td><img src="docs/screenshots/tab5-forensic-audit-trail-light.png" alt="Tab 5 Light Mode" width="480"/></td>
+  </tr>
+</table>
 
 ---
 

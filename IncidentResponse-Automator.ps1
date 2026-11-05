@@ -7971,11 +7971,11 @@ $tabAudit.Controls.Add($gridAudit)
 
 $gridAudit.Columns["colTimestamp"].FillWeight = 46
 $gridAudit.Columns["colAdmin"].FillWeight = 44
-$gridAudit.Columns["colTargetUPN"].FillWeight = 62
+$gridAudit.Columns["colTargetUPN"].FillWeight = 80
 $gridAudit.Columns["colTargetName"].FillWeight = 44
-$gridAudit.Columns["colAction"].FillWeight = 44
-$gridAudit.Columns["colStatus"].FillWeight = 28
-$gridAudit.Columns["colDetails"].FillWeight = 82
+$gridAudit.Columns["colAction"].FillWeight = 38
+$gridAudit.Columns["colStatus"].FillWeight = 22
+$gridAudit.Columns["colDetails"].FillWeight = 76
 
 function Load-AuditGrid {
     $gridAudit.Rows.Clear()

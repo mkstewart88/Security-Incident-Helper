@@ -18,23 +18,48 @@ The console is organized into five structured tabs corresponding to standard inc
 
 ### Tab 1: Integrations & Pre-Flight Setup
 Live diagnostic status of all directory and cloud services, with automated one-click installation and verification scripts.
-![Tab 1 - Integrations & Pre-Flight Setup](docs/screenshots/tab1-integrations-setup.png)
+
+**Dark Mode:**
+![Tab 1 - Integrations & Pre-Flight Setup (Dark Mode)](docs/screenshots/tab1-integrations-setup.png)
+
+**Light Mode:**
+![Tab 1 - Integrations & Pre-Flight Setup (Light Mode)](docs/screenshots/tab1-integrations-setup-light.png)
 
 ### Tab 2: Incident Containment Deck
 Multi-attribute Active Directory user search, live multi-provider session telemetry, safety lock verification gate, and primary containment actions.
-![Tab 2 - Incident Containment Deck](docs/screenshots/tab2-incident-containment.png)
+
+**Dark Mode:**
+![Tab 2 - Incident Containment Deck (Dark Mode)](docs/screenshots/tab2-incident-containment.png)
+
+**Light Mode:**
+![Tab 2 - Incident Containment Deck (Light Mode)](docs/screenshots/tab2-incident-containment-light.png)
 
 ### Tab 3: Deep Isolation & Mailbox Forwarding Rules Auditor
 Instant cloud sign-in blocking, Google Workspace account suspension, rogue MFA/OAuth grant eviction, Kerberos KDC hard-locking, and mailbox rule exfiltration scanner.
-![Tab 3 - Deep Isolation & Mailbox Forwarding Rules Auditor](docs/screenshots/tab3-deep-isolation-mailbox-rules.png)
+
+**Dark Mode:**
+![Tab 3 - Deep Isolation & Mailbox Forwarding Rules Auditor (Dark Mode)](docs/screenshots/tab3-deep-isolation-mailbox-rules.png)
+
+**Light Mode:**
+![Tab 3 - Deep Isolation & Mailbox Forwarding Rules Auditor (Light Mode)](docs/screenshots/tab3-deep-isolation-mailbox-rules-light.png)
 
 ### Tab 4: Multi-Source Security Event Triage
 Live telemetry ingestion across Domain Controllers, Entra ID sign-in logs, and Google audit records with automated plain-English translation and response recommendations.
-![Tab 4 - Multi-Source Security Event Triage](docs/screenshots/tab4-security-event-triage.png)
+
+**Dark Mode:**
+![Tab 4 - Multi-Source Security Event Triage (Dark Mode)](docs/screenshots/tab4-security-event-triage.png)
+
+**Light Mode:**
+![Tab 4 - Multi-Source Security Event Triage (Light Mode)](docs/screenshots/tab4-security-event-triage-light.png)
 
 ### Tab 5: Forensic Compliance Audit Trail
 Filterable, searchable audit logging with CSV field sanitization, recording every administrative operation locally for compliance, forensic verification, and insurance reporting.
-![Tab 5 - Forensic Compliance Audit Trail](docs/screenshots/tab5-forensic-audit-trail.png)
+
+**Dark Mode:**
+![Tab 5 - Forensic Compliance Audit Trail (Dark Mode)](docs/screenshots/tab5-forensic-audit-trail.png)
+
+**Light Mode:**
+![Tab 5 - Forensic Compliance Audit Trail (Light Mode)](docs/screenshots/tab5-forensic-audit-trail-light.png)
 
 ---
 

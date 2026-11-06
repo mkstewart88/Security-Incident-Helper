@@ -207,17 +207,17 @@ For high-severity or suspected Business Email Compromise (BEC) incidents:
 2. All administrative actions executed during the session are logged to `C:\ProgramData\IncidentResponse-Automator\AuditLog.csv`.
 3. Filter logs by typing in the search box or selecting a status filter (`SUCCESS`, `PARTIAL`, `FAILED`).
 4. Double-click or select an entry and click **Inspect Selected Entry** to view complete timestamp, operator, and API verification details.
-5. Click **Export to CSV...** to generate an executive report for cybersecurity insurance or compliance compliance documentation.
+5. Click **Export to CSV...** to generate an executive report for cybersecurity insurance or compliance documentation.
 
 ---
 
-## Technical Documentation
+## Technical Documentation & Guides
 
-For a comprehensive technical breakdown detailing internal LDAP queries, RFC 4511 protocol calls, Microsoft Graph REST endpoints, GAM7 commands, security event IDs, and DPI scaling engine internals, please refer to the extended documentation:
+For complete operator workflows, quick start instructions, and comprehensive technical architecture detailing internal LDAP queries, RFC 4511 protocol calls, Microsoft Graph REST endpoints, GAM7 commands, security event IDs, and DPI scaling engine internals:
 
-* **Quick Start Guide:** [`QUICK_START.md`](QUICK_START.md)
-* **Markdown Edition:** [`README-extended.md`](README-extended.md)
-* **Plain-Text Edition:** [`README-extended.txt`](README-extended.txt)
+* **Quick Start Guide:** [`QUICK_START.md`](QUICK_START.md) (Markdown) | [`QUICK_START.txt`](QUICK_START.txt) (Plain-Text)
+* **Extended Technical Manual:** [`README-extended.md`](README-extended.md) (Markdown) | [`README-extended.txt`](README-extended.txt) (Plain-Text)
+* **Offline Operator User Guide:** [`README.txt`](README.txt) (Plain-Text)
 
 ---
 

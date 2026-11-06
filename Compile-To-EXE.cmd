@@ -264,7 +264,7 @@ try {
         description  = 'Incident Response Console for Active Directory, Microsoft 365 and Google Workspace'
         company      = 'Security Incident Response Automator Contributors'
         product      = 'Security Incident Response Automator'
-        version      = '1.1.0.0'
+        version      = '1.1.5.0'
         requireAdmin = $true
     }
 

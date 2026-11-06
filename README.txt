@@ -128,6 +128,16 @@ STEP 8: COMPLIANCE AUDIT TRAIL (TAB 5)
   5. Click "Export to CSV..." to generate an incident report for compliance audits.
 
 ================================================================================
+AVAILABLE COMPANION DOCUMENTATION FILES:
+================================================================================
+- QUICK_START.md / QUICK_START.txt : Rapid deployment & launch options
+- README.md / README.txt           : Complete operator manual & visual walkthrough
+- README-extended.md / .txt        : In-depth technical architecture & API reference
+- CHANGELOG.md                     : Release history and feature timeline
+- DISCLAIMER.md / NOTICE / LICENSE : Legal terms, Apache 2.0 license & liability waiver
+- SECURITY.md                      : Security model, network architecture & self-patching policy
+
+================================================================================
 PERMISSIVE COMMERCIAL USE, FORKING & SHOUT-OUT POLICY:
 ================================================================================
 - OPEN USE & FORKING: Anyone is free to use, copy, modify, merge, publish,

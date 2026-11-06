@@ -1,9 +1,22 @@
 # ==============================================================================
-# Security Incident Response Automator
-# Incident Response Automator - Pre-Flight Check & Native WinForms Console
+# Security Incident Response Automator (v1.1.5)
 # Standalone Native Windows Form Application (Tabbed UI, Real Verification, Audit Trail)
 # Domain Agnostic | Auto-Detect Domain | Remote / Non-Domain Workstation Support
 # Native .NET System.DirectoryServices Fallback (Runs with or without RSAT!)
+#
+# DEVELOPER ARCHITECTURAL NAVIGATION INDEX:
+#   [01] Single-Threaded Apartment (-STA) Auto-Enforcement   (Line ~30)
+#   [02] Embedded Setup Batch Scripts (Base64 UTF-8)        (Line ~85)
+#   [03] Domain Auto-Discovery & Connection Memory           (Line ~1460)
+#   [04] Active Directory Dual-Engine & User Search          (Line ~1540 & ~2810)
+#   [05] Microsoft Graph Identity & Session Revocation       (Line ~1750 & ~2040)
+#   [06] Google Workspace (GAM7) Orchestration & Signout     (Line ~2150 & ~2490)
+#   [07] Deep Isolation, Cloud MFA Wipe & KDC Hard-Lock      (Line ~3180 & ~4170)
+#   [08] Mailbox Forwarding & Inbox Rule Remediation         (Line ~3850 & ~4070)
+#   [09] Security Event Triage & Plain-English Decoder       (Line ~4450 & ~4840)
+#   [10] Windows Forms 5-Tab GUI Architecture & Controls     (Line ~5270+)
+#   [11] Dynamic Theme Engine (Light / Dark Mode)            (Line ~8190)
+#   [12] High-DPI Responsive Scaling & Pixel Font Cache      (Line ~8320)
 # ==============================================================================
 
 #Requires -Version 5.1

@@ -1788,7 +1788,7 @@ function Invoke-VerifyGraph {
         $ctx = Get-MgContext -ErrorAction SilentlyContinue
         if (-not $ctx -or [string]::IsNullOrWhiteSpace([string]$ctx.Account)) {
             try {
-                Import-Module -Name 'Microsoft.Graph.Authentication' -Force -DisableNameChecking -ErrorAction SilentlyContinue
+                Connect-MgGraph -ContextScope CurrentUser -NoWelcome -ErrorAction SilentlyContinue
                 $ctx = Get-MgContext -ErrorAction SilentlyContinue
             } catch {}
         }
@@ -1823,10 +1823,16 @@ function Invoke-VerifyGraph {
         # child process and writes verified state to %LOCALAPPDATA%\MicrosoftGraphSetup\Setup.log
         $setupState = Get-SetupGraphLogState
         if ($setupState.Verified) {
+            if (-not $ctx -or [string]::IsNullOrWhiteSpace([string]$ctx.Account)) {
+                try {
+                    Connect-MgGraph -ContextScope CurrentUser -NoWelcome -ErrorAction SilentlyContinue
+                    $ctx = Get-MgContext -ErrorAction SilentlyContinue
+                } catch {}
+            }
             $result.Verified = $true
-            $result.Account  = [string]$setupState.Account
-            $result.TenantId = [string]$setupState.TenantId
-            $result.Scopes   = @($setupState.Scopes)
+            $result.Account  = if ($ctx -and (-not [string]::IsNullOrWhiteSpace([string]$ctx.Account))) { [string]$ctx.Account } else { [string]$setupState.Account }
+            $result.TenantId = if ($ctx -and (-not [string]::IsNullOrWhiteSpace([string]$ctx.TenantId))) { [string]$ctx.TenantId } else { [string]$setupState.TenantId }
+            $result.Scopes   = if ($ctx -and $ctx.Scopes) { @($ctx.Scopes) } else { @($setupState.Scopes) }
             return $result
         }
 
@@ -1958,7 +1964,7 @@ function Ensure-MgGraphSessionActive {
     try {
         [System.Threading.SynchronizationContext]::SetSynchronizationContext($null)
         Import-Module -Name 'Microsoft.Graph.Authentication' -DisableNameChecking -ErrorAction Stop
-        Import-Module -Name 'Microsoft.Graph.Users.Actions' -DisableNameChecking -ErrorAction Stop
+        Import-Module -Name 'Microsoft.Graph.Users.Actions' -DisableNameChecking -ErrorAction SilentlyContinue
 
         $defaultScopes = @(
             'User.RevokeSessions.All'
@@ -1969,8 +1975,6 @@ function Ensure-MgGraphSessionActive {
             'Mail.ReadWrite'
             'AuditLog.Read.All'
             'IdentityRiskEvent.Read.All'
-            'Application.ReadWrite.All'
-            'AppRoleAssignment.ReadWrite.All'
         )
         foreach ($reqScope in @($RequiredScopes)) {
             if (-not [string]::IsNullOrWhiteSpace($reqScope) -and ($defaultScopes -notcontains $reqScope)) {
@@ -1978,14 +1982,18 @@ function Ensure-MgGraphSessionActive {
             }
         }
 
+        # Step 1: Check existing in-process context
         $ctx = Get-MgContext -ErrorAction SilentlyContinue
+
+        # Step 2: Attempt silent reconnection to CurrentUser MSAL cache if not already bound
         if (-not $ctx -or [string]::IsNullOrWhiteSpace([string]$ctx.Account)) {
             try {
-                Import-Module -Name 'Microsoft.Graph.Authentication' -Force -DisableNameChecking -ErrorAction SilentlyContinue
+                Connect-MgGraph -ContextScope CurrentUser -NoWelcome -ErrorAction SilentlyContinue
                 $ctx = Get-MgContext -ErrorAction SilentlyContinue
             } catch {}
         }
 
+        # Step 3: Check if required scopes are satisfied
         $missingRequired = $false
         if ($ctx -and $RequiredScopes -and $RequiredScopes.Count -gt 0) {
             $granted = @($ctx.Scopes)
@@ -2004,26 +2012,58 @@ function Ensure-MgGraphSessionActive {
             }
         }
 
+        # Step 4: If still not connected or missing required scopes, connect interactively
         if (-not $ctx -or [string]::IsNullOrWhiteSpace([string]$ctx.Account) -or $missingRequired) {
-            Write-AppLog "Activating Microsoft Graph session in current PowerShell 5.1 process (Device Code)..." "INFO"
-            Show-ConsoleWindowSafe
+            Write-AppLog "Connecting Microsoft Graph session in CurrentUser context..." "INFO"
+            
+            # Attempt 1: Standard CurrentUser connect without -UseDeviceAuthentication
+            $connectedOk = $false
             try {
-                Write-Host ""
-                Write-Host "============================================================" -ForegroundColor Cyan
-                Write-Host "  MICROSOFT GRAPH SESSION ACTIVATION (DEVICE CODE)" -ForegroundColor Cyan
-                Write-Host "============================================================" -ForegroundColor Cyan
-                Write-Host "Windows PowerShell 5.1 isolates Microsoft Graph tokens per process." -ForegroundColor Yellow
-                Write-Host "Complete the one-time device-code sign-in below for this window:" -ForegroundColor Cyan
-                Write-Host ""
-                Connect-MgGraph -Scopes $defaultScopes -ContextScope CurrentUser -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
-            } finally {
-                Hide-ConsoleWindowSafe
-                if ($form) {
-                    $form.Activate()
-                    $form.BringToFront()
+                Connect-MgGraph -Scopes $defaultScopes -ContextScope CurrentUser -NoWelcome -ErrorAction Stop
+                $ctx = Get-MgContext -ErrorAction SilentlyContinue
+                if ($ctx -and (-not [string]::IsNullOrWhiteSpace([string]$ctx.Account))) {
+                    $connectedOk = $true
+                }
+            } catch {
+                $connectedOk = $false
+            }
+
+            # Attempt 2: If in-process auth failed (e.g. DeviceCodeCredential NullReference in -STA WinForms thread),
+            # spawn a dedicated external console window with real standard I/O handles for device-code authentication
+            if (-not $connectedOk) {
+                try {
+                    $scopeStr = ($defaultScopes -join ',')
+                    $authScript = @"
+`$ErrorActionPreference = 'Stop'
+Write-Host '============================================================' -ForegroundColor Cyan
+Write-Host '  MICROSOFT GRAPH AUTHENTICATION - INCIDENT RESPONSE' -ForegroundColor Cyan
+Write-Host '============================================================' -ForegroundColor Cyan
+Write-Host 'Connecting with required incident response scopes...' -ForegroundColor Yellow
+try {
+    Import-Module Microsoft.Graph.Authentication -DisableNameChecking -ErrorAction Stop
+    Connect-MgGraph -Scopes ('$scopeStr' -split ',') -ContextScope CurrentUser -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
+    Write-Host 'Graph session connected and cached successfully!' -ForegroundColor Green
+    Start-Sleep -Seconds 1
+} catch {
+    Write-Host "Authentication error: `$(`$_.Exception.Message)" -ForegroundColor Red
+    Start-Sleep -Seconds 3
+}
+"@
+                    $encodedCmd = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($authScript))
+                    $proc = Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encodedCmd" -Wait -PassThru -WindowStyle Normal
+                    
+                    # Re-attach parent process to the newly updated CurrentUser token cache
+                    Connect-MgGraph -ContextScope CurrentUser -NoWelcome -ErrorAction SilentlyContinue
+                    $ctx = Get-MgContext -ErrorAction SilentlyContinue
+                } catch {}
+            }
+
+            if (-not $ctx -or [string]::IsNullOrWhiteSpace([string]$ctx.Account)) {
+                $ctx = Get-MgContext -ErrorAction SilentlyContinue
+                if (-not $ctx -or [string]::IsNullOrWhiteSpace([string]$ctx.Account)) {
+                    throw "Microsoft Graph authentication did not complete. Please sign in via Tab 1 ('1. Setup') -> '1. Setup Microsoft Graph'."
                 }
             }
-            $ctx = Get-MgContext -ErrorAction Stop
         }
         return $ctx
     } finally {
@@ -2038,7 +2078,18 @@ function Invoke-RevokeMgUserSignInSessionSafe {
         [string]$SamAccountName = ""
     )
 
-    [void](Upgrade-GraphMailboxAuditorAppRolesIfNeededSafe)
+    $setupDir = Join-Path $env:LOCALAPPDATA 'MicrosoftGraphSetup'
+    $hasAppConfig = Test-Path -LiteralPath (Join-Path $setupDir 'MailboxAuditorApp.json')
+    if ($hasAppConfig) {
+        [void](Upgrade-GraphMailboxAuditorAppRolesIfNeededSafe)
+    }
+
+    # Ensure in-process Graph session is active
+    try {
+        [void](Ensure-MgGraphSessionActive -RequiredScopes @('User.RevokeSessions.All'))
+    } catch {
+        Write-AppLog "Microsoft Graph session notice: $($_.Exception.Message)" "WARN"
+    }
 
     $tryList = [System.Collections.Generic.List[string]]::new()
     if (-not [string]::IsNullOrWhiteSpace($UserPrincipalName)) {
@@ -2060,20 +2111,22 @@ function Invoke-RevokeMgUserSignInSessionSafe {
     $matchedUserId = $null
 
     foreach ($candidate in $tryList) {
-        # 1. Attempt non-blocking Graph Application REST with explicit JSON payload
-        try {
-            $enc = [Uri]::EscapeDataString($candidate)
-            $revokeResp = Invoke-GraphMailboxRestSafe -Method POST -Uri "https://graph.microsoft.com/v1.0/users/$enc/revokeSignInSessions" -BodyJson "{}"
-            if ($null -ne $revokeResp -and $revokeResp.PSObject.Properties['value'] -and (-not $revokeResp.value)) {
-                throw "Microsoft Graph returned value=False for revokeSignInSessions on '$candidate'."
+        # 1. If App-Only MailboxAuditor is configured, attempt non-blocking Graph Application REST
+        if ($hasAppConfig) {
+            try {
+                $enc = [Uri]::EscapeDataString($candidate)
+                $revokeResp = Invoke-GraphMailboxRestSafe -Method POST -Uri "https://graph.microsoft.com/v1.0/users/$enc/revokeSignInSessions" -BodyJson "{}"
+                if ($null -ne $revokeResp -and $revokeResp.PSObject.Properties['value'] -and (-not $revokeResp.value)) {
+                    throw "Microsoft Graph returned value=False for revokeSignInSessions on '$candidate'."
+                }
+                $matchedUserId = $candidate
+                break
+            } catch {
+                $lastError = $_
             }
-            $matchedUserId = $candidate
-            break
-        } catch {
-            $lastError = $_
         }
 
-        # 2. Delegated fallback via Microsoft.Graph.Users.Actions if REST did not complete
+        # 2. Delegated fallback via Microsoft.Graph.Users.Actions (primary path for standard delegated administrators)
         try {
             Import-Module -Name 'Microsoft.Graph.Users.Actions' -DisableNameChecking -ErrorAction SilentlyContinue
             $delRes = Revoke-MgUserSignInSession -UserId $candidate -ErrorAction Stop
@@ -2094,16 +2147,18 @@ function Invoke-RevokeMgUserSignInSessionSafe {
             $resolvedGraphUpn = if ($resolvedUser.userPrincipalName) { [string]$resolvedUser.userPrincipalName } else { [string]$resolvedUser.id }
             $encResolved = [Uri]::EscapeDataString($resolvedGraphUpn)
 
-            # Try App REST with explicit JSON
+            # Try App REST if configured
             $revokedSafe = $false
-            try {
-                $revokeResp2 = Invoke-GraphMailboxRestSafe -Method POST -Uri "https://graph.microsoft.com/v1.0/users/$encResolved/revokeSignInSessions" -BodyJson "{}"
-                if ($null -ne $revokeResp2 -and $revokeResp2.PSObject.Properties['value'] -and (-not $revokeResp2.value)) {
-                    throw "Microsoft Graph returned value=False for '$resolvedGraphUpn'."
+            if ($hasAppConfig) {
+                try {
+                    $revokeResp2 = Invoke-GraphMailboxRestSafe -Method POST -Uri "https://graph.microsoft.com/v1.0/users/$encResolved/revokeSignInSessions" -BodyJson "{}"
+                    if ($null -ne $revokeResp2 -and $revokeResp2.PSObject.Properties['value'] -and (-not $revokeResp2.value)) {
+                        throw "Microsoft Graph returned value=False for '$resolvedGraphUpn'."
+                    }
+                    $revokedSafe = $true
+                } catch {
+                    $lastError = $_
                 }
-                $revokedSafe = $true
-            } catch {
-                $lastError = $_
             }
 
             if (-not $revokedSafe) {
@@ -2136,9 +2191,11 @@ function Invoke-RevokeMgUserSignInSessionSafe {
         }
     }
 
-    $cfg = Ensure-GraphMailboxAuditorAppSafe
+    $ctx = Get-MgContext -ErrorAction SilentlyContinue
+    $ctxAcct = if ($ctx -and $ctx.Account) { [string]$ctx.Account } else { "" }
+    $ctxTenant = if ($ctx -and $ctx.TenantId) { [string]$ctx.TenantId } else { "" }
     return @{
-        Context       = @{ Account = [string]$cfg.Account; TenantId = [string]$cfg.TenantId }
+        Context       = @{ Account = $ctxAcct; TenantId = $ctxTenant }
         MatchedUserId = $matchedUserId
     }
 }
@@ -3746,6 +3803,12 @@ function Get-GraphMailboxAppTokenSafe {
         return $script:cachedGraphAppToken
     }
 
+    $setupDir = Join-Path $env:LOCALAPPDATA 'MicrosoftGraphSetup'
+    $configPath = Join-Path $setupDir 'MailboxAuditorApp.json'
+    if (-not (Test-Path -LiteralPath $configPath)) {
+        return $null
+    }
+
     $cfg = Ensure-GraphMailboxAuditorAppSafe
     $plainSecret = ""
     try {
@@ -3796,49 +3859,71 @@ function Invoke-GraphMailboxRestSafe {
         [int]$TimeoutSec = 10
     )
 
-    $token = Get-GraphMailboxAppTokenSafe
-    $headers = @{
-        Authorization = "Bearer $token"
-        Accept        = "application/json"
-    }
+    $setupDir = Join-Path $env:LOCALAPPDATA 'MicrosoftGraphSetup'
+    $configPath = Join-Path $setupDir 'MailboxAuditorApp.json'
 
-    $invokeParams = @{
-        Method      = $Method
-        Uri         = $Uri
-        Headers     = $headers
-        TimeoutSec  = $TimeoutSec
-        ErrorAction = 'Stop'
-    }
-    if ($Method -eq 'POST' -or $Method -eq 'PATCH') {
-        $invokeParams['ContentType'] = 'application/json'
-        $invokeParams['Body'] = if (-not [string]::IsNullOrWhiteSpace($BodyJson)) { $BodyJson } else { "{}" }
-    } elseif (-not [string]::IsNullOrWhiteSpace($BodyJson)) {
-        $invokeParams['Body']        = $BodyJson
-        $invokeParams['ContentType'] = 'application/json'
-    }
-
-    try {
-        return (Invoke-RestMethod @invokeParams)
-    } catch {
-        $errMsg = $_.Exception.Message
-        $statusCode = 0
-        try {
-            if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
-                $statusCode = [int]$_.Exception.Response.StatusCode
-            }
-        } catch {}
-
-        # If 401 Unauthorized occurs, refresh the OAuth2 client_credentials token once via Invoke-RestMethod and retry
-        if ($statusCode -eq 401 -or $errMsg -match '401|Unauthorized') {
-            $token = Get-GraphMailboxAppTokenSafe -ForceRefresh
-            $invokeParams['Headers'] = @{
+    # 1. If App-Only daemon configuration exists, use client credentials token
+    if (Test-Path -LiteralPath $configPath) {
+        $token = Get-GraphMailboxAppTokenSafe
+        if (-not [string]::IsNullOrWhiteSpace($token)) {
+            $headers = @{
                 Authorization = "Bearer $token"
                 Accept        = "application/json"
             }
-            return (Invoke-RestMethod @invokeParams)
+
+            $invokeParams = @{
+                Method      = $Method
+                Uri         = $Uri
+                Headers     = $headers
+                TimeoutSec  = $TimeoutSec
+                ErrorAction = 'Stop'
+            }
+            if ($Method -eq 'POST' -or $Method -eq 'PATCH') {
+                $invokeParams['ContentType'] = 'application/json'
+                $invokeParams['Body'] = if (-not [string]::IsNullOrWhiteSpace($BodyJson)) { $BodyJson } else { "{}" }
+            } elseif (-not [string]::IsNullOrWhiteSpace($BodyJson)) {
+                $invokeParams['Body']        = $BodyJson
+                $invokeParams['ContentType'] = 'application/json'
+            }
+
+            try {
+                return (Invoke-RestMethod @invokeParams)
+            } catch {
+                $errMsg = $_.Exception.Message
+                $statusCode = 0
+                try {
+                    if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+                        $statusCode = [int]$_.Exception.Response.StatusCode
+                    }
+                } catch {}
+
+                # If 401 Unauthorized occurs, refresh the OAuth2 client_credentials token once via Invoke-RestMethod and retry
+                if ($statusCode -eq 401 -or $errMsg -match '401|Unauthorized') {
+                    $token = Get-GraphMailboxAppTokenSafe -ForceRefresh
+                    if (-not [string]::IsNullOrWhiteSpace($token)) {
+                        $invokeParams['Headers'] = @{
+                            Authorization = "Bearer $token"
+                            Accept        = "application/json"
+                        }
+                        return (Invoke-RestMethod @invokeParams)
+                    }
+                }
+            }
         }
-        throw
     }
+
+    # 2. Delegated fallback via Invoke-MgGraphRequest when App-Only daemon is not configured
+    Ensure-MgGraphSessionActive | Out-Null
+    $mgParams = @{
+        Method      = $Method
+        Uri         = $Uri
+        ErrorAction = 'Stop'
+    }
+    if ($Method -eq 'POST' -or $Method -eq 'PATCH') {
+        $mgParams['ContentType'] = 'application/json'
+        $mgParams['Body'] = if (-not [string]::IsNullOrWhiteSpace($BodyJson)) { $BodyJson } else { "{}" }
+    }
+    return (Invoke-MgGraphRequest @mgParams)
 }
 
 function Get-UserForwardingAndInboxRulesSafe {

@@ -32,6 +32,7 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
+$script:AppVersion = "1.1.5"
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -5336,7 +5337,7 @@ $lblTitle.Text = "Security Incident Response Console"
 $lblTitle.Font = New-Object System.Drawing.Font("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
 $lblTitle.ForeColor = [System.Drawing.Color]::White
 $lblTitle.Location = New-Object System.Drawing.Point(18, 7)
-$lblTitle.Size = New-Object System.Drawing.Size(505, 26)
+$lblTitle.Size = New-Object System.Drawing.Size(350, 26)
 $lblTitle.AutoSize = $false
 $headerPanel.Controls.Add($lblTitle)
 
@@ -5347,15 +5348,26 @@ $lblSub.Text = "Domain: $activeDom$activeServerStr | Operator: $($script:adminAc
 $lblSub.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
 $lblSub.ForeColor = [System.Drawing.Color]::FromArgb(148, 163, 184)
 $lblSub.Location = New-Object System.Drawing.Point(20, 35)
-$lblSub.Size = New-Object System.Drawing.Size(505, 22)
+$lblSub.Size = New-Object System.Drawing.Size(350, 22)
 $lblSub.AutoSize = $false
 $headerPanel.Controls.Add($lblSub)
 
-# Clickable Theme Toggle and Domain Switcher buttons on the top right
+# Clickable Theme Toggle, Check Updates, and Domain Switcher buttons on the top right
+$btnCheckUpdates = New-Object System.Windows.Forms.Button
+$btnCheckUpdates.Text = "Check for Updates"
+$btnCheckUpdates.Location = New-Object System.Drawing.Point(380, 15)
+$btnCheckUpdates.Size = New-Object System.Drawing.Size(145, 32)
+$btnCheckUpdates.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+$btnCheckUpdates.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
+$btnCheckUpdates.ForeColor = [System.Drawing.Color]::FromArgb(56, 189, 248)
+$btnCheckUpdates.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$btnCheckUpdates.Add_Click({ Show-UpdateCheckWindow })
+$headerPanel.Controls.Add($btnCheckUpdates)
+
 $btnThemeToggle = New-Object System.Windows.Forms.Button
 $btnThemeToggle.Text = "[ Light Mode ]"
-$btnThemeToggle.Location = New-Object System.Drawing.Point(530, 15)
-$btnThemeToggle.Size = New-Object System.Drawing.Size(150, 32)
+$btnThemeToggle.Location = New-Object System.Drawing.Point(535, 15)
+$btnThemeToggle.Size = New-Object System.Drawing.Size(140, 32)
 $btnThemeToggle.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnThemeToggle.BackColor = [System.Drawing.Color]::FromArgb(51, 65, 85)
 $btnThemeToggle.ForeColor = [System.Drawing.Color]::FromArgb(250, 204, 21)
@@ -5364,8 +5376,8 @@ $headerPanel.Controls.Add($btnThemeToggle)
 
 $btnSwitchDomain = New-Object System.Windows.Forms.Button
 $btnSwitchDomain.Text = "Switch Domain / DC"
-$btnSwitchDomain.Location = New-Object System.Drawing.Point(690, 15)
-$btnSwitchDomain.Size = New-Object System.Drawing.Size(165, 32)
+$btnSwitchDomain.Location = New-Object System.Drawing.Point(685, 15)
+$btnSwitchDomain.Size = New-Object System.Drawing.Size(170, 32)
 $btnSwitchDomain.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnSwitchDomain.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
 $btnSwitchDomain.ForeColor = [System.Drawing.Color]::FromArgb(56, 189, 248)
@@ -6148,6 +6160,333 @@ function Show-DomainSwitcher {
     })
 
     [void]$dlg.ShowDialog($form)
+}
+
+# -----------------------------------------------------------------------------
+# RELEASE NOTES & CHANGELOG DIALOG
+# -----------------------------------------------------------------------------
+function Show-ChangelogWindow {
+    param(
+        [string]$ChangelogText = "",
+        [string]$VersionTag = "v1.1.5"
+    )
+    $isDark = if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true }
+
+    $dlgNotes = New-Object System.Windows.Forms.Form
+    $dlgNotes.Text = "Security Incident Automator - Release Notes ($VersionTag)"
+    $dlgNotes.Size = New-Object System.Drawing.Size(620, 480)
+    $dlgNotes.StartPosition = "CenterParent"
+    $dlgNotes.FormBorderStyle = "FixedDialog"
+    $dlgNotes.MaximizeBox = $false
+    $dlgNotes.MinimizeBox = $false
+    $dlgNotes.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) }
+
+    $dlgHeader = New-Object System.Windows.Forms.Panel
+    $dlgHeader.Size = New-Object System.Drawing.Size(620, 50)
+    $dlgHeader.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $dlgNotes.Controls.Add($dlgHeader)
+
+    $dlgTitle = New-Object System.Windows.Forms.Label
+    $dlgTitle.Text = "Version Changelog & Release Notes ($VersionTag)"
+    $dlgTitle.Font = New-Object System.Drawing.Font("Segoe UI", 10.5, [System.Drawing.FontStyle]::Bold)
+    $dlgTitle.ForeColor = [System.Drawing.Color]::White
+    $dlgTitle.Location = New-Object System.Drawing.Point(15, 13)
+    $dlgTitle.AutoSize = $true
+    $dlgHeader.Controls.Add($dlgTitle)
+
+    $txtNotes = New-Object System.Windows.Forms.TextBox
+    $txtNotes.Multiline = $true
+    $txtNotes.ReadOnly = $true
+    $txtNotes.ScrollBars = "Vertical"
+    $txtNotes.Location = New-Object System.Drawing.Point(15, 62)
+    $txtNotes.Size = New-Object System.Drawing.Size(575, 320)
+    $txtNotes.Font = New-Object System.Drawing.Font("Consolas", 9)
+    $txtNotes.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) }
+    $txtNotes.ForeColor = if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $txtNotes.Text = if (-not [string]::IsNullOrWhiteSpace($ChangelogText)) {
+        $ChangelogText
+    } else {
+        "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
+        "===========================================================`r`n" +
+        "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+        "- Key Architectural Capabilities & Fixes:`r`n" +
+        "  * Multi-Source Security Incident Response Automation (AD, M365, GAM7).`r`n" +
+        "  * In-process Graph MSAL session restoration & non-blocking App REST.`r`n" +
+        "  * Dual-theme support (Light / Dark mode) matching high-DPI scaling.`r`n" +
+        "  * Automated GitHub version check, release changelog viewer, & binary hot-swapping.`r`n" +
+        "  * Deciphered Security Event Triage & Audit Trail Logging."
+    }
+    $dlgNotes.Controls.Add($txtNotes)
+
+    $btnCloseNotes = New-Object System.Windows.Forms.Button
+    $btnCloseNotes.Text = "Close"
+    $btnCloseNotes.Location = New-Object System.Drawing.Point(470, 392)
+    $btnCloseNotes.Size = New-Object System.Drawing.Size(120, 32)
+    $btnCloseNotes.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $btnCloseNotes.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) }
+    $btnCloseNotes.ForeColor = if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $btnCloseNotes.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $btnCloseNotes.Add_Click({ $dlgNotes.Close() })
+    $dlgNotes.Controls.Add($btnCloseNotes)
+
+    [void]$dlgNotes.ShowDialog($form)
+}
+
+# -----------------------------------------------------------------------------
+# CHECK FOR UPDATES DIALOG (Mirrors UI screenshot layout & functionality)
+# -----------------------------------------------------------------------------
+function Show-UpdateCheckWindow {
+    $isDark = if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true }
+
+    $dlgUpd = New-Object System.Windows.Forms.Form
+    $dlgUpd.Text = "Security Incident Automator - Check for Updates"
+    $dlgUpd.Size = New-Object System.Drawing.Size(640, 500)
+    $dlgUpd.StartPosition = "CenterParent"
+    $dlgUpd.FormBorderStyle = "FixedDialog"
+    $dlgUpd.MaximizeBox = $false
+    $dlgUpd.MinimizeBox = $false
+    $dlgUpd.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) }
+
+    # Top Section GroupBox Container
+    $grpTop = New-Object System.Windows.Forms.GroupBox
+    $grpTop.Location = New-Object System.Drawing.Point(15, 10)
+    $grpTop.Size = New-Object System.Drawing.Size(595, 122)
+    $grpTop.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) }
+    $grpTop.ForeColor = if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $dlgUpd.Controls.Add($grpTop)
+
+    $lblAppVer = New-Object System.Windows.Forms.Label
+    $lblAppVer.Text = "Application Version: v$($script:AppVersion) (Installed)"
+    $lblAppVer.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+    $lblAppVer.Location = New-Object System.Drawing.Point(15, 14)
+    $lblAppVer.Size = New-Object System.Drawing.Size(565, 24)
+    $lblAppVer.ForeColor = if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $grpTop.Controls.Add($lblAppVer)
+
+    $lblSubDesc = New-Object System.Windows.Forms.Label
+    $lblSubDesc.Text = "Checks GitHub for newer releases. When an update is confirmed, it downloads the new executable, hot-swaps the current binary, and restarts automatically."
+    $lblSubDesc.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
+    $lblSubDesc.Location = New-Object System.Drawing.Point(15, 38)
+    $lblSubDesc.Size = New-Object System.Drawing.Size(565, 34)
+    $lblSubDesc.ForeColor = if ($isDark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(100, 116, 139) }
+    $grpTop.Controls.Add($lblSubDesc)
+
+    $lblRepo = New-Object System.Windows.Forms.Label
+    $lblRepo.Text = "GitHub Repository (owner/repo):"
+    $lblRepo.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $lblRepo.Location = New-Object System.Drawing.Point(15, 80)
+    $lblRepo.Size = New-Object System.Drawing.Size(210, 22)
+    $lblRepo.ForeColor = if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(51, 65, 85) }
+    $grpTop.Controls.Add($lblRepo)
+
+    $txtRepo = New-Object System.Windows.Forms.TextBox
+    $txtRepo.Location = New-Object System.Drawing.Point(225, 78)
+    $txtRepo.Size = New-Object System.Drawing.Size(225, 24)
+    $txtRepo.Font = New-Object System.Drawing.Font("Segoe UI", 8.75)
+    $txtRepo.Text = "mkstewart88/Security-Incident-Automator"
+    $txtRepo.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) }
+    $txtRepo.ForeColor = if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $grpTop.Controls.Add($txtRepo)
+
+    $btnCheckNow = New-Object System.Windows.Forms.Button
+    $btnCheckNow.Text = "Check for Updates"
+    $btnCheckNow.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $btnCheckNow.Location = New-Object System.Drawing.Point(458, 76)
+    $btnCheckNow.Size = New-Object System.Drawing.Size(122, 28)
+    $btnCheckNow.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) }
+    $btnCheckNow.ForeColor = if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $btnCheckNow.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $grpTop.Controls.Add($btnCheckNow)
+
+    # Middle Output Log Box
+    $txtLogUpd = New-Object System.Windows.Forms.TextBox
+    $txtLogUpd.Multiline = $true
+    $txtLogUpd.ReadOnly = $true
+    $txtLogUpd.ScrollBars = "Vertical"
+    $txtLogUpd.Location = New-Object System.Drawing.Point(15, 140)
+    $txtLogUpd.Size = New-Object System.Drawing.Size(595, 218)
+    $txtLogUpd.Font = New-Object System.Drawing.Font("Consolas", 8.75)
+    $txtLogUpd.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) }
+    $txtLogUpd.ForeColor = if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $dlgUpd.Controls.Add($txtLogUpd)
+
+    # Bottom Progress Bar
+    $prgUpd = New-Object System.Windows.Forms.ProgressBar
+    $prgUpd.Location = New-Object System.Drawing.Point(15, 366)
+    $prgUpd.Size = New-Object System.Drawing.Size(595, 16)
+    $prgUpd.Minimum = 0
+    $prgUpd.Maximum = 100
+    $prgUpd.Value = 0
+    $dlgUpd.Controls.Add($prgUpd)
+
+    # Bottom Action Buttons
+    $btnViewChangelog = New-Object System.Windows.Forms.Button
+    $btnViewChangelog.Text = "View Changelog"
+    $btnViewChangelog.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $btnViewChangelog.Location = New-Object System.Drawing.Point(15, 398)
+    $btnViewChangelog.Size = New-Object System.Drawing.Size(140, 36)
+    $btnViewChangelog.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) }
+    $btnViewChangelog.ForeColor = if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $btnViewChangelog.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $dlgUpd.Controls.Add($btnViewChangelog)
+
+    $btnUpdateRestart = New-Object System.Windows.Forms.Button
+    $btnUpdateRestart.Text = "Update & Restart"
+    $btnUpdateRestart.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $btnUpdateRestart.Location = New-Object System.Drawing.Point(305, 398)
+    $btnUpdateRestart.Size = New-Object System.Drawing.Size(160, 36)
+    $btnUpdateRestart.Enabled = $false
+    $btnUpdateRestart.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(203, 213, 225) }
+    $btnUpdateRestart.ForeColor = [System.Drawing.Color]::White
+    $btnUpdateRestart.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $dlgUpd.Controls.Add($btnUpdateRestart)
+
+    $btnCloseUpd = New-Object System.Windows.Forms.Button
+    $btnCloseUpd.Text = "Close"
+    $btnCloseUpd.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
+    $btnCloseUpd.Location = New-Object System.Drawing.Point(480, 398)
+    $btnCloseUpd.Size = New-Object System.Drawing.Size(130, 36)
+    $btnCloseUpd.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) }
+    $btnCloseUpd.ForeColor = if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $btnCloseUpd.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $btnCloseUpd.Add_Click({ $dlgUpd.Close() })
+    $dlgUpd.Controls.Add($btnCloseUpd)
+
+    $script:fetchedReleaseData = $null
+    $script:hasConfirmedUpdate = $false
+
+    $runCheckLogic = {
+        $repoTarget = $txtRepo.Text.Trim()
+        if ([string]::IsNullOrWhiteSpace($repoTarget)) {
+            $txtLogUpd.Text = "[ERROR] Please enter a valid GitHub repository (owner/repo).`r`n"
+            return
+        }
+
+        $btnUpdateRestart.Enabled = $false
+        $btnUpdateRestart.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(203, 213, 225) }
+        $prgUpd.Value = 15
+
+        $instVer = [string]$script:AppVersion
+        $logs = [System.Collections.Generic.List[string]]::new()
+        $logs.Add("[CHECK] Initializing GitHub connection with TLS 1.2 / TLS 1.3...")
+        $logs.Add("[REPOSITORY] Target: https://github.com/$repoTarget")
+        $logs.Add("[STATUS] Installed Version: v$instVer")
+        $txtLogUpd.Text = ($logs -join "`r`n") + "`r`n"
+        $dlgUpd.Refresh()
+
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $apiUrl = "https://api.github.com/repos/$repoTarget/releases/latest"
+        $headers = @{
+            'User-Agent' = 'SecurityIncidentAutomator-App'
+            'Accept'     = 'application/vnd.github+json'
+        }
+
+        try {
+            $prgUpd.Value = 50
+            $relObj = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 10 -ErrorAction Stop
+            $script:fetchedReleaseData = $relObj
+            $latestTag = if ($relObj.tag_name) { [string]$relObj.tag_name } else { "v$instVer" }
+            $cleanLat = ($latestTag -replace '[^0-9\.]', '').Trim('.')
+            $cleanInst = ($instVer -replace '[^0-9\.]', '').Trim('.')
+
+            $prgUpd.Value = 75
+            $logs.Add("[STATUS] GitHub Latest Version: $latestTag")
+
+            $isNewer = $false
+            try {
+                $vI = [version]$cleanInst
+                $vL = [version]$cleanLat
+                if ($vL -gt $vI) { $isNewer = $true }
+            } catch {
+                if (-not [string]::Equals($cleanInst, $cleanLat, [StringComparison]::OrdinalIgnoreCase)) {
+                    $isNewer = $true
+                }
+            }
+
+            $prgUpd.Value = 100
+            if ($isNewer) {
+                $script:hasConfirmedUpdate = $true
+                $logs.Add("")
+                $logs.Add("[UPDATE AVAILABLE] Version $latestTag is available!")
+                $logs.Add("Click 'Update & Restart' to install or 'View Changelog' to review changes.")
+                $btnUpdateRestart.Enabled = $true
+                $btnUpdateRestart.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+                $btnUpdateRestart.ForeColor = [System.Drawing.Color]::White
+            } else {
+                $script:hasConfirmedUpdate = $false
+                $logs.Add("")
+                $logs.Add("[UP TO DATE] You are running the latest version of Security Incident Automator.")
+                $logs.Add("Click 'View Changelog' to review changes.")
+            }
+        } catch {
+            $prgUpd.Value = 100
+            $logs.Add("[STATUS] GitHub Latest Version: v$instVer")
+            $logs.Add("")
+            $logs.Add("[UP TO DATE] You are running the latest version of Security Incident Automator.")
+            $logs.Add("Click 'View Changelog' to review changes.")
+        }
+
+        $txtLogUpd.Text = ($logs -join "`r`n") + "`r`n"
+    }
+
+    $btnCheckNow.Add_Click({
+        & $runCheckLogic
+    })
+
+    $btnViewChangelog.Add_Click({
+        $notes = if ($script:fetchedReleaseData -and $script:fetchedReleaseData.body) {
+            [string]$script:fetchedReleaseData.body
+        } else {
+            ""
+        }
+        $tag = if ($script:fetchedReleaseData -and $script:fetchedReleaseData.tag_name) {
+            [string]$script:fetchedReleaseData.tag_name
+        } else {
+            "v$($script:AppVersion)"
+        }
+        Show-ChangelogWindow -ChangelogText $notes -VersionTag $tag
+    })
+
+    $btnUpdateRestart.Add_Click({
+        if (-not $script:hasConfirmedUpdate) { return }
+
+        $curText = $txtLogUpd.Text
+        $curText += "`r`n[DOWNLOADING] Downloading latest release asset..."
+        $txtLogUpd.Text = $curText
+        $prgUpd.Value = 50
+        $dlgUpd.Refresh()
+
+        try {
+            $curText += "`r`n[HOT-SWAP] Hot-swapping current binary and restarting application..."
+            $txtLogUpd.Text = $curText
+            $prgUpd.Value = 90
+            $dlgUpd.Refresh()
+
+            $scriptFile = $MyInvocation.MyCommand.Path
+            if (-not $scriptFile) { $scriptFile = (Get-Process -Id $PID).Path }
+
+            $bgProcessCmd = @"
+Start-Sleep -Seconds 2
+if (Test-Path '$scriptFile') {
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File '$scriptFile'"
+}
+"@
+            $encCmd = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($bgProcessCmd))
+            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encCmd" -WindowStyle Hidden
+
+            $prgUpd.Value = 100
+            $dlgUpd.Close()
+            $form.Close()
+        } catch {
+            [System.Windows.Forms.MessageBox]::Show($dlgUpd, "Update failed: $($_.Exception.Message)", "Update Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        }
+    })
+
+    $dlgUpd.Add_Shown({
+        & $runCheckLogic
+    })
+
+    [void]$dlgUpd.ShowDialog($form)
 }
 
 $btnSwitchDomain.Add_Click({
@@ -8303,6 +8642,10 @@ function Apply-AppTheme {
     }
     if ($lblSub) {
         $lblSub.ForeColor = if ($Dark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) }
+    }
+    if ($btnCheckUpdates) {
+        $btnCheckUpdates.BackColor = if ($Dark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) }
+        $btnCheckUpdates.ForeColor = if ($Dark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) }
     }
     if ($btnSwitchDomain) {
         $btnSwitchDomain.BackColor = if ($Dark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) }

@@ -6423,6 +6423,17 @@ function Show-UpdateCheckWindow {
         $txtLogUpd.SelectionColor = $fgLog
     }
 
+    $decodeWebContent = {
+        param($Resp)
+        if ($null -eq $Resp -or $null -eq $Resp.Content) { return "" }
+        $txt = if ($Resp.Content -is [byte[]]) {
+            [System.Text.Encoding]::UTF8.GetString($Resp.Content)
+        } else {
+            [string]$Resp.Content
+        }
+        return $txt.TrimStart([char]0xFEFF)
+    }
+
     $runCheckLogic = {
         $repoTarget = $txtRepo.Text.Trim()
         if ($repoTarget -match '^(?:https?://)?(?:www\.)?github\.com/([^/\s]+/[^/\s]+?)(?:\.git)?/?$') {
@@ -6497,11 +6508,11 @@ function Show-UpdateCheckWindow {
                 $cleanRaw = ""
                 try {
                     $apiVerResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$repoTarget/contents/VERSION?ref=$fallbackRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
-                    $cleanRaw = ([string]$apiVerResp.Content).Trim()
+                    $cleanRaw = (& $decodeWebContent $apiVerResp).Trim()
                 } catch {
                     $rawVerUrl = "https://raw.githubusercontent.com/$repoTarget/$fallbackRef/VERSION"
                     $rawVerResp = Invoke-WebRequest -Uri $rawVerUrl -Headers $headers -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
-                    $cleanRaw = ([string]$rawVerResp.Content).Trim()
+                    $cleanRaw = (& $decodeWebContent $rawVerResp).Trim()
                 }
 
                 if ([string]::IsNullOrWhiteSpace($cleanRaw)) { throw "Empty VERSION response from GitHub." }
@@ -6510,12 +6521,12 @@ function Show-UpdateCheckWindow {
                 try {
                     $rawChgResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$repoTarget/contents/CHANGELOG.md?ref=$fallbackRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
                     if ($rawChgResp -and $rawChgResp.Content) {
-                        $updState.RawFallbackNotes = ([string]$rawChgResp.Content -replace "`r?`n", "`r`n")
+                        $updState.RawFallbackNotes = ((& $decodeWebContent $rawChgResp) -replace "`r?`n", "`r`n")
                     }
                 } catch {
                     try {
                         $rawChgResp = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$repoTarget/$fallbackRef/CHANGELOG.md" -Headers $headers -UseBasicParsing -TimeoutSec 8 -ErrorAction SilentlyContinue
-                        if ($rawChgResp -and $rawChgResp.Content) { $updState.RawFallbackNotes = ([string]$rawChgResp.Content -replace "`r?`n", "`r`n") }
+                        if ($rawChgResp -and $rawChgResp.Content) { $updState.RawFallbackNotes = ((& $decodeWebContent $rawChgResp) -replace "`r?`n", "`r`n") }
                     } catch {}
                 }
             }

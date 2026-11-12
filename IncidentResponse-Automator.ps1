@@ -6598,9 +6598,11 @@ function Show-UpdateCheckWindow {
         $btnCheckNow.Enabled = $false
         & $appendUpdLine "" $fgLog
         & $appendUpdLine "[DOWNLOADING] Fetching latest release from GitHub..." $fgLog
-        $prgUpd.Value = 25
+        $prgUpd.Value = 20
         $dlgUpd.Refresh()
 
+        $stageDir = $null
+        $buildWorkDir = $null
         try {
             [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
             $procPath = (Get-Process -Id $PID).Path
@@ -6612,36 +6614,153 @@ function Show-UpdateCheckWindow {
                 $updState.LatestTag
             }
 
+            $psExe = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+            if (-not (Test-Path -LiteralPath $psExe)) { $psExe = "powershell.exe" }
+            $dlHeaders = @{
+                'User-Agent'    = 'SecurityIncidentAutomator-App'
+                'Cache-Control' = 'no-cache'
+            }
+
             $stageDir = Join-Path $env:TEMP ("IRAutomatorUpdate_" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
             New-Item -Path $stageDir -ItemType Directory -Force | Out-Null
+            $swapPs1 = Join-Path $env:TEMP ("IRAutomatorSwap_" + [Guid]::NewGuid().ToString("N").Substring(0, 8) + ".ps1")
 
             if ($isCompiledExe) {
+                $procDir = Split-Path -Parent $procPath
+                $buildWorkDir = $stageDir
+                try {
+                    $candidateDir = Join-Path $procDir ("_upd_" + [Guid]::NewGuid().ToString("N").Substring(0, 6))
+                    New-Item -Path $candidateDir -ItemType Directory -Force | Out-Null
+                    $buildWorkDir = $candidateDir
+                    $swapPs1 = Join-Path $buildWorkDir "apply_swap.ps1"
+                } catch {
+                    $buildWorkDir = $stageDir
+                }
+
                 $exeAsset = $null
                 if ($updState.ReleaseData -and $updState.ReleaseData.assets) {
                     $exeAsset = $updState.ReleaseData.assets | Where-Object { $_.name -match '\.exe$' } | Select-Object -First 1
                 }
-                if (-not $exeAsset -or [string]::IsNullOrWhiteSpace($exeAsset.browser_download_url)) {
-                    throw "No compiled .exe asset found on GitHub release '$refName'. Attach IncidentResponse.exe to a GitHub Release, or run via Launch-IncidentAutomator.bat to auto-update directly from main."
-                }
 
                 $stagedExe = "$procPath.new"
-                Invoke-WebRequest -Uri $exeAsset.browser_download_url -OutFile $stagedExe -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
-                $prgUpd.Value = 75
-                $dlgUpd.Refresh()
+                if (Test-Path -LiteralPath $stagedExe) {
+                    Remove-Item -LiteralPath $stagedExe -Force -ErrorAction SilentlyContinue
+                }
+
+                if ($exeAsset -and (-not [string]::IsNullOrWhiteSpace($exeAsset.browser_download_url))) {
+                    Invoke-WebRequest -Uri $exeAsset.browser_download_url -Headers $dlHeaders -OutFile $stagedExe -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+                    $prgUpd.Value = 75
+                    $dlgUpd.Refresh()
+                } else {
+                    # Auto-recompile locally from GitHub .ps1 when no .exe release asset is published
+                    & $appendUpdLine "[BUILD] Pulling updated PowerShell script for local EXE rebuild..." $fgLog
+                    $prgUpd.Value = 35
+                    $dlgUpd.Refresh()
+
+                    $ps1Url = $null
+                    if ($updState.ReleaseData -and $updState.ReleaseData.assets) {
+                        $ps1Asset = $updState.ReleaseData.assets | Where-Object { $_.name -eq 'IncidentResponse-Automator.ps1' } | Select-Object -First 1
+                        if ($ps1Asset) { $ps1Url = [string]$ps1Asset.browser_download_url }
+                    }
+                    if ([string]::IsNullOrWhiteSpace($ps1Url)) {
+                        $ps1Url = "https://raw.githubusercontent.com/$repoTarget/$refName/IncidentResponse-Automator.ps1"
+                    }
+
+                    $stagedPs1 = Join-Path $buildWorkDir "IncidentResponse-Automator.ps1"
+                    Invoke-WebRequest -Uri $ps1Url -Headers $dlHeaders -OutFile $stagedPs1 -UseBasicParsing -TimeoutSec 45 -ErrorAction Stop
+
+                    $tokens = $null
+                    $parseErrs = $null
+                    [void][System.Management.Automation.Language.Parser]::ParseFile($stagedPs1, [ref]$tokens, [ref]$parseErrs)
+                    if ($parseErrs -and $parseErrs.Count -gt 0) {
+                        throw "Downloaded script failed PowerShell syntax validation ($($parseErrs[0].Message)). Update aborted."
+                    }
+
+                    $cleanVer = ($updState.LatestTag -replace '[^0-9\.]', '').Trim('.')
+                    $verParts = @($cleanVer.Split('.') | Where-Object { $_ -ne '' })
+                    if ($verParts.Count -eq 0) { $verParts = @('1','0','0','0') }
+                    while ($verParts.Count -lt 4) { $verParts += '0' }
+                    $exeVersion = ($verParts[0..3] -join '.')
+
+                    & $appendUpdLine "[BUILD] Recompiling IncidentResponse.exe (v$exeVersion) via PS2EXE..." $fgLog
+                    $prgUpd.Value = 55
+                    $dlgUpd.Refresh()
+
+                    $compilePs1 = Join-Path $buildWorkDir "build_exe.ps1"
+                    $outLog     = Join-Path $buildWorkDir "compile_out.log"
+                    $errLog     = Join-Path $buildWorkDir "compile_err.log"
+                    $safeStagedPs1  = $stagedPs1.Replace("'", "''")
+                    $safeStagedExe  = $stagedExe.Replace("'", "''")
+                    $safeExeVersion = $exeVersion.Replace("'", "''")
+
+                    $compileScriptBody = @"
+`$ErrorActionPreference = 'Stop'
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+if (-not (Get-Module -ListAvailable -Name ps2exe)) {
+    if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+        Register-PSRepository -Default -ErrorAction Stop
+    }
+    `$nuget = Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue | Sort-Object Version -Descending | Select-Object -First 1
+    if (-not `$nuget) {
+        Install-PackageProvider -Name NuGet -MinimumVersion '2.8.5.201' -Scope CurrentUser -Force -ErrorAction Stop | Out-Null
+    }
+    Install-Module -Name ps2exe -Repository PSGallery -Scope CurrentUser -Force -AllowClobber -ErrorAction Stop
+}
+Import-Module ps2exe -Force -ErrorAction Stop
+`$compileParams = @{
+    inputFile    = '$safeStagedPs1'
+    outputFile   = '$safeStagedExe'
+    noConsole    = `$true
+    title        = 'Security Incident Response Automator'
+    description  = 'Incident Response Console for Active Directory, Microsoft 365 and Google Workspace'
+    company      = 'Security Incident Response Automator Contributors'
+    product      = 'Security Incident Response Automator'
+    version      = '$safeExeVersion'
+    requireAdmin = `$true
+}
+Invoke-ps2exe @compileParams
+"@
+                    Set-Content -LiteralPath $compilePs1 -Value $compileScriptBody -Encoding UTF8 -Force
+
+                    $compileProc = Start-Process -FilePath $psExe -ArgumentList @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$compilePs1`"") -WorkingDirectory $buildWorkDir -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru
+                    $swCompile = [System.Diagnostics.Stopwatch]::StartNew()
+                    while (-not $compileProc.HasExited) {
+                        if ($swCompile.Elapsed.TotalSeconds -gt 180) {
+                            try { $compileProc.Kill() } catch {}
+                            throw "Local PS2EXE recompilation timed out after 180 seconds."
+                        }
+                        [System.Windows.Forms.Application]::DoEvents()
+                        Start-Sleep -Milliseconds 120
+                    }
+
+                    if ($compileProc.ExitCode -ne 0 -or (-not (Test-Path -LiteralPath $stagedExe))) {
+                        $errDetail = ""
+                        if (Test-Path -LiteralPath $errLog) { $errDetail = (Get-Content -LiteralPath $errLog -Raw -ErrorAction SilentlyContinue) }
+                        if ([string]::IsNullOrWhiteSpace($errDetail) -and (Test-Path -LiteralPath $outLog)) { $errDetail = (Get-Content -LiteralPath $outLog -Raw -ErrorAction SilentlyContinue) }
+                        $errDetail = ([string]$errDetail).Trim()
+                        if ([string]::IsNullOrWhiteSpace($errDetail)) { $errDetail = "Exit code $($compileProc.ExitCode)." }
+                        throw "Local PS2EXE build failed: $errDetail"
+                    }
+
+                    $prgUpd.Value = 80
+                    $dlgUpd.Refresh()
+                }
 
                 $exeBytes = [System.IO.File]::ReadAllBytes($stagedExe)
                 if ($exeBytes.Length -lt 10240 -or $exeBytes[0] -ne 0x4D -or $exeBytes[1] -ne 0x5A) {
                     Remove-Item -LiteralPath $stagedExe -Force -ErrorAction SilentlyContinue
-                    throw "Downloaded executable failed PE header validation."
+                    throw "Built or downloaded executable failed PE header validation."
                 }
 
                 & $appendUpdLine "[HOT-SWAP] Applying executable update and restarting application..." $fgLog
                 $prgUpd.Value = 95
                 $dlgUpd.Refresh()
 
-                $safeStagedExe = $stagedExe.Replace("'", "''")
-                $safeProcPath  = $procPath.Replace("'", "''")
-                $safeStageDir  = $stageDir.Replace("'", "''")
+                $safeStagedExe    = $stagedExe.Replace("'", "''")
+                $safeProcPath     = $procPath.Replace("'", "''")
+                $safeStageDir     = $stageDir.Replace("'", "''")
+                $safeBuildWorkDir = $buildWorkDir.Replace("'", "''")
+                $safeSwapPs1      = $swapPs1.Replace("'", "''")
                 $swapScript = @"
 `$parentPid = $PID
 `$sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -6652,7 +6771,9 @@ while (`$sw.Elapsed.TotalSeconds -lt 20) {
 Start-Sleep -Milliseconds 500
 Move-Item -LiteralPath '$safeStagedExe' -Destination '$safeProcPath' -Force
 Start-Process -FilePath '$safeProcPath'
-Remove-Item -LiteralPath '$safeStageDir' -Recurse -Force -ErrorAction SilentlyContinue
+if (Test-Path -LiteralPath '$safeBuildWorkDir') { Remove-Item -LiteralPath '$safeBuildWorkDir' -Recurse -Force -ErrorAction SilentlyContinue }
+if (Test-Path -LiteralPath '$safeStageDir') { Remove-Item -LiteralPath '$safeStageDir' -Recurse -Force -ErrorAction SilentlyContinue }
+if (Test-Path -LiteralPath '$safeSwapPs1') { Remove-Item -LiteralPath '$safeSwapPs1' -Force -ErrorAction SilentlyContinue }
 "@
             } else {
                 $targetPs1 = $script:MainScriptPath
@@ -6671,7 +6792,7 @@ Remove-Item -LiteralPath '$safeStageDir' -Recurse -Force -ErrorAction SilentlyCo
                 }
 
                 $stagedPs1 = Join-Path $stageDir "IncidentResponse-Automator.ps1"
-                Invoke-WebRequest -Uri $ps1Url -OutFile $stagedPs1 -UseBasicParsing -TimeoutSec 45 -ErrorAction Stop
+                Invoke-WebRequest -Uri $ps1Url -Headers $dlHeaders -OutFile $stagedPs1 -UseBasicParsing -TimeoutSec 45 -ErrorAction Stop
                 $prgUpd.Value = 65
                 $dlgUpd.Refresh()
 
@@ -6686,7 +6807,7 @@ Remove-Item -LiteralPath '$safeStageDir' -Recurse -Force -ErrorAction SilentlyCo
                     try {
                         $extraUrl = "https://raw.githubusercontent.com/$repoTarget/$refName/$extraFile"
                         $extraDest = Join-Path $stageDir $extraFile
-                        Invoke-WebRequest -Uri $extraUrl -OutFile $extraDest -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
+                        Invoke-WebRequest -Uri $extraUrl -Headers $dlHeaders -OutFile $extraDest -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
                     } catch {}
                 }
 
@@ -6697,12 +6818,14 @@ Remove-Item -LiteralPath '$safeStageDir' -Recurse -Force -ErrorAction SilentlyCo
                 $safeStageDir  = $stageDir.Replace("'", "''")
                 $safeTargetDir = $targetDir.Replace("'", "''")
                 $safeTargetPs1 = $targetPs1.Replace("'", "''")
+                $safeSwapPs1   = $swapPs1.Replace("'", "''")
                 $batPath = Join-Path $targetDir "Launch-IncidentAutomator.bat"
                 $relaunchCmd = if (Test-Path -LiteralPath $batPath) {
                     $safeBatPath = $batPath.Replace("'", "''")
                     "Start-Process -FilePath '$safeBatPath' -WorkingDirectory '$safeTargetDir'"
                 } else {
-                    "Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-STA','-File','$safeTargetPs1' -WorkingDirectory '$safeTargetDir'"
+                    $safePsExe = $psExe.Replace("'", "''")
+                    "Start-Process -FilePath '$safePsExe' -ArgumentList '-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-STA','-File','$safeTargetPs1' -WorkingDirectory '$safeTargetDir'"
                 }
 
                 $swapScript = @"
@@ -6716,16 +6839,24 @@ Start-Sleep -Milliseconds 400
 Copy-Item -Path '$safeStageDir\*' -Destination '$safeTargetDir' -Force
 Remove-Item -LiteralPath '$safeStageDir' -Recurse -Force -ErrorAction SilentlyContinue
 $relaunchCmd
+if (Test-Path -LiteralPath '$safeSwapPs1') { Remove-Item -LiteralPath '$safeSwapPs1' -Force -ErrorAction SilentlyContinue }
 "@
             }
 
-            $encCmd = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($swapScript))
-            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encCmd" -WindowStyle Hidden
+            Set-Content -LiteralPath $swapPs1 -Value $swapScript -Encoding UTF8 -Force
+            $swapWorkDir = if ($isCompiledExe -and $buildWorkDir) { Split-Path -Parent $procPath } else { Split-Path -Parent $script:MainScriptPath }
+            Start-Process -FilePath $psExe -ArgumentList @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$swapPs1`"") -WorkingDirectory $swapWorkDir -WindowStyle Hidden
 
             $prgUpd.Value = 100
             $dlgUpd.Close()
             $form.Close()
         } catch {
+            if ($buildWorkDir -and (Test-Path -LiteralPath $buildWorkDir)) {
+                Remove-Item -LiteralPath $buildWorkDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            if ($stageDir -and (Test-Path -LiteralPath $stageDir)) {
+                Remove-Item -LiteralPath $stageDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
             $btnCheckNow.Enabled = $true
             $btnUpdateRestart.Enabled = $updState.ConfirmedUpdate
             & $appendUpdLine "[ERROR] Update failed: $($_.Exception.Message)" $fgRed

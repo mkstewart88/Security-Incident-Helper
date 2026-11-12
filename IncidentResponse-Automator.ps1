@@ -6407,6 +6407,7 @@ function Show-UpdateCheckWindow {
         RepoTarget         = $txtRepo.Text.Trim()
         RawFallbackNotes   = ""
         UseRawMainFallback = $false
+        FallbackRef        = "main"
     }
 
     $appendUpdLine = {
@@ -6452,9 +6453,11 @@ function Show-UpdateCheckWindow {
 
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
         $apiUrl = "https://api.github.com/repos/$repoTarget/releases/latest"
+        $updState.FallbackRef = "main"
         $headers = @{
-            'User-Agent' = 'SecurityIncidentAutomator-App'
-            'Accept'     = 'application/vnd.github+json'
+            'User-Agent'    = 'SecurityIncidentAutomator-App'
+            'Accept'        = 'application/vnd.github+json'
+            'Cache-Control' = 'no-cache'
         }
 
         try {
@@ -6465,7 +6468,8 @@ function Show-UpdateCheckWindow {
                 $updState.ReleaseData = $relObj
                 $latestTag = if ($relObj.tag_name) { [string]$relObj.tag_name } else { "v$instVer" }
             } catch {
-                # If no formal GitHub Release has been published yet (HTTP 404), check raw main VERSION
+                # If no formal GitHub Release has been published yet (HTTP 404), resolve latest commit on main
+                # and query GitHub API Contents (raw) first to bypass raw.githubusercontent.com 5-minute CDN cache.
                 $isNotFound = $false
                 try {
                     if ($_.Exception.Response -and ([int]$_.Exception.Response.StatusCode -eq 404)) {
@@ -6475,16 +6479,45 @@ function Show-UpdateCheckWindow {
                 if (-not $isNotFound -and ($_.Exception.Message -match '404')) { $isNotFound = $true }
                 if (-not $isNotFound) { throw }
 
-                $rawVerUrl = "https://raw.githubusercontent.com/$repoTarget/main/VERSION"
-                $rawVerResp = Invoke-WebRequest -Uri $rawVerUrl -Headers $headers -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
-                $cleanRaw = ([string]$rawVerResp.Content).Trim()
+                $fallbackRef = "main"
+                try {
+                    $commitObj = Invoke-RestMethod -Uri "https://api.github.com/repos/$repoTarget/commits/main" -Headers $headers -TimeoutSec 10 -ErrorAction Stop
+                    if ($commitObj -and $commitObj.sha) {
+                        $fallbackRef = [string]$commitObj.sha
+                    }
+                } catch {}
+                $updState.FallbackRef = $fallbackRef
+
+                $rawApiHeaders = @{
+                    'User-Agent'    = 'SecurityIncidentAutomator-App'
+                    'Accept'        = 'application/vnd.github.raw+json'
+                    'Cache-Control' = 'no-cache'
+                }
+
+                $cleanRaw = ""
+                try {
+                    $apiVerResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$repoTarget/contents/VERSION?ref=$fallbackRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+                    $cleanRaw = ([string]$apiVerResp.Content).Trim()
+                } catch {
+                    $rawVerUrl = "https://raw.githubusercontent.com/$repoTarget/$fallbackRef/VERSION"
+                    $rawVerResp = Invoke-WebRequest -Uri $rawVerUrl -Headers $headers -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+                    $cleanRaw = ([string]$rawVerResp.Content).Trim()
+                }
+
                 if ([string]::IsNullOrWhiteSpace($cleanRaw)) { throw "Empty VERSION response from GitHub." }
                 $latestTag = if ($cleanRaw.StartsWith('v', [StringComparison]::OrdinalIgnoreCase)) { $cleanRaw } else { "v$cleanRaw" }
                 $updState.UseRawMainFallback = $true
                 try {
-                    $rawChgResp = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$repoTarget/main/CHANGELOG.md" -Headers $headers -UseBasicParsing -TimeoutSec 8 -ErrorAction SilentlyContinue
-                    if ($rawChgResp -and $rawChgResp.Content) { $updState.RawFallbackNotes = ([string]$rawChgResp.Content -replace "`r?`n", "`r`n") }
-                } catch {}
+                    $rawChgResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$repoTarget/contents/CHANGELOG.md?ref=$fallbackRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
+                    if ($rawChgResp -and $rawChgResp.Content) {
+                        $updState.RawFallbackNotes = ([string]$rawChgResp.Content -replace "`r?`n", "`r`n")
+                    }
+                } catch {
+                    try {
+                        $rawChgResp = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$repoTarget/$fallbackRef/CHANGELOG.md" -Headers $headers -UseBasicParsing -TimeoutSec 8 -ErrorAction SilentlyContinue
+                        if ($rawChgResp -and $rawChgResp.Content) { $updState.RawFallbackNotes = ([string]$rawChgResp.Content -replace "`r?`n", "`r`n") }
+                    } catch {}
+                }
             }
 
             $updState.LatestTag = $latestTag
@@ -6562,7 +6595,11 @@ function Show-UpdateCheckWindow {
             $procPath = (Get-Process -Id $PID).Path
             $isCompiledExe = (-not [string]::IsNullOrWhiteSpace($procPath)) -and (-not ($procPath -match 'powershell(\.exe)?$|pwsh(\.exe)?$'))
             $repoTarget = $updState.RepoTarget
-            $refName = if ($updState.UseRawMainFallback -or [string]::IsNullOrWhiteSpace($updState.LatestTag)) { "main" } else { $updState.LatestTag }
+            $refName = if ($updState.UseRawMainFallback -or [string]::IsNullOrWhiteSpace($updState.LatestTag)) {
+                if (-not [string]::IsNullOrWhiteSpace($updState.FallbackRef)) { $updState.FallbackRef } else { "main" }
+            } else {
+                $updState.LatestTag
+            }
 
             $stageDir = Join-Path $env:TEMP ("IRAutomatorUpdate_" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
             New-Item -Path $stageDir -ItemType Directory -Force | Out-Null

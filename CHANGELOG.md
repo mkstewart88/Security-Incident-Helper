@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.51] - 2026-11-12
+
+### Added
+- **GitHub Self-Updater & Release Notes Viewer (`Show-UpdateCheckWindow` & `Show-ChangelogWindow`):**
+  - Added **[Check for Updates]** button to the top console header alongside theme toggle and domain switcher controls, supporting both Light Mode and Dark Mode.
+  - Queries GitHub Releases (`releases/latest`) with automatic `VERSION` fallback, displays a colorized status log (`RichTextBox` with clickable repository URLs, green status text when running the latest version, and red status text when an update is available), and disables **Update & Restart** until a newer version is confirmed.
+  - Added **[View Changelog]** dialog displaying GitHub release notes or local `CHANGELOG.md` history separately from the update status feed.
+  - Implemented verified hot-swap self-replacement for both `Launch-IncidentAutomator.bat` (`.ps1` syntax-validated via PowerShell `Parser::ParseFile`) and compiled `IncidentResponse.exe` (`MZ` PE-header validated) with automatic restart.
+
+### Fixed
+- **Microsoft Graph Silent Session Restoration for Delegated Admins:**
+  - Updated `Invoke-VerifyGraph`, `Ensure-MgGraphSessionActive`, `Invoke-RevokeMgUserSignInSessionSafe`, and `Invoke-GraphMailboxRestSafe` to silently attach to the cached `CurrentUser` MSAL session and prevent `DeviceCodeCredential` `NullReferenceException` errors on fresh workstations without App-Only registration.
+- **Update Dialog Button & Syntax Fixes:**
+  - Restored closing block and `ShowDialog` call in `Show-DomainSwitcher` and disabled WinForms mnemonic parsing (`UseMnemonic = $false`) so the **Update & Restart** button displays its ampersand literally.
+
+---
+
 ## [1.1.5] - 2026-11-05
 
 ### Added

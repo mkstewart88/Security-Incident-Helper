@@ -1,5 +1,5 @@
 # ==============================================================================
-# Security Incident Response Automator (v1.1.5)
+# Security Incident Response Automator (v1.1.51)
 # Standalone Native Windows Form Application (Tabbed UI, Real Verification, Audit Trail)
 # Domain Agnostic | Auto-Detect Domain | Remote / Non-Domain Workstation Support
 # Native .NET System.DirectoryServices Fallback (Runs with or without RSAT!)
@@ -15,8 +15,9 @@
 #   [08] Mailbox Forwarding & Inbox Rule Remediation         (Line ~3850 & ~4070)
 #   [09] Security Event Triage & Plain-English Decoder       (Line ~4450 & ~4840)
 #   [10] Windows Forms 5-Tab GUI Architecture & Controls     (Line ~5270+)
-#   [11] Dynamic Theme Engine (Light / Dark Mode)            (Line ~8190)
-#   [12] High-DPI Responsive Scaling & Pixel Font Cache      (Line ~8320)
+#   [11] Domain Switcher, Changelog & Self-Updater Dialogs   (Line ~5940+)
+#   [12] Dynamic Theme Engine (Light / Dark Mode)            (Line ~8600)
+#   [13] High-DPI Responsive Scaling & Pixel Font Cache      (Line ~8740)
 # ==============================================================================
 
 #Requires -Version 5.1
@@ -32,7 +33,8 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
-$script:AppVersion = "1.1.5"
+$script:AppVersion = "1.1.51"
+$script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -6168,13 +6170,16 @@ function Show-DomainSwitcher {
 function Show-ChangelogWindow {
     param(
         [string]$ChangelogText = "",
-        [string]$VersionTag = "v1.1.5"
+        [string]$VersionTag = ""
     )
+    if ([string]::IsNullOrWhiteSpace($VersionTag)) {
+        $VersionTag = "v$($script:AppVersion)"
+    }
     $isDark = if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true }
 
     $dlgNotes = New-Object System.Windows.Forms.Form
     $dlgNotes.Text = "Security Incident Automator - Release Notes ($VersionTag)"
-    $dlgNotes.Size = New-Object System.Drawing.Size(620, 480)
+    $dlgNotes.Size = New-Object System.Drawing.Size(640, 500)
     $dlgNotes.StartPosition = "CenterParent"
     $dlgNotes.FormBorderStyle = "FixedDialog"
     $dlgNotes.MaximizeBox = $false
@@ -6182,7 +6187,7 @@ function Show-ChangelogWindow {
     $dlgNotes.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) }
 
     $dlgHeader = New-Object System.Windows.Forms.Panel
-    $dlgHeader.Size = New-Object System.Drawing.Size(620, 50)
+    $dlgHeader.Size = New-Object System.Drawing.Size(640, 50)
     $dlgHeader.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
     $dlgNotes.Controls.Add($dlgHeader)
 
@@ -6194,33 +6199,55 @@ function Show-ChangelogWindow {
     $dlgTitle.AutoSize = $true
     $dlgHeader.Controls.Add($dlgTitle)
 
+    $resolvedNotes = $ChangelogText
+    if ([string]::IsNullOrWhiteSpace($resolvedNotes)) {
+        try {
+            $baseDir = if (-not [string]::IsNullOrWhiteSpace($script:MainScriptPath)) {
+                Split-Path -Parent $script:MainScriptPath
+            } else {
+                Split-Path -Parent ((Get-Process -Id $PID).Path)
+            }
+            $localChangelog = Join-Path $baseDir "CHANGELOG.md"
+            if (Test-Path -LiteralPath $localChangelog) {
+                $resolvedNotes = (Get-Content -LiteralPath $localChangelog -Raw -ErrorAction Stop) -replace "`r?`n", "`r`n"
+            }
+        } catch {}
+    }
+    if ([string]::IsNullOrWhiteSpace($resolvedNotes)) {
+        $resolvedNotes =
+            "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
+            "===========================================================`r`n" +
+            "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+            "## [1.1.51] - 2026-11-12`r`n" +
+            "### Added & Fixed`r`n" +
+            "  * Added GitHub Check for Updates & Self-Updater dialog supporting both Launch-IncidentAutomator.bat (.ps1) and compiled IncidentResponse.exe hot-swap restarts.`r`n" +
+            "  * Added dedicated View Changelog release notes dialog with Light / Dark mode support.`r`n" +
+            "  * Colorized update status output lines (green when up to date, red when an update is available) and fixed WinForms mnemonic rendering on 'Update & Restart'.`r`n" +
+            "  * Fixed Microsoft Graph silent CurrentUser MSAL session restoration for delegated operators on fresh workstations.`r`n`r`n" +
+            "## [1.1.5] - 2026-11-05`r`n" +
+            "  * Dynamic Multi-Domain Auto-Discovery Engine (Get-DiscoveredLocalDomainSafe).`r`n" +
+            "  * Unified Light Mode & Dark Mode Dynamic Theme Engine.`r`n" +
+            "  * Stateful Event Catalog & Query Persistence on Tab 4."
+    }
+
     $txtNotes = New-Object System.Windows.Forms.TextBox
     $txtNotes.Multiline = $true
     $txtNotes.ReadOnly = $true
     $txtNotes.ScrollBars = "Vertical"
     $txtNotes.Location = New-Object System.Drawing.Point(15, 62)
-    $txtNotes.Size = New-Object System.Drawing.Size(575, 320)
+    $txtNotes.Size = New-Object System.Drawing.Size(595, 340)
     $txtNotes.Font = New-Object System.Drawing.Font("Consolas", 9)
     $txtNotes.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) }
     $txtNotes.ForeColor = if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
-    $txtNotes.Text = if (-not [string]::IsNullOrWhiteSpace($ChangelogText)) {
-        $ChangelogText
-    } else {
-        "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
-        "===========================================================`r`n" +
-        "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
-        "- Key Architectural Capabilities & Fixes:`r`n" +
-        "  * Multi-Source Security Incident Response Automation (AD, M365, GAM7).`r`n" +
-        "  * In-process Graph MSAL session restoration & non-blocking App REST.`r`n" +
-        "  * Dual-theme support (Light / Dark mode) matching high-DPI scaling.`r`n" +
-        "  * Automated GitHub version check, release changelog viewer, & binary hot-swapping.`r`n" +
-        "  * Deciphered Security Event Triage & Audit Trail Logging."
-    }
+    $txtNotes.Text = $resolvedNotes
+    $txtNotes.SelectionStart = 0
+    $txtNotes.SelectionLength = 0
     $dlgNotes.Controls.Add($txtNotes)
 
     $btnCloseNotes = New-Object System.Windows.Forms.Button
     $btnCloseNotes.Text = "Close"
-    $btnCloseNotes.Location = New-Object System.Drawing.Point(470, 392)
+    $btnCloseNotes.UseMnemonic = $false
+    $btnCloseNotes.Location = New-Object System.Drawing.Point(490, 412)
     $btnCloseNotes.Size = New-Object System.Drawing.Size(120, 32)
     $btnCloseNotes.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnCloseNotes.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) }
@@ -6228,19 +6255,25 @@ function Show-ChangelogWindow {
     $btnCloseNotes.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btnCloseNotes.Add_Click({ $dlgNotes.Close() })
     $dlgNotes.Controls.Add($btnCloseNotes)
+    $dlgNotes.CancelButton = $btnCloseNotes
 
     [void]$dlgNotes.ShowDialog($form)
 }
 
 # -----------------------------------------------------------------------------
-# CHECK FOR UPDATES DIALOG (Mirrors UI screenshot layout & functionality)
+# CHECK FOR UPDATES DIALOG (GitHub Release Check, Colorized Log, & Self-Updater)
 # -----------------------------------------------------------------------------
 function Show-UpdateCheckWindow {
     $isDark = if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true }
 
+    $bgLog    = if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) }
+    $fgLog    = if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $fgGreen  = if ($isDark) { [System.Drawing.Color]::FromArgb(74, 222, 128) } else { [System.Drawing.Color]::FromArgb(22, 163, 74) }
+    $fgRed    = if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) }
+
     $dlgUpd = New-Object System.Windows.Forms.Form
     $dlgUpd.Text = "Security Incident Automator - Check for Updates"
-    $dlgUpd.Size = New-Object System.Drawing.Size(640, 500)
+    $dlgUpd.Size = New-Object System.Drawing.Size(660, 504)
     $dlgUpd.StartPosition = "CenterParent"
     $dlgUpd.FormBorderStyle = "FixedDialog"
     $dlgUpd.MaximizeBox = $false
@@ -6250,7 +6283,7 @@ function Show-UpdateCheckWindow {
     # Top Section GroupBox Container
     $grpTop = New-Object System.Windows.Forms.GroupBox
     $grpTop.Location = New-Object System.Drawing.Point(15, 10)
-    $grpTop.Size = New-Object System.Drawing.Size(595, 122)
+    $grpTop.Size = New-Object System.Drawing.Size(615, 122)
     $grpTop.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) }
     $grpTop.ForeColor = if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
     $dlgUpd.Controls.Add($grpTop)
@@ -6259,15 +6292,15 @@ function Show-UpdateCheckWindow {
     $lblAppVer.Text = "Application Version: v$($script:AppVersion) (Installed)"
     $lblAppVer.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
     $lblAppVer.Location = New-Object System.Drawing.Point(15, 14)
-    $lblAppVer.Size = New-Object System.Drawing.Size(565, 24)
+    $lblAppVer.Size = New-Object System.Drawing.Size(585, 24)
     $lblAppVer.ForeColor = if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
     $grpTop.Controls.Add($lblAppVer)
 
     $lblSubDesc = New-Object System.Windows.Forms.Label
-    $lblSubDesc.Text = "Checks GitHub for newer releases. When an update is confirmed, it downloads the new executable, hot-swaps the current binary, and restarts automatically."
+    $lblSubDesc.Text = "Checks GitHub for newer releases. When an update is confirmed, it downloads the latest release, hot-swaps the running script or executable, and restarts automatically."
     $lblSubDesc.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
     $lblSubDesc.Location = New-Object System.Drawing.Point(15, 38)
-    $lblSubDesc.Size = New-Object System.Drawing.Size(565, 34)
+    $lblSubDesc.Size = New-Object System.Drawing.Size(585, 34)
     $lblSubDesc.ForeColor = if ($isDark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(100, 116, 139) }
     $grpTop.Controls.Add($lblSubDesc)
 
@@ -6275,45 +6308,53 @@ function Show-UpdateCheckWindow {
     $lblRepo.Text = "GitHub Repository (owner/repo):"
     $lblRepo.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $lblRepo.Location = New-Object System.Drawing.Point(15, 80)
-    $lblRepo.Size = New-Object System.Drawing.Size(210, 22)
+    $lblRepo.Size = New-Object System.Drawing.Size(202, 22)
     $lblRepo.ForeColor = if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(51, 65, 85) }
     $grpTop.Controls.Add($lblRepo)
 
     $txtRepo = New-Object System.Windows.Forms.TextBox
-    $txtRepo.Location = New-Object System.Drawing.Point(225, 78)
-    $txtRepo.Size = New-Object System.Drawing.Size(225, 24)
+    $txtRepo.Location = New-Object System.Drawing.Point(218, 78)
+    $txtRepo.Size = New-Object System.Drawing.Size(246, 24)
     $txtRepo.Font = New-Object System.Drawing.Font("Segoe UI", 8.75)
     $txtRepo.Text = "mkstewart88/Security-Incident-Automator"
-    $txtRepo.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) }
-    $txtRepo.ForeColor = if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $txtRepo.BackColor = $bgLog
+    $txtRepo.ForeColor = $fgLog
     $grpTop.Controls.Add($txtRepo)
 
     $btnCheckNow = New-Object System.Windows.Forms.Button
     $btnCheckNow.Text = "Check for Updates"
+    $btnCheckNow.UseMnemonic = $false
     $btnCheckNow.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $btnCheckNow.Location = New-Object System.Drawing.Point(458, 76)
-    $btnCheckNow.Size = New-Object System.Drawing.Size(122, 28)
+    $btnCheckNow.Location = New-Object System.Drawing.Point(472, 76)
+    $btnCheckNow.Size = New-Object System.Drawing.Size(128, 28)
     $btnCheckNow.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) }
     $btnCheckNow.ForeColor = if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
     $btnCheckNow.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $grpTop.Controls.Add($btnCheckNow)
 
-    # Middle Output Log Box
-    $txtLogUpd = New-Object System.Windows.Forms.TextBox
-    $txtLogUpd.Multiline = $true
+    # Middle Output RichTextBox (supports per-line green/red status coloring and clickable URLs)
+    $txtLogUpd = New-Object System.Windows.Forms.RichTextBox
     $txtLogUpd.ReadOnly = $true
-    $txtLogUpd.ScrollBars = "Vertical"
+    $txtLogUpd.ScrollBars = [System.Windows.Forms.RichTextBoxScrollBars]::Vertical
+    $txtLogUpd.DetectUrls = $true
+    $txtLogUpd.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
     $txtLogUpd.Location = New-Object System.Drawing.Point(15, 140)
-    $txtLogUpd.Size = New-Object System.Drawing.Size(595, 218)
+    $txtLogUpd.Size = New-Object System.Drawing.Size(615, 218)
     $txtLogUpd.Font = New-Object System.Drawing.Font("Consolas", 8.75)
-    $txtLogUpd.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) }
-    $txtLogUpd.ForeColor = if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
+    $txtLogUpd.BackColor = $bgLog
+    $txtLogUpd.ForeColor = $fgLog
+    $txtLogUpd.Add_LinkClicked({
+        param($sender, $e)
+        if ($e -and (-not [string]::IsNullOrWhiteSpace($e.LinkText))) {
+            try { Start-Process $e.LinkText } catch {}
+        }
+    })
     $dlgUpd.Controls.Add($txtLogUpd)
 
     # Bottom Progress Bar
     $prgUpd = New-Object System.Windows.Forms.ProgressBar
     $prgUpd.Location = New-Object System.Drawing.Point(15, 366)
-    $prgUpd.Size = New-Object System.Drawing.Size(595, 16)
+    $prgUpd.Size = New-Object System.Drawing.Size(615, 16)
     $prgUpd.Minimum = 0
     $prgUpd.Maximum = 100
     $prgUpd.Value = 0
@@ -6322,18 +6363,20 @@ function Show-UpdateCheckWindow {
     # Bottom Action Buttons
     $btnViewChangelog = New-Object System.Windows.Forms.Button
     $btnViewChangelog.Text = "View Changelog"
+    $btnViewChangelog.UseMnemonic = $false
     $btnViewChangelog.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnViewChangelog.Location = New-Object System.Drawing.Point(15, 398)
-    $btnViewChangelog.Size = New-Object System.Drawing.Size(140, 36)
+    $btnViewChangelog.Size = New-Object System.Drawing.Size(145, 36)
     $btnViewChangelog.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) }
     $btnViewChangelog.ForeColor = if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
     $btnViewChangelog.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $dlgUpd.Controls.Add($btnViewChangelog)
 
     $btnUpdateRestart = New-Object System.Windows.Forms.Button
+    $btnUpdateRestart.UseMnemonic = $false
     $btnUpdateRestart.Text = "Update & Restart"
     $btnUpdateRestart.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $btnUpdateRestart.Location = New-Object System.Drawing.Point(305, 398)
+    $btnUpdateRestart.Location = New-Object System.Drawing.Point(325, 398)
     $btnUpdateRestart.Size = New-Object System.Drawing.Size(160, 36)
     $btnUpdateRestart.Enabled = $false
     $btnUpdateRestart.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(203, 213, 225) }
@@ -6343,22 +6386,50 @@ function Show-UpdateCheckWindow {
 
     $btnCloseUpd = New-Object System.Windows.Forms.Button
     $btnCloseUpd.Text = "Close"
+    $btnCloseUpd.UseMnemonic = $false
     $btnCloseUpd.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
-    $btnCloseUpd.Location = New-Object System.Drawing.Point(480, 398)
+    $btnCloseUpd.Location = New-Object System.Drawing.Point(500, 398)
     $btnCloseUpd.Size = New-Object System.Drawing.Size(130, 36)
     $btnCloseUpd.BackColor = if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) }
     $btnCloseUpd.ForeColor = if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) }
     $btnCloseUpd.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btnCloseUpd.Add_Click({ $dlgUpd.Close() })
     $dlgUpd.Controls.Add($btnCloseUpd)
+    $dlgUpd.CancelButton = $btnCloseUpd
 
-    $script:fetchedReleaseData = $null
-    $script:hasConfirmedUpdate = $false
+    $updState = @{
+        ReleaseData        = $null
+        ConfirmedUpdate    = $false
+        LatestTag          = "v$($script:AppVersion)"
+        RepoTarget         = $txtRepo.Text.Trim()
+        RawFallbackNotes   = ""
+        UseRawMainFallback = $false
+    }
+
+    $appendUpdLine = {
+        param(
+            [string]$Text,
+            [System.Drawing.Color]$Color
+        )
+        if ($null -eq $Color) { $Color = $fgLog }
+        $txtLogUpd.SelectionStart = $txtLogUpd.TextLength
+        $txtLogUpd.SelectionLength = 0
+        $txtLogUpd.SelectionColor = $Color
+        $txtLogUpd.AppendText("$Text`r`n")
+        $txtLogUpd.SelectionColor = $fgLog
+    }
 
     $runCheckLogic = {
         $repoTarget = $txtRepo.Text.Trim()
-        if ([string]::IsNullOrWhiteSpace($repoTarget)) {
-            $txtLogUpd.Text = "[ERROR] Please enter a valid GitHub repository (owner/repo).`r`n"
+        $updState.RepoTarget = $repoTarget
+        $updState.ReleaseData = $null
+        $updState.ConfirmedUpdate = $false
+        $updState.RawFallbackNotes = ""
+        $updState.UseRawMainFallback = $false
+        $txtLogUpd.Clear()
+
+        if ([string]::IsNullOrWhiteSpace($repoTarget) -or (-not ($repoTarget -match '^[^/\s]+/[^/\s]+$'))) {
+            & $appendUpdLine "[ERROR] Please enter a valid GitHub repository in owner/repo format." $fgRed
             return
         }
 
@@ -6367,11 +6438,9 @@ function Show-UpdateCheckWindow {
         $prgUpd.Value = 15
 
         $instVer = [string]$script:AppVersion
-        $logs = [System.Collections.Generic.List[string]]::new()
-        $logs.Add("[CHECK] Initializing GitHub connection with TLS 1.2 / TLS 1.3...")
-        $logs.Add("[REPOSITORY] Target: https://github.com/$repoTarget")
-        $logs.Add("[STATUS] Installed Version: v$instVer")
-        $txtLogUpd.Text = ($logs -join "`r`n") + "`r`n"
+        & $appendUpdLine "[CHECK] Initializing GitHub connection with TLS 1.2 / TLS 1.3..." $fgLog
+        & $appendUpdLine "[REPOSITORY] Target: https://github.com/$repoTarget" $fgLog
+        & $appendUpdLine "[STATUS] Installed Version: v$instVer" $fgLog
         $dlgUpd.Refresh()
 
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
@@ -6382,15 +6451,41 @@ function Show-UpdateCheckWindow {
         }
 
         try {
-            $prgUpd.Value = 50
-            $relObj = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 10 -ErrorAction Stop
-            $script:fetchedReleaseData = $relObj
-            $latestTag = if ($relObj.tag_name) { [string]$relObj.tag_name } else { "v$instVer" }
+            $prgUpd.Value = 45
+            $latestTag = ""
+            try {
+                $relObj = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 10 -ErrorAction Stop
+                $updState.ReleaseData = $relObj
+                $latestTag = if ($relObj.tag_name) { [string]$relObj.tag_name } else { "v$instVer" }
+            } catch {
+                # If no formal GitHub Release has been published yet (HTTP 404), check raw main VERSION
+                $isNotFound = $false
+                try {
+                    if ($_.Exception.Response -and ([int]$_.Exception.Response.StatusCode -eq 404)) {
+                        $isNotFound = $true
+                    }
+                } catch {}
+                if (-not $isNotFound -and ($_.Exception.Message -match '404')) { $isNotFound = $true }
+                if (-not $isNotFound) { throw }
+
+                $rawVerUrl = "https://raw.githubusercontent.com/$repoTarget/main/VERSION"
+                $rawVer = Invoke-RestMethod -Uri $rawVerUrl -Headers $headers -TimeoutSec 10 -ErrorAction Stop
+                $cleanRaw = ([string]$rawVer).Trim()
+                if ([string]::IsNullOrWhiteSpace($cleanRaw)) { throw "Empty VERSION response from GitHub." }
+                $latestTag = if ($cleanRaw.StartsWith('v', [StringComparison]::OrdinalIgnoreCase)) { $cleanRaw } else { "v$cleanRaw" }
+                $updState.UseRawMainFallback = $true
+                try {
+                    $rawChg = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/$repoTarget/main/CHANGELOG.md" -Headers $headers -TimeoutSec 8 -ErrorAction SilentlyContinue
+                    if ($rawChg) { $updState.RawFallbackNotes = ([string]$rawChg -replace "`r?`n", "`r`n") }
+                } catch {}
+            }
+
+            $updState.LatestTag = $latestTag
             $cleanLat = ($latestTag -replace '[^0-9\.]', '').Trim('.')
             $cleanInst = ($instVer -replace '[^0-9\.]', '').Trim('.')
 
             $prgUpd.Value = 75
-            $logs.Add("[STATUS] GitHub Latest Version: $latestTag")
+            & $appendUpdLine "[STATUS] GitHub Latest Version: $latestTag" $fgLog
 
             $isNewer = $false
             try {
@@ -6404,29 +6499,25 @@ function Show-UpdateCheckWindow {
             }
 
             $prgUpd.Value = 100
+            & $appendUpdLine "" $fgLog
             if ($isNewer) {
-                $script:hasConfirmedUpdate = $true
-                $logs.Add("")
-                $logs.Add("[UPDATE AVAILABLE] Version $latestTag is available!")
-                $logs.Add("Click 'Update & Restart' to install or 'View Changelog' to review changes.")
+                $updState.ConfirmedUpdate = $true
+                & $appendUpdLine "[UPDATE AVAILABLE] You're not running the latest version (Latest: $latestTag)." $fgRed
+                & $appendUpdLine "Click 'Update & Restart' to install or 'View Changelog' to review changes." $fgLog
                 $btnUpdateRestart.Enabled = $true
                 $btnUpdateRestart.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
                 $btnUpdateRestart.ForeColor = [System.Drawing.Color]::White
             } else {
-                $script:hasConfirmedUpdate = $false
-                $logs.Add("")
-                $logs.Add("[UP TO DATE] You are running the latest version of Security Incident Automator.")
-                $logs.Add("Click 'View Changelog' to review changes.")
+                $updState.ConfirmedUpdate = $false
+                & $appendUpdLine "[UP TO DATE] You're running the latest version of Security Incident Automator." $fgGreen
+                & $appendUpdLine "Click 'View Changelog' to review changes." $fgLog
             }
         } catch {
             $prgUpd.Value = 100
-            $logs.Add("[STATUS] GitHub Latest Version: v$instVer")
-            $logs.Add("")
-            $logs.Add("[UP TO DATE] You are running the latest version of Security Incident Automator.")
-            $logs.Add("Click 'View Changelog' to review changes.")
+            & $appendUpdLine "" $fgLog
+            & $appendUpdLine "[ERROR] Failed to check GitHub for updates: $($_.Exception.Message)" $fgRed
+            & $appendUpdLine "Verify internet connectivity and repository path, then try again." $fgLog
         }
-
-        $txtLogUpd.Text = ($logs -join "`r`n") + "`r`n"
     }
 
     $btnCheckNow.Add_Click({
@@ -6434,13 +6525,15 @@ function Show-UpdateCheckWindow {
     })
 
     $btnViewChangelog.Add_Click({
-        $notes = if ($script:fetchedReleaseData -and $script:fetchedReleaseData.body) {
-            [string]$script:fetchedReleaseData.body
+        $notes = if ($updState.ReleaseData -and $updState.ReleaseData.body) {
+            ([string]$updState.ReleaseData.body) -replace "`r?`n", "`r`n"
+        } elseif (-not [string]::IsNullOrWhiteSpace($updState.RawFallbackNotes)) {
+            $updState.RawFallbackNotes
         } else {
             ""
         }
-        $tag = if ($script:fetchedReleaseData -and $script:fetchedReleaseData.tag_name) {
-            [string]$script:fetchedReleaseData.tag_name
+        $tag = if (-not [string]::IsNullOrWhiteSpace($updState.LatestTag)) {
+            $updState.LatestTag
         } else {
             "v$($script:AppVersion)"
         }
@@ -6448,37 +6541,140 @@ function Show-UpdateCheckWindow {
     })
 
     $btnUpdateRestart.Add_Click({
-        if (-not $script:hasConfirmedUpdate) { return }
+        if (-not $updState.ConfirmedUpdate) { return }
 
-        $curText = $txtLogUpd.Text
-        $curText += "`r`n[DOWNLOADING] Downloading latest release asset..."
-        $txtLogUpd.Text = $curText
-        $prgUpd.Value = 50
+        $btnUpdateRestart.Enabled = $false
+        $btnCheckNow.Enabled = $false
+        & $appendUpdLine "" $fgLog
+        & $appendUpdLine "[DOWNLOADING] Fetching latest release from GitHub..." $fgLog
+        $prgUpd.Value = 25
         $dlgUpd.Refresh()
 
         try {
-            $curText += "`r`n[HOT-SWAP] Hot-swapping current binary and restarting application..."
-            $txtLogUpd.Text = $curText
-            $prgUpd.Value = 90
-            $dlgUpd.Refresh()
+            [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+            $procPath = (Get-Process -Id $PID).Path
+            $isCompiledExe = (-not [string]::IsNullOrWhiteSpace($procPath)) -and (-not ($procPath -match 'powershell(\.exe)?$|pwsh(\.exe)?$'))
+            $repoTarget = $updState.RepoTarget
+            $refName = if ($updState.UseRawMainFallback -or [string]::IsNullOrWhiteSpace($updState.LatestTag)) { "main" } else { $updState.LatestTag }
 
-            $scriptFile = $MyInvocation.MyCommand.Path
-            if (-not $scriptFile) { $scriptFile = (Get-Process -Id $PID).Path }
+            $stageDir = Join-Path $env:TEMP ("IRAutomatorUpdate_" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
+            New-Item -Path $stageDir -ItemType Directory -Force | Out-Null
 
-            $bgProcessCmd = @"
-Start-Sleep -Seconds 2
-if (Test-Path '$scriptFile') {
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File '$scriptFile'"
+            if ($isCompiledExe) {
+                $exeAsset = $null
+                if ($updState.ReleaseData -and $updState.ReleaseData.assets) {
+                    $exeAsset = $updState.ReleaseData.assets | Where-Object { $_.name -match '\.exe$' } | Select-Object -First 1
+                }
+                if (-not $exeAsset -or [string]::IsNullOrWhiteSpace($exeAsset.browser_download_url)) {
+                    throw "No compiled .exe release asset was found on GitHub release '$refName'."
+                }
+
+                $stagedExe = "$procPath.new"
+                Invoke-WebRequest -Uri $exeAsset.browser_download_url -OutFile $stagedExe -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+                $prgUpd.Value = 75
+                $dlgUpd.Refresh()
+
+                $exeBytes = [System.IO.File]::ReadAllBytes($stagedExe)
+                if ($exeBytes.Length -lt 10240 -or $exeBytes[0] -ne 0x4D -or $exeBytes[1] -ne 0x5A) {
+                    Remove-Item -LiteralPath $stagedExe -Force -ErrorAction SilentlyContinue
+                    throw "Downloaded executable failed PE header validation."
+                }
+
+                & $appendUpdLine "[HOT-SWAP] Applying executable update and restarting application..." $fgLog
+                $prgUpd.Value = 95
+                $dlgUpd.Refresh()
+
+                $safeStagedExe = $stagedExe.Replace("'", "''")
+                $safeProcPath  = $procPath.Replace("'", "''")
+                $safeStageDir  = $stageDir.Replace("'", "''")
+                $swapScript = @"
+`$parentPid = $PID
+`$sw = [System.Diagnostics.Stopwatch]::StartNew()
+while (`$sw.Elapsed.TotalSeconds -lt 20) {
+    if (-not (Get-Process -Id `$parentPid -ErrorAction SilentlyContinue)) { break }
+    Start-Sleep -Milliseconds 250
 }
+Start-Sleep -Milliseconds 500
+Move-Item -LiteralPath '$safeStagedExe' -Destination '$safeProcPath' -Force
+Start-Process -FilePath '$safeProcPath'
+Remove-Item -LiteralPath '$safeStageDir' -Recurse -Force -ErrorAction SilentlyContinue
 "@
-            $encCmd = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($bgProcessCmd))
+            } else {
+                $targetPs1 = $script:MainScriptPath
+                if ([string]::IsNullOrWhiteSpace($targetPs1) -or (-not (Test-Path -LiteralPath $targetPs1))) {
+                    throw "Unable to locate running script path for in-place update."
+                }
+                $targetDir = Split-Path -Parent $targetPs1
+
+                $ps1Url = $null
+                if ($updState.ReleaseData -and $updState.ReleaseData.assets) {
+                    $ps1Asset = $updState.ReleaseData.assets | Where-Object { $_.name -eq 'IncidentResponse-Automator.ps1' } | Select-Object -First 1
+                    if ($ps1Asset) { $ps1Url = [string]$ps1Asset.browser_download_url }
+                }
+                if ([string]::IsNullOrWhiteSpace($ps1Url)) {
+                    $ps1Url = "https://raw.githubusercontent.com/$repoTarget/$refName/IncidentResponse-Automator.ps1"
+                }
+
+                $stagedPs1 = Join-Path $stageDir "IncidentResponse-Automator.ps1"
+                Invoke-WebRequest -Uri $ps1Url -OutFile $stagedPs1 -UseBasicParsing -TimeoutSec 45 -ErrorAction Stop
+                $prgUpd.Value = 65
+                $dlgUpd.Refresh()
+
+                $tokens = $null
+                $parseErrs = $null
+                [void][System.Management.Automation.Language.Parser]::ParseFile($stagedPs1, [ref]$tokens, [ref]$parseErrs)
+                if ($parseErrs -and $parseErrs.Count -gt 0) {
+                    throw "Downloaded script failed PowerShell syntax validation ($($parseErrs[0].Message)). Update aborted."
+                }
+
+                foreach ($extraFile in @('VERSION', 'CHANGELOG.md', 'Launch-IncidentAutomator.bat', 'Compile-To-EXE.cmd')) {
+                    try {
+                        $extraUrl = "https://raw.githubusercontent.com/$repoTarget/$refName/$extraFile"
+                        $extraDest = Join-Path $stageDir $extraFile
+                        Invoke-WebRequest -Uri $extraUrl -OutFile $extraDest -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
+                    } catch {}
+                }
+
+                & $appendUpdLine "[HOT-SWAP] Updating script files and restarting console..." $fgLog
+                $prgUpd.Value = 95
+                $dlgUpd.Refresh()
+
+                $safeStageDir  = $stageDir.Replace("'", "''")
+                $safeTargetDir = $targetDir.Replace("'", "''")
+                $safeTargetPs1 = $targetPs1.Replace("'", "''")
+                $batPath = Join-Path $targetDir "Launch-IncidentAutomator.bat"
+                $relaunchCmd = if (Test-Path -LiteralPath $batPath) {
+                    $safeBatPath = $batPath.Replace("'", "''")
+                    "Start-Process -FilePath '$safeBatPath' -WorkingDirectory '$safeTargetDir'"
+                } else {
+                    "Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-STA','-File','$safeTargetPs1' -WorkingDirectory '$safeTargetDir'"
+                }
+
+                $swapScript = @"
+`$parentPid = $PID
+`$sw = [System.Diagnostics.Stopwatch]::StartNew()
+while (`$sw.Elapsed.TotalSeconds -lt 20) {
+    if (-not (Get-Process -Id `$parentPid -ErrorAction SilentlyContinue)) { break }
+    Start-Sleep -Milliseconds 250
+}
+Start-Sleep -Milliseconds 400
+Copy-Item -Path '$safeStageDir\*' -Destination '$safeTargetDir' -Force
+Remove-Item -LiteralPath '$safeStageDir' -Recurse -Force -ErrorAction SilentlyContinue
+$relaunchCmd
+"@
+            }
+
+            $encCmd = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($swapScript))
             Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encCmd" -WindowStyle Hidden
 
             $prgUpd.Value = 100
             $dlgUpd.Close()
             $form.Close()
         } catch {
-            [System.Windows.Forms.MessageBox]::Show($dlgUpd, "Update failed: $($_.Exception.Message)", "Update Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+            $btnCheckNow.Enabled = $true
+            $btnUpdateRestart.Enabled = $updState.ConfirmedUpdate
+            & $appendUpdLine "[ERROR] Update failed: $($_.Exception.Message)" $fgRed
+            [System.Windows.Forms.MessageBox]::Show($dlgUpd, "Update failed: $($_.Exception.Message)", "Update Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
         }
     })
 

@@ -6316,7 +6316,7 @@ function Show-UpdateCheckWindow {
     $txtRepo.Location = New-Object System.Drawing.Point(218, 78)
     $txtRepo.Size = New-Object System.Drawing.Size(246, 24)
     $txtRepo.Font = New-Object System.Drawing.Font("Segoe UI", 8.75)
-    $txtRepo.Text = "mkstewart88/Security-Incident-Automator"
+    $txtRepo.Text = "mkstewart88/Security-Incident-Helper"
     $txtRepo.BackColor = $bgLog
     $txtRepo.ForeColor = $fgLog
     $grpTop.Controls.Add($txtRepo)
@@ -6421,6 +6421,10 @@ function Show-UpdateCheckWindow {
 
     $runCheckLogic = {
         $repoTarget = $txtRepo.Text.Trim()
+        if ($repoTarget -match '^(?:https?://)?(?:www\.)?github\.com/([^/\s]+/[^/\s]+?)(?:\.git)?/?$') {
+            $repoTarget = $Matches[1]
+            $txtRepo.Text = $repoTarget
+        }
         $updState.RepoTarget = $repoTarget
         $updState.ReleaseData = $null
         $updState.ConfirmedUpdate = $false
@@ -6469,14 +6473,14 @@ function Show-UpdateCheckWindow {
                 if (-not $isNotFound) { throw }
 
                 $rawVerUrl = "https://raw.githubusercontent.com/$repoTarget/main/VERSION"
-                $rawVer = Invoke-RestMethod -Uri $rawVerUrl -Headers $headers -TimeoutSec 10 -ErrorAction Stop
-                $cleanRaw = ([string]$rawVer).Trim()
+                $rawVerResp = Invoke-WebRequest -Uri $rawVerUrl -Headers $headers -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+                $cleanRaw = ([string]$rawVerResp.Content).Trim()
                 if ([string]::IsNullOrWhiteSpace($cleanRaw)) { throw "Empty VERSION response from GitHub." }
                 $latestTag = if ($cleanRaw.StartsWith('v', [StringComparison]::OrdinalIgnoreCase)) { $cleanRaw } else { "v$cleanRaw" }
                 $updState.UseRawMainFallback = $true
                 try {
-                    $rawChg = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/$repoTarget/main/CHANGELOG.md" -Headers $headers -TimeoutSec 8 -ErrorAction SilentlyContinue
-                    if ($rawChg) { $updState.RawFallbackNotes = ([string]$rawChg -replace "`r?`n", "`r`n") }
+                    $rawChgResp = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$repoTarget/main/CHANGELOG.md" -Headers $headers -UseBasicParsing -TimeoutSec 8 -ErrorAction SilentlyContinue
+                    if ($rawChgResp -and $rawChgResp.Content) { $updState.RawFallbackNotes = ([string]$rawChgResp.Content -replace "`r?`n", "`r`n") }
                 } catch {}
             }
 
@@ -6566,7 +6570,7 @@ function Show-UpdateCheckWindow {
                     $exeAsset = $updState.ReleaseData.assets | Where-Object { $_.name -match '\.exe$' } | Select-Object -First 1
                 }
                 if (-not $exeAsset -or [string]::IsNullOrWhiteSpace($exeAsset.browser_download_url)) {
-                    throw "No compiled .exe release asset was found on GitHub release '$refName'."
+                    throw "No compiled .exe asset found on GitHub release '$refName'. Attach IncidentResponse.exe to a GitHub Release, or run via Launch-IncidentAutomator.bat to auto-update directly from main."
                 }
 
                 $stagedExe = "$procPath.new"

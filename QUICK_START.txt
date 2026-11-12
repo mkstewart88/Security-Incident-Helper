@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.52)
+SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.53)
 ================================================================================
 
 Security Incident Response Automator can be launched or compiled in seconds

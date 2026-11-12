@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.52](https://img.shields.io/badge/Version-1.1.52-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.53](https://img.shields.io/badge/Version-1.1.53-emerald.svg)](CHANGELOG.md)
 
 ### Exhaustive Architectural Specification & Control-by-Control Engineering Reference
 **Target Audience:** Cybersecurity Engineers, SOC Leads, Systems Architects, and Security Developers

@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.53] - 2026-11-12
+
+### Added
+- **Local EXE Auto-Recompilation on Update (`Show-UpdateCheckWindow`):**
+  - When running as compiled `IncidentResponse.exe` without a `.exe` asset on GitHub Releases, **Update & Restart** now downloads the updated `IncidentResponse-Automator.ps1` directly from GitHub, validates PowerShell syntax, compiles `IncidentResponse.exe.new` locally via `PS2EXE` inside the application folder, verifies the PE (`MZ`) header, hot-swaps the executable, and restarts automatically.
+
+### Improved & Fixed
+- **SentinelOne-Friendly Hot-Swap & GitHub Cache/Encoding Fixes:**
+  - Replaced `-EncodedCommand` swap invocation with clean `-File` scripts staged in the application directory.
+  - Added UTF-8 `byte[]` decoding (`$decodeWebContent`) for GitHub API `raw+json` `VERSION` and `CHANGELOG.md` responses in Windows PowerShell 5.1 and resolved the latest `main` commit SHA to bypass the 5-minute `raw.githubusercontent.com` CDN cache.
+
+---
+
 ## [1.1.52] - 2026-11-12
 
 ### Changed

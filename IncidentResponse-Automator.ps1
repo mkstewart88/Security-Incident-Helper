@@ -1,5 +1,5 @@
 # ==============================================================================
-# Security Incident Response Automator (v1.1.52)
+# Security Incident Response Automator (v1.1.53)
 # Standalone Native Windows Form Application (Tabbed UI, Real Verification, Audit Trail)
 # Domain Agnostic | Auto-Detect Domain | Remote / Non-Domain Workstation Support
 # Native .NET System.DirectoryServices Fallback (Runs with or without RSAT!)
@@ -33,7 +33,7 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
-$script:AppVersion = "1.1.52"
+$script:AppVersion = "1.1.53"
 $script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -6218,6 +6218,11 @@ function Show-ChangelogWindow {
             "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
             "===========================================================`r`n" +
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+            "## [1.1.53] - 2026-11-12`r`n" +
+            "### Added & Improved`r`n" +
+            "  * Added automatic local PS2EXE recompilation inside Update & Restart for IncidentResponse.exe when no .exe release asset exists on GitHub.`r`n" +
+            "  * Replaced -EncodedCommand swap execution with clean -File scripts staged inside the application folder.`r`n" +
+            "  * Added UTF-8 byte-array decoding for PowerShell 5.1 GitHub API responses and commit-SHA lookup to bypass CDN caching.`r`n`r`n" +
             "## [1.1.52] - 2026-11-12`r`n" +
             "### Changed`r`n" +
             "  * Testing Update Feature`r`n`r`n" +

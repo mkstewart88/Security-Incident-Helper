@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.51](https://img.shields.io/badge/Version-1.1.51-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.52](https://img.shields.io/badge/Version-1.1.52-emerald.svg)](CHANGELOG.md)
 
 A high-performance, domain-agnostic administrative incident containment console and security forensics triage utility for hybrid enterprise environments spanning **Active Directory Domain Services (AD DS)**, **Microsoft Entra ID (Microsoft 365)**, and **Google Workspace**.
 

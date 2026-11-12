@@ -1,5 +1,5 @@
 # ==============================================================================
-# Security Incident Response Automator (v1.1.51)
+# Security Incident Response Automator (v1.1.52)
 # Standalone Native Windows Form Application (Tabbed UI, Real Verification, Audit Trail)
 # Domain Agnostic | Auto-Detect Domain | Remote / Non-Domain Workstation Support
 # Native .NET System.DirectoryServices Fallback (Runs with or without RSAT!)
@@ -33,7 +33,7 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
-$script:AppVersion = "1.1.51"
+$script:AppVersion = "1.1.52"
 $script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -6218,6 +6218,9 @@ function Show-ChangelogWindow {
             "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
             "===========================================================`r`n" +
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+            "## [1.1.52] - 2026-11-12`r`n" +
+            "### Changed`r`n" +
+            "  * Testing Update Feature`r`n`r`n" +
             "## [1.1.51] - 2026-11-12`r`n" +
             "### Added & Fixed`r`n" +
             "  * Added GitHub Check for Updates & Self-Updater dialog supporting both Launch-IncidentAutomator.bat (.ps1) and compiled IncidentResponse.exe hot-swap restarts.`r`n" +

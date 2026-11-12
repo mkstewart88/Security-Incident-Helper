@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.51)
+SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.52)
 ================================================================================
 
 ARCHITECTURAL SPECIFICATION & EXHAUSTIVE CONTROL-BY-CONTROL ENGINEERING REFERENCE

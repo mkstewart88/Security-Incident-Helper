@@ -2621,7 +2621,7 @@ function Ensure-MgGraphSessionActive {
             try {
                 $scopeStr = ($defaultScopes -join ',')
                 $authScript = @"
-`$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host '  MICROSOFT GRAPH AUTHENTICATION - INCIDENT RESPONSE' -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
@@ -2629,13 +2629,13 @@ Write-Host 'Copy the device code and open the sign-in URL in a browser signed in
 try {
     Import-Module Microsoft.Graph.Authentication -DisableNameChecking -ErrorAction Stop
     if (Get-Command -Name 'Set-MgGraphOption' -ErrorAction SilentlyContinue) {
-        Set-MgGraphOption -DisableLoginByWAM `$true -ErrorAction SilentlyContinue
+        Set-MgGraphOption -DisableLoginByWAM $true -ErrorAction SilentlyContinue
     }
     Connect-MgGraph -Scopes ('$scopeStr' -split ',') -ContextScope CurrentUser -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
     Write-Host 'Graph session connected and cached successfully!' -ForegroundColor Green
     Start-Sleep -Seconds 1
 } catch {
-    Write-Host "Authentication error: `$(`$_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Authentication error: $($_.Exception.Message)" -ForegroundColor Red
     Start-Sleep -Seconds 3
 }
 "@
@@ -7949,29 +7949,29 @@ function Show-UpdateCheckWindow {
                     $safeExeVersion = $exeVersion.Replace("'", "''")
 
                     $compileScriptBody = @"
-`$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 if (-not (Get-Module -ListAvailable -Name ps2exe)) {
     if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
         Register-PSRepository -Default -ErrorAction Stop
     }
-    `$nuget = Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue | Sort-Object Version -Descending | Select-Object -First 1
-    if (-not `$nuget) {
+    $nuget = Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue | Sort-Object Version -Descending | Select-Object -First 1
+    if (-not $nuget) {
         Install-PackageProvider -Name NuGet -MinimumVersion '2.8.5.201' -Scope CurrentUser -Force -ErrorAction Stop | Out-Null
     }
     Install-Module -Name ps2exe -Repository PSGallery -Scope CurrentUser -Force -AllowClobber -ErrorAction Stop
 }
 Import-Module ps2exe -Force -ErrorAction Stop
-`$compileParams = @{
+$compileParams = @{
     inputFile    = '$safeStagedPs1'
     outputFile   = '$safeStagedExe'
-    noConsole    = `$true
+    noConsole    = $true
     title        = 'Security Incident Response Automator'
     description  = 'Incident Response Console for Active Directory, Microsoft 365 and Google Workspace'
     company      = 'Security Incident Response Automator Contributors'
     product      = 'Security Incident Response Automator'
     version      = '$safeExeVersion'
-    requireAdmin = `$true
+    requireAdmin = $true
 }
 Invoke-ps2exe @compileParams
 "@
@@ -8017,10 +8017,10 @@ Invoke-ps2exe @compileParams
                 $safeBuildWorkDir = $buildWorkDir.Replace("'", "''")
                 $safeSwapPs1      = $swapPs1.Replace("'", "''")
                 $swapScript = @"
-`$parentPid = $PID
-`$sw = [System.Diagnostics.Stopwatch]::StartNew()
-while (`$sw.Elapsed.TotalSeconds -lt 20) {
-    if (-not (Get-Process -Id `$parentPid -ErrorAction SilentlyContinue)) { break }
+$parentPid = $PID
+$sw = [System.Diagnostics.Stopwatch]::StartNew()
+while ($sw.Elapsed.TotalSeconds -lt 20) {
+    if (-not (Get-Process -Id $parentPid -ErrorAction SilentlyContinue)) { break }
     Start-Sleep -Milliseconds 250
 }
 Start-Sleep -Milliseconds 500
@@ -8084,10 +8084,10 @@ if (Test-Path -LiteralPath '$safeSwapPs1') { Remove-Item -LiteralPath '$safeSwap
                 }
 
                 $swapScript = @"
-`$parentPid = $PID
-`$sw = [System.Diagnostics.Stopwatch]::StartNew()
-while (`$sw.Elapsed.TotalSeconds -lt 20) {
-    if (-not (Get-Process -Id `$parentPid -ErrorAction SilentlyContinue)) { break }
+$parentPid = $PID
+$sw = [System.Diagnostics.Stopwatch]::StartNew()
+while ($sw.Elapsed.TotalSeconds -lt 20) {
+    if (-not (Get-Process -Id $parentPid -ErrorAction SilentlyContinue)) { break }
     Start-Sleep -Milliseconds 250
 }
 Start-Sleep -Milliseconds 400
@@ -9185,7 +9185,7 @@ $btnSwitchGraphAcct.Add_Click({
         $safeLogDir = $logDir.Replace("'", "''")
 
         $switchScript = @"
-`$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host '       SWITCH MICROSOFT GRAPH ACCOUNT (DEVICE-CODE)' -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
@@ -9197,37 +9197,37 @@ Write-Host ''
 try {
     Import-Module Microsoft.Graph.Authentication -DisableNameChecking -ErrorAction Stop
     if (Get-Command -Name 'Set-MgGraphOption' -ErrorAction SilentlyContinue) {
-        Set-MgGraphOption -DisableLoginByWAM `$true -ErrorAction SilentlyContinue
+        Set-MgGraphOption -DisableLoginByWAM $true -ErrorAction SilentlyContinue
     }
     try { Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null } catch {}
 
     Connect-MgGraph -Scopes ('$scopeCsv' -split ',') -ContextScope CurrentUser -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
-    `$ctx = Get-MgContext -ErrorAction Stop
-    if (-not `$ctx -or [string]::IsNullOrWhiteSpace([string]`$ctx.Account)) {
+    $ctx = Get-MgContext -ErrorAction Stop
+    if (-not $ctx -or [string]::IsNullOrWhiteSpace([string]$ctx.Account)) {
         throw 'Microsoft Graph did not return a signed-in account.'
     }
 
     if (-not (Test-Path -LiteralPath '$safeLogDir')) {
         New-Item -ItemType Directory -Path '$safeLogDir' -Force | Out-Null
     }
-    `$logFile = Join-Path '$safeLogDir' 'Setup.log'
-    `$ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    `$logLines = @(
-        "Microsoft Graph setup started: `$ts",
-        "[`$ts] [Success] Authenticated account: `$(`$ctx.Account)",
-        "[`$ts] [Success] Tenant ID: `$(`$ctx.TenantId)",
-        "[`$ts] [Success] All requested delegated permissions are present.",
-        "[`$ts] [Success] Setup completed successfully for `$(`$ctx.Account)."
+    $logFile = Join-Path '$safeLogDir' 'Setup.log'
+    $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    $logLines = @(
+        "Microsoft Graph setup started: $ts",
+        "[$ts] [Success] Authenticated account: $($ctx.Account)",
+        "[$ts] [Success] Tenant ID: $($ctx.TenantId)",
+        "[$ts] [Success] All requested delegated permissions are present.",
+        "[$ts] [Success] Setup completed successfully for $($ctx.Account)."
     )
-    Set-Content -LiteralPath `$logFile -Value `$logLines -Encoding UTF8 -Force
-    Set-Content -LiteralPath '$safeFlagPath' -Value ([string]`$ctx.Account) -Encoding UTF8 -Force
+    Set-Content -LiteralPath $logFile -Value $logLines -Encoding UTF8 -Force
+    Set-Content -LiteralPath '$safeFlagPath' -Value ([string]$ctx.Account) -Encoding UTF8 -Force
 
     Write-Host ''
-    Write-Host "Switched Microsoft Graph account to: `$(`$ctx.Account)" -ForegroundColor Green
+    Write-Host "Switched Microsoft Graph account to: $($ctx.Account)" -ForegroundColor Green
     Start-Sleep -Seconds 2
 } catch {
     Write-Host ''
-    Write-Host "Account switch error: `$(`$_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Account switch error: $($_.Exception.Message)" -ForegroundColor Red
     Read-Host 'Press Enter to close'
     exit 1
 }
@@ -9306,8 +9306,8 @@ $btnSwitchGamAcct.Add_Click({
         $safeGamFlag = $gamFlag.Replace("'", "''")
         $safeCfgDir = $cfgDir.Replace("'", "''")
         $gamSwitchScript = @"
-`$ErrorActionPreference = 'Continue'
-`$env:GAMCFGDIR = '$safeCfgDir'
+$ErrorActionPreference = 'Continue'
+$env:GAMCFGDIR = '$safeCfgDir'
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host '      SWITCH GOOGLE WORKSPACE GAM7 ADMIN ACCOUNT' -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
@@ -9320,11 +9320,11 @@ Write-Host ''
 & '$safeGamExe' oauth delete
 Write-Host ''
 & '$safeGamExe' oauth create
-`$createCode = `$LASTEXITCODE
+$createCode = $LASTEXITCODE
 Write-Host ''
-if (`$createCode -eq 0) {
+if ($createCode -eq 0) {
     & '$safeGamExe' oauth verify
-    if (`$LASTEXITCODE -eq 0) {
+    if ($LASTEXITCODE -eq 0) {
         & '$safeGamExe' oauth info
         Set-Content -LiteralPath '$safeGamFlag' -Value 'OK' -Encoding UTF8 -Force
         Write-Host ''

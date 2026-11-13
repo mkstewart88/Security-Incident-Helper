@@ -1,5 +1,5 @@
 # ==============================================================================
-# Security Incident Response Automator (v1.1.54)
+# Security Incident Response Automator (v1.1.57)
 # Standalone Native Windows Form Application (Tabbed UI, Real Verification, Audit Trail)
 # Domain Agnostic | Auto-Detect Domain | Multi-Domain Profiles (AD + Graph + GAM7)
 # Native .NET System.DirectoryServices Fallback (Runs with or without RSAT!)
@@ -33,7 +33,7 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
-$script:AppVersion = "1.1.54"
+$script:AppVersion = "1.1.57"
 $script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -1522,7 +1522,7 @@ function Get-DiscoveredLocalDomainSafe {
 function Get-DomainProfilePaths {
     param([Parameter(Mandatory = $true)]$ProfileObj)
 
-    $pidSafe = (if ($ProfileObj -and -not [string]::IsNullOrWhiteSpace([string]$ProfileObj.Id)) {
+    $pidSafe = $(if ($ProfileObj -and -not [string]::IsNullOrWhiteSpace([string]$ProfileObj.Id)) {
         ([string]$ProfileObj.Id -replace '[^a-zA-Z0-9_-]', '_')
     } else {
         'default'
@@ -1530,7 +1530,7 @@ function Get-DomainProfilePaths {
     $profDir = Join-Path $script:ProfilesRootDir $pidSafe
     $isDef = ($pidSafe -eq 'default') -or ($ProfileObj -and [bool]$ProfileObj.IsDefault)
 
-    $gamDir = (if ($ProfileObj -and (-not [string]::IsNullOrWhiteSpace([string]$ProfileObj.GamConfigDir))) {
+    $gamDir = $(if ($ProfileObj -and (-not [string]::IsNullOrWhiteSpace([string]$ProfileObj.GamConfigDir))) {
         [Environment]::ExpandEnvironmentVariables([string]$ProfileObj.GamConfigDir)
     } elseif ($isDef) {
         $script:BaseDefaultGamCfgDir
@@ -1538,7 +1538,7 @@ function Get-DomainProfilePaths {
         Join-Path $profDir 'gam'
     })
 
-    $graphDir = (if ($ProfileObj -and (-not [string]::IsNullOrWhiteSpace([string]$ProfileObj.GraphSetupDir))) {
+    $graphDir = $(if ($ProfileObj -and (-not [string]::IsNullOrWhiteSpace([string]$ProfileObj.GraphSetupDir))) {
         [Environment]::ExpandEnvironmentVariables([string]$ProfileObj.GraphSetupDir)
     } elseif ($isDef) {
         $script:BaseDefaultGraphDir
@@ -1678,7 +1678,7 @@ function Load-DomainProfilesSafe {
     if ($loaded) {
         foreach ($pr in @($loaded.Profiles)) {
             if (-not $pr -or [string]::IsNullOrWhiteSpace([string]$pr.Id)) { continue }
-            $isPrim = (if ($pr.PSObject.Properties.Name -contains 'IsPrimary') {
+            $isPrim = $(if ($pr.PSObject.Properties.Name -contains 'IsPrimary') {
                 [bool]$pr.IsPrimary
             } elseif ($loadedPrimaryConf -and (([string]$pr.Id -eq 'default') -or [bool]$pr.IsDefault)) {
                 $true
@@ -1686,7 +1686,7 @@ function Load-DomainProfilesSafe {
                 $false
             })
             if ($isPrim) { $anyPrimary = $true }
-            $profName = (if ($pr.Name) { [string]$pr.Name } else { [string]$pr.Id })
+            $profName = $(if ($pr.Name) { [string]$pr.Name } else { [string]$pr.Id })
             if ($profName -eq 'Default (Primary)' -and (-not $isPrim)) {
                 $profName = 'Default Profile'
             }
@@ -1709,7 +1709,7 @@ function Load-DomainProfilesSafe {
     }
 
     if ($list.Count -eq 0) {
-        $initName = (if (-not [string]::IsNullOrWhiteSpace($DefaultDomain)) { "Default ($DefaultDomain)" } else { 'Default Profile' })
+        $initName = $(if (-not [string]::IsNullOrWhiteSpace($DefaultDomain)) { "Default ($DefaultDomain)" } else { 'Default Profile' })
         $list.Add([PSCustomObject]@{
             Id                = 'default'
             Name              = $initName
@@ -1727,7 +1727,7 @@ function Load-DomainProfilesSafe {
         })
     }
 
-    $activeId = (if ($loaded -and (-not [string]::IsNullOrWhiteSpace([string]$loaded.ActiveProfileId))) {
+    $activeId = $(if ($loaded -and (-not [string]::IsNullOrWhiteSpace([string]$loaded.ActiveProfileId))) {
         [string]$loaded.ActiveProfileId
     } else {
         [string]$list[0].Id
@@ -1935,7 +1935,7 @@ function Get-DomainProfileStatusSummary {
         if (-not $graphReady -and (Test-Path -LiteralPath $audCfg -PathType Leaf)) {
             $j = Get-Content -LiteralPath $audCfg -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue
             if ($j -and $j.TenantId) {
-                $graphLabel = (if ($j.Account) { [string]$j.Account } else { "App-Only ($($j.TenantId))" })
+                $graphLabel = $(if ($j.Account) { [string]$j.Account } else { "App-Only ($($j.TenantId))" })
                 $graphReady = $true
             }
         }
@@ -1969,7 +1969,7 @@ function Get-DomainProfileStatusSummary {
             }
             if ($hasOauth) {
                 $gamReady = $true
-                $gamLabel = (if ($domHint) { "Ready ($domHint)" } else { "OAuth Ready" })
+                $gamLabel = $(if ($domHint) { "Ready ($domHint)" } else { "OAuth Ready" })
             } elseif ($hasSec) {
                 $gamLabel = "Project linked (OAuth pending)"
             }
@@ -1999,7 +1999,7 @@ if (-not [string]::IsNullOrWhiteSpace($localDomainFound)) {
     $script:isDomainJoined = $false
 }
 
-$defaultTargetDomain = (if ($script:isDomainJoined) {
+$defaultTargetDomain = $(if ($script:isDomainJoined) {
     $script:detectedDomain
 } elseif ($script:savedDomainConfig -and (-not [string]::IsNullOrWhiteSpace([string]$script:savedDomainConfig.TargetDomain))) {
     [string]$script:savedDomainConfig.TargetDomain
@@ -2009,7 +2009,7 @@ $defaultTargetDomain = (if ($script:isDomainJoined) {
     ""
 })
 
-$defaultTargetServer = (if ($script:isDomainJoined) {
+$defaultTargetServer = $(if ($script:isDomainJoined) {
     $script:detectedDomain
 } elseif ($script:savedDomainConfig -and (-not [string]::IsNullOrWhiteSpace([string]$script:savedDomainConfig.TargetServer))) {
     [string]$script:savedDomainConfig.TargetServer
@@ -2019,7 +2019,7 @@ $defaultTargetServer = (if ($script:isDomainJoined) {
     ""
 })
 
-$defaultAdminAccount = (if ($script:savedDomainConfig -and (-not [string]::IsNullOrWhiteSpace([string]$script:savedDomainConfig.AdminUsername))) {
+$defaultAdminAccount = $(if ($script:savedDomainConfig -and (-not [string]::IsNullOrWhiteSpace([string]$script:savedDomainConfig.AdminUsername))) {
     [string]$script:savedDomainConfig.AdminUsername
 } elseif (-not [string]::IsNullOrEmpty($env:USERDNSDOMAIN)) {
     "$env:USERNAME@$($env:USERDNSDOMAIN.ToLower())"
@@ -2151,12 +2151,12 @@ function Get-ADDomainSafe {
     }
 
     # Native .NET System.DirectoryServices live RootDSE bind verification (No RSAT required)
-    $target = (if ($hasServer) { $Server } else { $script:detectedDomain })
+    $target = $(if ($hasServer) { $Server } else { $script:detectedDomain })
     if (-not (Test-ValidADServer $target)) {
         throw "No valid Active Directory domain or Domain Controller specified."
     }
     $ldapPath = "LDAP://$target/RootDSE"
-    $de = (if ($Cred) {
+    $de = $(if ($Cred) {
         New-Object System.DirectoryServices.DirectoryEntry($ldapPath, $Cred.UserName, $Cred.GetNetworkCredential().Password)
     } else {
         New-Object System.DirectoryServices.DirectoryEntry($ldapPath)
@@ -2202,11 +2202,11 @@ function Invoke-VerifyAD {
     $hasServer = Test-ValidADServer $script:targetServer
     $isCustomProfile = $script:activeProfile -and (-not [bool]$script:activeProfile.IsDefault) -and ([string]$script:activeProfile.Id -ne 'default')
     if ((-not $script:isDomainJoined -or $isCustomProfile) -and (-not $hasServer)) {
-        $result.Error = "No target Active Directory domain or DC configured for this profile. Click 'Switch Domain / Profile'."
+        $result.Error = "No target Active Directory domain or DC configured for this profile. Use Tab 1 ('Switch AD Account / Domain' or 'Manage / AD...')."
         return $result
     }
     if ($script:useExplicitCreds -and (-not $script:adCredential)) {
-        $result.Error = "Password authentication required for '$($script:targetServer)'. Click 'Switch Domain / Profile' to connect."
+        $result.Error = "Password authentication required for '$($script:targetServer)'. Open Tab 1 and click 'Switch AD Account / Domain'."
         return $result
     }
 
@@ -2225,9 +2225,9 @@ function Invoke-VerifyAD {
             return $result
         }
 
-        $target = (if ($hasServer) { $script:targetServer } else { $script:detectedDomain })
+        $target = $(if ($hasServer) { $script:targetServer } else { $script:detectedDomain })
         $ldapPath = "LDAP://$target/RootDSE"
-        $de = (if ($script:adCredential) {
+        $de = $(if ($script:adCredential) {
             New-Object System.DirectoryServices.DirectoryEntry($ldapPath, $script:adCredential.UserName, $script:adCredential.GetNetworkCredential().Password)
         } else {
             New-Object System.DirectoryServices.DirectoryEntry($ldapPath)
@@ -2241,8 +2241,8 @@ function Invoke-VerifyAD {
             $resolvedDom = ($nc -split ',' | Where-Object { $_ -match '^DC=' } | ForEach-Object { $_ -replace '^DC=','' }) -join '.'
             $result.Verified = $true
             $result.Engine = "Native .NET System.DirectoryServices (LDAP)"
-            $result.Domain = (if ($resolvedDom) { $resolvedDom } else { $target })
-            $result.RootDSE = (if ($dnsHost) { "$nc ($dnsHost)" } else { [string]$nc })
+            $result.Domain = $(if ($resolvedDom) { $resolvedDom } else { $target })
+            $result.RootDSE = $(if ($dnsHost) { "$nc ($dnsHost)" } else { [string]$nc })
             return $result
         } finally {
             if ($de) { $de.Dispose() }
@@ -2250,7 +2250,7 @@ function Invoke-VerifyAD {
     } catch {
         $errMsg = $_.Exception.Message
         if ($errMsg -match 'Logon failure|unknown user name|bad password|credentials|access is denied' -or (-not $script:isDomainJoined -and -not $script:adCredential)) {
-            $result.Error = "Target DC '$($script:targetServer)' requires admin authentication. Click 'Switch Domain / Profile' to enter password."
+            $result.Error = "Target DC '$($script:targetServer)' requires admin authentication. Open Tab 1 and click 'Switch AD Account / Domain' to enter password."
         } else {
             $result.Error = $errMsg
         }
@@ -2305,7 +2305,7 @@ function Get-SetupGraphLogState {
                     if ($appJson -and (-not [string]::IsNullOrWhiteSpace([string]$appJson.TenantId)) -and (-not [string]::IsNullOrWhiteSpace([string]$appJson.ClientId))) {
                         $state.Verified = $true
                         $state.TenantId = [string]$appJson.TenantId
-                        $state.Account  = (if ($appJson.AppName) { [string]$appJson.AppName } else { "Tenant Service Principal ($($appJson.ClientId))" })
+                        $state.Account  = $(if ($appJson.AppName) { [string]$appJson.AppName } else { "Tenant Service Principal ($($appJson.ClientId))" })
                         return $state
                     }
                 } catch {}
@@ -2354,7 +2354,7 @@ function Invoke-VerifyGraph {
         }
     }
     if ($missingModules.Count -gt 0) {
-        $result.Error = "Missing Microsoft Graph modules: $($missingModules -join ', '). Open Tab 2 ('Health & Diagnostics') and click '1. Setup Microsoft Graph'."
+        $result.Error = "Missing Microsoft Graph modules: $($missingModules -join ', '). Open Tab 1 ('1. Setup') and click '1. Setup Microsoft Graph'."
         return $result
     }
     $result.ModulesInstalled = $true
@@ -2377,7 +2377,7 @@ function Invoke-VerifyGraph {
         } catch {}
 
         $requiredScopes = @('User.RevokeSessions.All', 'Directory.AccessAsUser.All')
-        $mgContextPath = (if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) { Join-Path $env:USERPROFILE '.mg\MgContext.json' } else { "" })
+        $mgContextPath = $(if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) { Join-Path $env:USERPROFILE '.mg\MgContext.json' } else { "" })
         $hasMgCacheFile = (-not [string]::IsNullOrWhiteSpace($mgContextPath)) -and (Test-Path -LiteralPath $mgContextPath -PathType Leaf)
 
         $ctx = Get-MgContext -ErrorAction SilentlyContinue
@@ -2419,9 +2419,9 @@ function Invoke-VerifyGraph {
         $setupState = Get-SetupGraphLogState
         if ($setupState.Verified) {
             $result.Verified = $true
-            $result.Account  = (if ($ctx -and (-not [string]::IsNullOrWhiteSpace([string]$ctx.Account))) { [string]$ctx.Account } else { [string]$setupState.Account })
-            $result.TenantId = (if ($ctx -and (-not [string]::IsNullOrWhiteSpace([string]$ctx.TenantId))) { [string]$ctx.TenantId } else { [string]$setupState.TenantId })
-            $result.Scopes   = (if ($ctx -and $ctx.Scopes) { @($ctx.Scopes) } else { @($setupState.Scopes) })
+            $result.Account  = $(if ($ctx -and (-not [string]::IsNullOrWhiteSpace([string]$ctx.Account))) { [string]$ctx.Account } else { [string]$setupState.Account })
+            $result.TenantId = $(if ($ctx -and (-not [string]::IsNullOrWhiteSpace([string]$ctx.TenantId))) { [string]$ctx.TenantId } else { [string]$setupState.TenantId })
+            $result.Scopes   = $(if ($ctx -and $ctx.Scopes) { @($ctx.Scopes) } else { @($setupState.Scopes) })
             return $result
         }
 
@@ -2476,7 +2476,7 @@ function Resolve-UserCloudIdentities {
         }
     }
 
-    $resolvedMail = (if (Test-RoutableCloudAddress $Mail) {
+    $resolvedMail = $(if (Test-RoutableCloudAddress $Mail) {
         $Mail.Trim()
     } elseif (Test-RoutableCloudAddress $primarySmtp) {
         $primarySmtp
@@ -2515,7 +2515,7 @@ function Resolve-UserCloudIdentities {
     foreach ($f in $fallbackList) { $allCandidates.Add($f) }
 
     # Graph prefers routable UPN first, then routable Mail; GAM prefers routable Mail first, then routable UPN
-    $graphId = (if (Test-RoutableCloudAddress $UserPrincipalName) {
+    $graphId = $(if (Test-RoutableCloudAddress $UserPrincipalName) {
         $UserPrincipalName.Trim()
     } elseif (Test-RoutableCloudAddress $resolvedMail) {
         $resolvedMail
@@ -2525,7 +2525,7 @@ function Resolve-UserCloudIdentities {
         $UserPrincipalName
     })
 
-    $gamId = (if (Test-RoutableCloudAddress $resolvedMail) {
+    $gamId = $(if (Test-RoutableCloudAddress $resolvedMail) {
         $resolvedMail
     } elseif (Test-RoutableCloudAddress $UserPrincipalName) {
         $UserPrincipalName.Trim()
@@ -2579,7 +2579,7 @@ function Ensure-MgGraphSessionActive {
             }
         }
 
-        $mgContextPath = (if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) { Join-Path $env:USERPROFILE '.mg\MgContext.json' } else { "" })
+        $mgContextPath = $(if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) { Join-Path $env:USERPROFILE '.mg\MgContext.json' } else { "" })
         $hasMgCacheFile = (-not [string]::IsNullOrWhiteSpace($mgContextPath)) -and (Test-Path -LiteralPath $mgContextPath -PathType Leaf)
 
         # Step 1: Check existing in-process context
@@ -2620,7 +2620,8 @@ function Ensure-MgGraphSessionActive {
             $authPs1 = Join-Path ([IO.Path]::GetTempPath()) ("IRGraphAuth_" + [Guid]::NewGuid().ToString("N").Substring(0, 8) + ".ps1")
             try {
                 $scopeStr = ($defaultScopes -join ',')
-                $authScript = @"
+                $safeScopeStr = $scopeStr.Replace("'", "''")
+                $authScript = @'
 $ErrorActionPreference = 'Stop'
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host '  MICROSOFT GRAPH AUTHENTICATION - INCIDENT RESPONSE' -ForegroundColor Cyan
@@ -2631,14 +2632,14 @@ try {
     if (Get-Command -Name 'Set-MgGraphOption' -ErrorAction SilentlyContinue) {
         Set-MgGraphOption -DisableLoginByWAM $true -ErrorAction SilentlyContinue
     }
-    Connect-MgGraph -Scopes ('$scopeStr' -split ',') -ContextScope CurrentUser -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
+    Connect-MgGraph -Scopes ('__SCOPE_STR__' -split ',') -ContextScope CurrentUser -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
     Write-Host 'Graph session connected and cached successfully!' -ForegroundColor Green
     Start-Sleep -Seconds 1
 } catch {
     Write-Host "Authentication error: $($_.Exception.Message)" -ForegroundColor Red
     Start-Sleep -Seconds 3
 }
-"@
+'@.Replace('__SCOPE_STR__', $safeScopeStr)
                 Set-Content -LiteralPath $authPs1 -Value $authScript -Encoding UTF8 -Force
                 $psExeAuth = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
                 if (-not (Test-Path -LiteralPath $psExeAuth)) { $psExeAuth = "powershell.exe" }
@@ -2744,7 +2745,7 @@ function Invoke-RevokeMgUserSignInSessionSafe {
     if (-not $matchedUserId) {
         try {
             $resolvedUser = Resolve-GraphUserObjectSafe -PrimaryId $UserPrincipalName -CandidateIds $CandidateIds -SamAccountName $SamAccountName
-            $resolvedGraphUpn = (if ($resolvedUser.userPrincipalName) { [string]$resolvedUser.userPrincipalName } else { [string]$resolvedUser.id })
+            $resolvedGraphUpn = $(if ($resolvedUser.userPrincipalName) { [string]$resolvedUser.userPrincipalName } else { [string]$resolvedUser.id })
             $encResolved = [Uri]::EscapeDataString($resolvedGraphUpn)
 
             # Try App REST if configured
@@ -2792,8 +2793,8 @@ function Invoke-RevokeMgUserSignInSessionSafe {
     }
 
     $ctx = Get-MgContext -ErrorAction SilentlyContinue
-    $ctxAcct = (if ($ctx -and $ctx.Account) { [string]$ctx.Account } else { "" })
-    $ctxTenant = (if ($ctx -and $ctx.TenantId) { [string]$ctx.TenantId } else { "" })
+    $ctxAcct = $(if ($ctx -and $ctx.Account) { [string]$ctx.Account } else { "" })
+    $ctxTenant = $(if ($ctx -and $ctx.TenantId) { [string]$ctx.TenantId } else { "" })
     return @{
         Context       = @{ Account = $ctxAcct; TenantId = $ctxTenant }
         MatchedUserId = $matchedUserId
@@ -2843,7 +2844,7 @@ function Invoke-GamCliSafe {
         }
         try { $stdout = [string]$outTask.GetAwaiter().GetResult() } catch {}
         try { $stderr = [string]$errTask.GetAwaiter().GetResult() } catch {}
-        $exitCode = (if ($timedOut) { 124 } else { $proc.ExitCode })
+        $exitCode = $(if ($timedOut) { 124 } else { $proc.ExitCode })
     } catch {
         $stderr = $_.Exception.Message
     }
@@ -2904,7 +2905,7 @@ function Invoke-GamUserSignoutSafe {
         # Use Invoke-GamCliSafe to avoid PowerShell treating GAM informational stderr lines as NativeCommandError
         $cliRes = Invoke-GamCliSafe -GamExecutable $GamExecutable -Arguments @('user', $candidate, 'signout') -TimeoutSeconds 15
         $gamExit = $cliRes.ExitCode
-        $gamOut = (if ($cliRes.Output) { $cliRes.Output } else { $cliRes.Combined })
+        $gamOut = $(if ($cliRes.Output) { $cliRes.Output } else { $cliRes.Combined })
 
         # Exit code 0 or explicit 'Signed Out' string indicates success
         if ($gamExit -eq 0 -or $gamOut -match 'Signed Out') {
@@ -2965,7 +2966,7 @@ function Get-UserActiveSessionTelemetry {
     # 1. Check Microsoft 365 / Entra ID session & account state
     $graphCheck = Invoke-VerifyGraph -QuickStartup
     if ($graphCheck.Verified) {
-        $graphTarget = (if ($UserObj.GraphTargetId) { $UserObj.GraphTargetId } else { $UserObj.UserPrincipalName })
+        $graphTarget = $(if ($UserObj.GraphTargetId) { $UserObj.GraphTargetId } else { $UserObj.UserPrincipalName })
         $telemetry.GraphMatch = $graphTarget
         $wasGraphRevokedInSession = $false
         foreach ($k in $allUserKeys) {
@@ -2988,10 +2989,10 @@ function Get-UserActiveSessionTelemetry {
                 } catch {}
             }
             if ($foundGraphUser) {
-                $matchedUpn = (if ($foundGraphUser.userPrincipalName) { [string]$foundGraphUser.userPrincipalName } else { $graphTarget })
+                $matchedUpn = $(if ($foundGraphUser.userPrincipalName) { [string]$foundGraphUser.userPrincipalName } else { $graphTarget })
                 $telemetry.GraphMatch = $matchedUpn
                 if ($script:revokedGraphUsers.Contains($matchedUpn)) { $wasGraphRevokedInSession = $true }
-                $isAcctEnabled = (if ($null -ne $foundGraphUser.accountEnabled) { [bool]$foundGraphUser.accountEnabled } else { $true })
+                $isAcctEnabled = $(if ($null -ne $foundGraphUser.accountEnabled) { [bool]$foundGraphUser.accountEnabled } else { $true })
 
                 if (-not $isAcctEnabled) {
                     $telemetry.GraphStatus = "Sign-In Blocked"
@@ -3041,7 +3042,7 @@ function Get-UserActiveSessionTelemetry {
     $gamCheck = Invoke-VerifyGAM -QuickStartup
     if ($gamCheck.Verified -and $gamCheck.Executable) {
         $gamExe = $gamCheck.Executable
-        $gamTarget = (if ($UserObj.GamTargetId) { $UserObj.GamTargetId } else { $UserObj.UserPrincipalName })
+        $gamTarget = $(if ($UserObj.GamTargetId) { $UserObj.GamTargetId } else { $UserObj.UserPrincipalName })
         $telemetry.GamMatch = $gamTarget
         $wasGamRevokedInSession = $false
         foreach ($k in $allUserKeys) {
@@ -3114,7 +3115,7 @@ function Resolve-GamExecutable {
         } catch {}
     }
 
-    $localAppData = (if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+    $localAppData = $(if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
         $env:LOCALAPPDATA
     } else {
         [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
@@ -3384,7 +3385,7 @@ function Get-MultiDCUserNonReplicatedTelemetrySafe {
         $searcher = $null
         try {
             $path = "LDAP://$dc"
-            $entry = (if ($Cred) {
+            $entry = $(if ($Cred) {
                 New-Object System.DirectoryServices.DirectoryEntry($path, $Cred.UserName, $Cred.GetNetworkCredential().Password)
             } else {
                 New-Object System.DirectoryServices.DirectoryEntry($path)
@@ -3425,7 +3426,7 @@ function Get-MultiDCUserNonReplicatedTelemetrySafe {
                 }
 
                 # Check non-replicated badPwdCount and badPasswordTime on this DC
-                $dcBadCount = (if ($props["badpwdcount"] -and $props["badpwdcount"].Count -gt 0) { [int]$props["badpwdcount"][0] } else { 0 })
+                $dcBadCount = $(if ($props["badpwdcount"] -and $props["badpwdcount"].Count -gt 0) { [int]$props["badpwdcount"][0] } else { 0 })
                 if ($dcBadCount -gt 0) {
                     $result.TotalBadPwdCount += $dcBadCount
                 }
@@ -3476,7 +3477,7 @@ function Query-ADUsersSafe {
 
     $hasServer = Test-ValidADServer $Server
     if (-not $script:isDomainJoined -and -not $hasServer) {
-        throw "Workstation is not domain-joined. Click 'Switch Domain / Profile' to connect to a Domain Controller."
+        throw "Workstation is not domain-joined. Open Tab 1 ('1. Setup') and click 'Switch AD Account / Domain' to connect to a Domain Controller."
     }
 
     if (Get-Command Get-ADUser -ErrorAction SilentlyContinue) {
@@ -3494,7 +3495,7 @@ function Query-ADUsersSafe {
                     $pwdAge = [math]::Round(((Get-Date) - $dt).TotalDays)
                 } catch {}
             }
-            $lastLogonStr = (if ($u.LastLogonDate) {
+            $lastLogonStr = $(if ($u.LastLogonDate) {
                 try { ([DateTime]$u.LastLogonDate).ToString("yyyy-MM-dd HH:mm") } catch { "Unknown" }
             } else { "Never / Unknown" })
 
@@ -3502,9 +3503,9 @@ function Query-ADUsersSafe {
             if ($u.AccountExpirationDate) {
                 try { $acctExpStr = ([DateTime]$u.AccountExpirationDate).ToString("yyyy-MM-dd HH:mm") } catch {}
             }
-            $logonHostsStr = (if (-not [string]::IsNullOrWhiteSpace([string]$u.LogonWorkstations)) { [string]$u.LogonWorkstations } elseif (-not [string]::IsNullOrWhiteSpace([string]$u.userWorkstations)) { [string]$u.userWorkstations } else { "All Workstations" })
+            $logonHostsStr = $(if (-not [string]::IsNullOrWhiteSpace([string]$u.LogonWorkstations)) { [string]$u.LogonWorkstations } elseif (-not [string]::IsNullOrWhiteSpace([string]$u.userWorkstations)) { [string]$u.userWorkstations } else { "All Workstations" })
 
-            $proxyArr = (if ($u.proxyAddresses) { @($u.proxyAddresses | ForEach-Object { [string]$_ }) } else { @() })
+            $proxyArr = $(if ($u.proxyAddresses) { @($u.proxyAddresses | ForEach-Object { [string]$_ }) } else { @() })
             $cloudMap = Resolve-UserCloudIdentities -SamAccountName ([string]$u.SamAccountName) -UserPrincipalName ([string]$u.UserPrincipalName) -Mail ([string]$u.mail) -ProxyAddresses $proxyArr
 
             Add-Member -InputObject $u -NotePropertyName 'PasswordAge' -NotePropertyValue $pwdAge -Force -ErrorAction SilentlyContinue
@@ -3516,7 +3517,7 @@ function Query-ADUsersSafe {
             Add-Member -InputObject $u -NotePropertyName 'GraphTargetId' -NotePropertyValue $cloudMap.GraphTargetId -Force -ErrorAction SilentlyContinue
             Add-Member -InputObject $u -NotePropertyName 'GamTargetId' -NotePropertyValue $cloudMap.GamTargetId -Force -ErrorAction SilentlyContinue
             Add-Member -InputObject $u -NotePropertyName 'CloudCandidates' -NotePropertyValue $cloudMap.CloudCandidates -Force -ErrorAction SilentlyContinue
-            $off = (if ($u.physicalDeliveryOfficeName) { $u.physicalDeliveryOfficeName } else { "Main Office" })
+            $off = $(if ($u.physicalDeliveryOfficeName) { $u.physicalDeliveryOfficeName } else { "Main Office" })
             Add-Member -InputObject $u -NotePropertyName 'Office' -NotePropertyValue $off -Force -ErrorAction SilentlyContinue
         }
         return $res
@@ -3524,10 +3525,10 @@ function Query-ADUsersSafe {
 
     # Native .NET System.DirectoryServices.DirectorySearcher Fallback
     $results = @()
-    $targetDomain = (if ($hasServer) { $Server } else { $script:targetDomain })
-    $path = (if (Test-ValidADServer $targetDomain) { "LDAP://$targetDomain" } else { "LDAP://" })
+    $targetDomain = $(if ($hasServer) { $Server } else { $script:targetDomain })
+    $path = $(if (Test-ValidADServer $targetDomain) { "LDAP://$targetDomain" } else { "LDAP://" })
 
-    $entry = (if ($Cred) {
+    $entry = $(if ($Cred) {
         New-Object System.DirectoryServices.DirectoryEntry($path, $Cred.UserName, $Cred.GetNetworkCredential().Password)
     } else {
         New-Object System.DirectoryServices.DirectoryEntry($path)
@@ -3549,10 +3550,10 @@ function Query-ADUsersSafe {
         $found = $searcher.FindAll()
         foreach ($item in $found) {
             $props = $item.Properties
-            $sam = (if ($props["samaccountname"] -and $props["samaccountname"].Count -gt 0) { [string]$props["samaccountname"][0] } else { "" })
+            $sam = $(if ($props["samaccountname"] -and $props["samaccountname"].Count -gt 0) { [string]$props["samaccountname"][0] } else { "" })
             if ([string]::IsNullOrEmpty($sam)) { continue }
-            $rawUpn = (if ($props["userprincipalname"] -and $props["userprincipalname"].Count -gt 0) { [string]$props["userprincipalname"][0] } else { "" })
-            $rawMail = (if ($props["mail"] -and $props["mail"].Count -gt 0) { [string]$props["mail"][0] } else { "" })
+            $rawUpn = $(if ($props["userprincipalname"] -and $props["userprincipalname"].Count -gt 0) { [string]$props["userprincipalname"][0] } else { "" })
+            $rawMail = $(if ($props["mail"] -and $props["mail"].Count -gt 0) { [string]$props["mail"][0] } else { "" })
             $proxyList = @()
             if ($props["proxyaddresses"] -and $props["proxyaddresses"].Count -gt 0) {
                 foreach ($pVal in $props["proxyaddresses"]) {
@@ -3560,7 +3561,7 @@ function Query-ADUsersSafe {
                 }
             }
 
-            $upn = (if (-not [string]::IsNullOrWhiteSpace($rawUpn)) {
+            $upn = $(if (-not [string]::IsNullOrWhiteSpace($rawUpn)) {
                 $rawUpn
             } elseif (-not [string]::IsNullOrWhiteSpace($rawMail)) {
                 $rawMail
@@ -3570,14 +3571,14 @@ function Query-ADUsersSafe {
 
             $cloudMap = Resolve-UserCloudIdentities -SamAccountName $sam -UserPrincipalName $upn -Mail $rawMail -ProxyAddresses $proxyList
 
-            $name = (if ($props["displayname"] -and $props["displayname"].Count -gt 0) { [string]$props["displayname"][0] } else { [string]$props["name"][0] })
-            $title = (if ($props["title"] -and $props["title"].Count -gt 0) { [string]$props["title"][0] } else { "Staff" })
-            $dept = (if ($props["department"] -and $props["department"].Count -gt 0) { [string]$props["department"][0] } else { "General" })
-            $office = (if ($props["physicaldeliveryofficename"] -and $props["physicaldeliveryofficename"].Count -gt 0) { [string]$props["physicaldeliveryofficename"][0] } else { "Main Office" })
-            $dn = (if ($props["distinguishedname"] -and $props["distinguishedname"].Count -gt 0) { [string]$props["distinguishedname"][0] } else { "" })
-            $uac = (if ($props["useraccountcontrol"] -and $props["useraccountcontrol"].Count -gt 0) { [int]$props["useraccountcontrol"][0] } else { 512 })
+            $name = $(if ($props["displayname"] -and $props["displayname"].Count -gt 0) { [string]$props["displayname"][0] } else { [string]$props["name"][0] })
+            $title = $(if ($props["title"] -and $props["title"].Count -gt 0) { [string]$props["title"][0] } else { "Staff" })
+            $dept = $(if ($props["department"] -and $props["department"].Count -gt 0) { [string]$props["department"][0] } else { "General" })
+            $office = $(if ($props["physicaldeliveryofficename"] -and $props["physicaldeliveryofficename"].Count -gt 0) { [string]$props["physicaldeliveryofficename"][0] } else { "Main Office" })
+            $dn = $(if ($props["distinguishedname"] -and $props["distinguishedname"].Count -gt 0) { [string]$props["distinguishedname"][0] } else { "" })
+            $uac = $(if ($props["useraccountcontrol"] -and $props["useraccountcontrol"].Count -gt 0) { [int]$props["useraccountcontrol"][0] } else { 512 })
             $isEnabled = -not ([bool]($uac -band 2))
-            $lockoutTicks = (if ($props["lockouttime"] -and $props["lockouttime"].Count -gt 0) { [int64]$props["lockouttime"][0] } else { 0 })
+            $lockoutTicks = $(if ($props["lockouttime"] -and $props["lockouttime"].Count -gt 0) { [int64]$props["lockouttime"][0] } else { 0 })
             $isLockedOut = ($lockoutTicks -gt 0)
 
             $passSet = "Must Change at Logon"
@@ -3608,7 +3609,7 @@ function Query-ADUsersSafe {
                 } catch {}
             }
 
-            $logonHostsStr = (if ($props["userworkstations"] -and $props["userworkstations"].Count -gt 0 -and (-not [string]::IsNullOrWhiteSpace([string]$props["userworkstations"][0]))) {
+            $logonHostsStr = $(if ($props["userworkstations"] -and $props["userworkstations"].Count -gt 0 -and (-not [string]::IsNullOrWhiteSpace([string]$props["userworkstations"][0]))) {
                 [string]$props["userworkstations"][0]
             } else {
                 "All Workstations"
@@ -3677,10 +3678,10 @@ function Set-ADPasswordSafe {
     }
 
     # Native .NET ADSI Fallback with explicit verification
-    $targetDomain = (if ($hasServer) { $Server } else { $script:targetDomain })
-    $path = (if (Test-ValidADServer $targetDomain) { "LDAP://$targetDomain" } else { "LDAP://" })
+    $targetDomain = $(if ($hasServer) { $Server } else { $script:targetDomain })
+    $path = $(if (Test-ValidADServer $targetDomain) { "LDAP://$targetDomain" } else { "LDAP://" })
 
-    $root = (if ($Cred) {
+    $root = $(if ($Cred) {
         New-Object System.DirectoryServices.DirectoryEntry($path, $Cred.UserName, $Cred.GetNetworkCredential().Password)
     } else {
         New-Object System.DirectoryServices.DirectoryEntry($path)
@@ -3694,7 +3695,7 @@ function Set-ADPasswordSafe {
             throw "User '$SamAccount' was not found in Active Directory."
         }
 
-        $userEntry = (if ($Cred) {
+        $userEntry = $(if ($Cred) {
             New-Object System.DirectoryServices.DirectoryEntry($match.Path, $Cred.UserName, $Cred.GetNetworkCredential().Password)
         } else {
             $match.GetDirectoryEntry()
@@ -3733,10 +3734,10 @@ function Set-ADAccountEnableSafe {
     }
 
     # Native .NET ADSI Fallback with explicit post-commit verification
-    $targetDomain = (if ($hasServer) { $Server } else { $script:targetDomain })
-    $path = (if (Test-ValidADServer $targetDomain) { "LDAP://$targetDomain" } else { "LDAP://" })
+    $targetDomain = $(if ($hasServer) { $Server } else { $script:targetDomain })
+    $path = $(if (Test-ValidADServer $targetDomain) { "LDAP://$targetDomain" } else { "LDAP://" })
 
-    $root = (if ($Cred) {
+    $root = $(if ($Cred) {
         New-Object System.DirectoryServices.DirectoryEntry($path, $Cred.UserName, $Cred.GetNetworkCredential().Password)
     } else {
         New-Object System.DirectoryServices.DirectoryEntry($path)
@@ -3750,7 +3751,7 @@ function Set-ADAccountEnableSafe {
             throw "User '$SamAccount' not found in Active Directory."
         }
 
-        $userEntry = (if ($Cred) {
+        $userEntry = $(if ($Cred) {
             New-Object System.DirectoryServices.DirectoryEntry($match.Path, $Cred.UserName, $Cred.GetNetworkCredential().Password)
         } else {
             $match.GetDirectoryEntry()
@@ -3850,7 +3851,7 @@ function Set-MgUserSignInEnabledSafe {
     )
 
     if ($UserObj) {
-        $PrimaryId = (if ($UserObj.GraphTargetId) { [string]$UserObj.GraphTargetId } else { [string]$UserObj.UserPrincipalName })
+        $PrimaryId = $(if ($UserObj.GraphTargetId) { [string]$UserObj.GraphTargetId } else { [string]$UserObj.UserPrincipalName })
         $CandidateIds = @($UserObj.CloudCandidates)
         $SamAccountName = [string]$UserObj.SamAccountName
     }
@@ -3864,8 +3865,8 @@ function Set-MgUserSignInEnabledSafe {
 
     [void](Upgrade-GraphMailboxAuditorAppRolesIfNeededSafe)
     $graphUser = Resolve-GraphUserObjectSafe -PrimaryId $PrimaryId -CandidateIds $CandidateIds -SamAccountName $SamAccountName
-    $targetId = (if ($graphUser.id) { [string]$graphUser.id } else { [string]$graphUser.userPrincipalName })
-    $targetUpn = (if ($graphUser.userPrincipalName) { [string]$graphUser.userPrincipalName } else { $targetId })
+    $targetId = $(if ($graphUser.id) { [string]$graphUser.id } else { [string]$graphUser.userPrincipalName })
+    $targetUpn = $(if ($graphUser.userPrincipalName) { [string]$graphUser.userPrincipalName } else { $targetId })
     $encodedId = [Uri]::EscapeDataString($targetId)
 
     $patchBody = @{ accountEnabled = $AccountEnabled } | ConvertTo-Json -Compress
@@ -3898,7 +3899,7 @@ function Set-MgUserSignInEnabledSafe {
         }
     }
 
-    $actionName = (if ($AccountEnabled) { "Enabled (Unblocked)" } else { "Blocked (accountEnabled = false)" })
+    $actionName = $(if ($AccountEnabled) { "Enabled (Unblocked)" } else { "Blocked (accountEnabled = false)" })
     return @{
         MatchedUserId  = $targetUpn
         AccountEnabled = $AccountEnabled
@@ -3929,7 +3930,7 @@ function Set-GamUserSuspendedSafe {
     }
 
     if ($UserObj) {
-        $PrimaryTarget = (if ($UserObj.GamTargetId) { [string]$UserObj.GamTargetId } else { [string]$UserObj.UserPrincipalName })
+        $PrimaryTarget = $(if ($UserObj.GamTargetId) { [string]$UserObj.GamTargetId } else { [string]$UserObj.UserPrincipalName })
         $CandidateIds = @($UserObj.CloudCandidates)
     }
 
@@ -3953,7 +3954,7 @@ function Set-GamUserSuspendedSafe {
         throw "No valid Google Workspace email target found."
     }
 
-    $suspendArg = (if ($Suspend) { "on" } else { "off" })
+    $suspendArg = $(if ($Suspend) { "on" } else { "off" })
     $lastOut = ""
     $lastExit = 1
     foreach ($cand in $tryList) {
@@ -3966,7 +3967,7 @@ function Set-GamUserSuspendedSafe {
             for ($attempt = 1; $attempt -le 3; $attempt++) {
                 Start-Sleep -Milliseconds (400 * $attempt)
                 $verCli = Invoke-GamCliSafe -GamExecutable $GamExecutable -Arguments @('info', 'user', $cand, 'noaliases', 'nogroups', 'nolicenses') -TimeoutSeconds 12
-                $verifyOut = (if ($verCli.Output) { $verCli.Output } else { $verCli.Combined })
+                $verifyOut = $(if ($verCli.Output) { $verCli.Output } else { $verCli.Combined })
                 if ($verifyOut) {
                     if ($Suspend) {
                         if ($verifyOut -match '(?i)Account Suspended:\s*True|(?i)Suspended:\s*True') {
@@ -3981,8 +3982,8 @@ function Set-GamUserSuspendedSafe {
                     }
                 }
             }
-            $stateWord = (if ($Suspend) { "Suspended" } else { "Unsuspended" })
-            $details = (if ($isConfirmed) {
+            $stateWord = $(if ($Suspend) { "Suspended" } else { "Unsuspended" })
+            $details = $(if ($isConfirmed) {
                 "Google Workspace user '$cand' set to $stateWord and verified via GAM7."
             } else {
                 "Google Workspace user '$cand' set to $stateWord via GAM7 (update confirmed, directory replication pending)."
@@ -4004,128 +4005,167 @@ function Set-GamUserSuspendedSafe {
 # RECOMMENDATION 3: Wipe Persistent MFA Methods, OAuth Grants, App Passwords & Backup Codes (Entra + GAM7)
 function Invoke-WipeCloudMfaAndTokensSafe {
     param(
-        [Parameter(Mandatory = $true)]$UserObj
+        [Parameter(Mandatory = $true)]$UserObj,
+        [ValidateSet('All', 'EntraMfa', 'EntraOAuth', 'GoogleTwoStep', 'GoogleTokens', 'GoogleDeprovision')]
+        [string]$Scope = 'All'
     )
 
     $summaryParts = [System.Collections.Generic.List[string]]::new()
     $errors = [System.Collections.Generic.List[string]]::new()
 
+    $doEntraMfa    = ($Scope -eq 'All' -or $Scope -eq 'EntraMfa')
+    $doEntraOAuth  = ($Scope -eq 'All' -or $Scope -eq 'EntraOAuth')
+    $doGoogle2fa   = ($Scope -eq 'All' -or $Scope -eq 'GoogleTwoStep')
+    $doGoogleOAuth = ($Scope -eq 'All' -or $Scope -eq 'GoogleTokens' -or $Scope -eq 'GoogleDeprovision')
+
     # Part A: Microsoft Entra ID (Revoke Refresh Tokens + Delete OAuth2 Permission Grants + Reset Removable MFA Methods)
-    $graphCheck = Invoke-VerifyGraph
-    if ($graphCheck.Verified) {
-        try {
-            [void](Upgrade-GraphMailboxAuditorAppRolesIfNeededSafe)
-            $targetGraphId = (if ($UserObj.GraphTargetId) { $UserObj.GraphTargetId } else { $UserObj.UserPrincipalName })
-            $graphUser = Resolve-GraphUserObjectSafe -PrimaryId $targetGraphId -CandidateIds $UserObj.CloudCandidates -SamAccountName $UserObj.SamAccountName
-            $uid = [string]$graphUser.id
-            $upn = (if ($graphUser.userPrincipalName) { [string]$graphUser.userPrincipalName } else { $uid })
-            $encUid = [Uri]::EscapeDataString($uid)
-
-            # 1. Revoke all refresh tokens via Graph REST
-            [void](Invoke-GraphMailboxRestSafe -Method POST -Uri "https://graph.microsoft.com/v1.0/users/$encUid/revokeSignInSessions")
-            if ($script:revokedGraphUsers) {
-                [void]$script:revokedGraphUsers.Add($upn)
-                if ($targetGraphId) { [void]$script:revokedGraphUsers.Add($targetGraphId) }
-            }
-            $summaryParts.Add("Entra Refresh Tokens Revoked ($upn)")
-
-            # 2. Wipe delegated OAuth2 permission grants (consented third-party OAuth apps)
-            $deletedGrants = 0
+    if ($doEntraMfa -or $doEntraOAuth) {
+        $graphCheck = Invoke-VerifyGraph
+        if ($graphCheck.Verified) {
             try {
-                $grantsResp = Invoke-GraphMailboxRestSafe -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$encUid/oauth2PermissionGrants"
-                if ($grantsResp -and $grantsResp.value) {
-                    foreach ($g in @($grantsResp.value)) {
-                        if ($g -and $g.id) {
-                            try {
-                                [void](Invoke-GraphMailboxRestSafe -Method DELETE -Uri "https://graph.microsoft.com/v1.0/oauth2PermissionGrants/$($g.id)")
-                                $deletedGrants++
-                            } catch {}
+                [void](Upgrade-GraphMailboxAuditorAppRolesIfNeededSafe)
+                $targetGraphId = $(if ($UserObj.GraphTargetId) { $UserObj.GraphTargetId } else { $UserObj.UserPrincipalName })
+                $graphUser = Resolve-GraphUserObjectSafe -PrimaryId $targetGraphId -CandidateIds $UserObj.CloudCandidates -SamAccountName $UserObj.SamAccountName
+                $uid = [string]$graphUser.id
+                $upn = $(if ($graphUser.userPrincipalName) { [string]$graphUser.userPrincipalName } else { $uid })
+                $encUid = [Uri]::EscapeDataString($uid)
+
+                if ($doEntraOAuth) {
+                    # 1. Revoke all refresh tokens via Graph REST
+                    [void](Invoke-GraphMailboxRestSafe -Method POST -Uri "https://graph.microsoft.com/v1.0/users/$encUid/revokeSignInSessions")
+                    if ($script:revokedGraphUsers) {
+                        [void]$script:revokedGraphUsers.Add($upn)
+                        if ($targetGraphId) { [void]$script:revokedGraphUsers.Add($targetGraphId) }
+                    }
+                    $summaryParts.Add("Entra Refresh Tokens Revoked ($upn)")
+
+                    # 2. Wipe delegated OAuth2 permission grants (consented third-party OAuth apps)
+                    $deletedGrants = 0
+                    try {
+                        $grantsResp = Invoke-GraphMailboxRestSafe -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$encUid/oauth2PermissionGrants"
+                        if ($grantsResp -and $grantsResp.value) {
+                            foreach ($g in @($grantsResp.value)) {
+                                if ($g -and $g.id) {
+                                    try {
+                                        [void](Invoke-GraphMailboxRestSafe -Method DELETE -Uri "https://graph.microsoft.com/v1.0/oauth2PermissionGrants/$($g.id)")
+                                        $deletedGrants++
+                                    } catch {}
+                                }
+                            }
                         }
+                        $summaryParts.Add("Entra OAuth App Grants Wiped: $deletedGrants")
+                    } catch {
+                        $summaryParts.Add("Entra OAuth Grants Check: $($_.Exception.Message)")
                     }
                 }
-                $summaryParts.Add("Entra OAuth App Grants Wiped: $deletedGrants")
-            } catch {
-                $summaryParts.Add("Entra OAuth Grants Check: $($_.Exception.Message)")
-            }
 
-            # 3. Inspect & remove non-password MFA methods (Authenticator, Software OATH, FIDO2, TAP) if permitted
-            $removedMfa = 0
-            $foundMfa = 0
-            try {
-                $mfaResp = Invoke-GraphMailboxRestSafe -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$encUid/authentication/methods"
-                if ($mfaResp -and $mfaResp.value) {
-                    foreach ($m in @($mfaResp.value)) {
-                        if ($null -eq $m) { continue }
-                        $odataType = [string]$m.'@odata.type'
-                        $mid = [string]$m.id
-                        if (-not $mid -or $odataType -match 'passwordAuthenticationMethod') { continue }
-                        $foundMfa++
-                        $segment = switch -Regex ($odataType) {
-                            'microsoftAuthenticatorAuthenticationMethod' { 'microsoftAuthenticatorMethods' }
-                            'phoneAuthenticationMethod'           { 'phoneMethods' }
-                            'fido2AuthenticationMethod'                  { 'fido2Methods' }
-                            'softwareOathAuthenticationMethod'    { 'softwareOathMethods' }
-                            'emailAuthenticationMethod'                  { 'emailMethods' }
-                            default { $null }
+                if ($doEntraMfa) {
+                    # 3. Inspect & remove non-password MFA methods (Authenticator, Software OATH, FIDO2, TAP) if permitted
+                    $removedMfa = 0
+                    $foundMfa = 0
+                    try {
+                        $mfaResp = Invoke-GraphMailboxRestSafe -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$encUid/authentication/methods"
+                        if ($mfaResp -and $mfaResp.value) {
+                            foreach ($m in @($mfaResp.value)) {
+                                if ($null -eq $m) { continue }
+                                $odataType = [string]$m.'@odata.type'
+                                $mid = [string]$m.id
+                                if (-not $mid -or $odataType -match 'passwordAuthenticationMethod') { continue }
+                                $foundMfa++
+                                $segment = switch -Regex ($odataType) {
+                                    'microsoftAuthenticatorAuthenticationMethod' { 'microsoftAuthenticatorMethods' }
+                                    'phoneAuthenticationMethod'                  { 'phoneMethods' }
+                                    'fido2AuthenticationMethod'                  { 'fido2Methods' }
+                                    'softwareOathAuthenticationMethod'           { 'softwareOathMethods' }
+                                    'temporaryAccessPassAuthenticationMethod'    { 'temporaryAccessPassMethods' }
+                                    'emailAuthenticationMethod'                  { 'emailMethods' }
+                                    default { $null }
+                                }
+                                if ($segment) {
+                                    try {
+                                        [void](Invoke-GraphMailboxRestSafe -Method DELETE -Uri "https://graph.microsoft.com/v1.0/users/$encUid/authentication/$segment/$mid")
+                                        $removedMfa++
+                                    } catch {}
+                                }
+                            }
                         }
-                        if ($segment) {
-                            try {
-                                [void](Invoke-GraphMailboxRestSafe -Method DELETE -Uri "https://graph.microsoft.com/v1.0/users/$encUid/authentication/$segment/$mid")
-                                $removedMfa++
-                            } catch {}
-                        }
+                        $summaryParts.Add("Entra 2FA Methods Wiped: $removedMfa/$foundMfa")
+                    } catch {
+                        $summaryParts.Add("Entra 2FA Methods Inventory: $($_.Exception.Message)")
                     }
                 }
-                $summaryParts.Add("Entra MFA Factors Wiped: $removedMfa/$foundMfa")
             } catch {
-                $summaryParts.Add("Entra MFA Methods Inventory: $($_.Exception.Message)")
+                $errors.Add("Microsoft Entra Wipe: $($_.Exception.Message)")
             }
-        } catch {
-            $errors.Add("Microsoft Entra Wipe: $($_.Exception.Message)")
+        } else {
+            $errors.Add("Microsoft Graph not linked ($($graphCheck.Error))")
         }
-    } else {
-        $errors.Add("Microsoft Graph not linked ($($graphCheck.Error))")
     }
 
-    # Part B: Google Workspace GAM7 (gam user <id> deprovision + signout)
-    $gamCheck = Invoke-VerifyGAM -QuickStartup
-    if ($gamCheck.Verified -and $gamCheck.Executable) {
-        $gamExe = $gamCheck.Executable
-        $targetGamId = (if ($UserObj.GamTargetId) { $UserObj.GamTargetId } else { $UserObj.UserPrincipalName })
-        $tryList = [System.Collections.Generic.List[string]]::new()
-        if (-not [string]::IsNullOrWhiteSpace($targetGamId) -and $targetGamId.Contains('@')) {
-            $tryList.Add($targetGamId.Trim())
-        }
-        if ($UserObj -and $UserObj.CloudCandidates) {
-            foreach ($id in $UserObj.CloudCandidates) {
-                if ([string]::IsNullOrWhiteSpace($id) -or (-not $id.Contains('@'))) { continue }
-                $clean = $id.Trim()
-                if (-not $tryList.Contains($clean)) { $tryList.Add($clean) }
+    # Part B: Google Workspace GAM7 (Google 2FA Turnoff vs Google OAuth Grants & App Passwords Deprovision)
+    if ($doGoogle2fa -or $doGoogleOAuth) {
+        $gamCheck = Invoke-VerifyGAM -QuickStartup
+        if ($gamCheck.Verified -and $gamCheck.Executable) {
+            $gamExe = $gamCheck.Executable
+            $targetGamId = $(if ($UserObj.GamTargetId) { $UserObj.GamTargetId } else { $UserObj.UserPrincipalName })
+            $tryList = [System.Collections.Generic.List[string]]::new()
+            if (-not [string]::IsNullOrWhiteSpace($targetGamId) -and $targetGamId.Contains('@')) {
+                $tryList.Add($targetGamId.Trim())
             }
-        }
-        $gamDone = $false
-        foreach ($cand in $tryList) {
-            $depCli = Invoke-GamCliSafe -GamExecutable $gamExe -Arguments @('user', $cand, 'deprovision') -TimeoutSeconds 12
-            $soCli  = Invoke-GamCliSafe -GamExecutable $gamExe -Arguments @('user', $cand, 'signout') -TimeoutSeconds 12
-            if ($depCli.ExitCode -eq 0 -or $soCli.ExitCode -eq 0 -or $soCli.Combined -match 'Signed Out') {
-                if ($script:revokedGamUsers) {
-                    [void]$script:revokedGamUsers.Add($cand)
-                    if ($targetGamId) { [void]$script:revokedGamUsers.Add($targetGamId) }
+            if ($UserObj -and $UserObj.CloudCandidates) {
+                foreach ($id in $UserObj.CloudCandidates) {
+                    if ([string]::IsNullOrWhiteSpace($id) -or (-not $id.Contains('@'))) { continue }
+                    $clean = $id.Trim()
+                    if (-not $tryList.Contains($clean)) { $tryList.Add($clean) }
                 }
-                $summaryParts.Add("Google GAM7 Deprovision & Signout Verified ($cand)")
-                $gamDone = $true
-                break
             }
+
+            if ($doGoogle2fa) {
+                $gam2faDone = $false
+                foreach ($cand in $tryList) {
+                    $tsoCli = Invoke-GamCliSafe -GamExecutable $gamExe -Arguments @('user', $cand, 'turnoff2sv') -TimeoutSeconds 12
+                    $so2Cli = Invoke-GamCliSafe -GamExecutable $gamExe -Arguments @('user', $cand, 'signout') -TimeoutSeconds 12
+                    if ($tsoCli.ExitCode -eq 0 -or $tsoCli.Combined -match 'turned off|2-Step|2SV|Two-Step' -or $so2Cli.ExitCode -eq 0) {
+                        if ($script:revokedGamUsers) {
+                            [void]$script:revokedGamUsers.Add($cand)
+                            if ($targetGamId) { [void]$script:revokedGamUsers.Add($targetGamId) }
+                        }
+                        $summaryParts.Add("Google 2FA Methods & Backup Codes Wiped ($cand)")
+                        $gam2faDone = $true
+                        break
+                    }
+                }
+                if (-not $gam2faDone) {
+                    $errors.Add("Google GAM7 turnoff2sv failed for $($tryList -join ', ')")
+                }
+            }
+
+            if ($doGoogleOAuth) {
+                $gamDepDone = $false
+                foreach ($cand in $tryList) {
+                    $depCli = Invoke-GamCliSafe -GamExecutable $gamExe -Arguments @('user', $cand, 'deprovision') -TimeoutSeconds 12
+                    $soCli  = Invoke-GamCliSafe -GamExecutable $gamExe -Arguments @('user', $cand, 'signout') -TimeoutSeconds 12
+                    if ($depCli.ExitCode -eq 0 -or $soCli.ExitCode -eq 0 -or $soCli.Combined -match 'Signed Out') {
+                        if ($script:revokedGamUsers) {
+                            [void]$script:revokedGamUsers.Add($cand)
+                            if ($targetGamId) { [void]$script:revokedGamUsers.Add($targetGamId) }
+                        }
+                        $summaryParts.Add("Google OAuth App Grants & App Passwords Wiped ($cand)")
+                        $gamDepDone = $true
+                        break
+                    }
+                }
+                if (-not $gamDepDone) {
+                    $errors.Add("Google GAM7 deprovision failed for $($tryList -join ', ')")
+                }
+            }
+        } else {
+            $errors.Add("Google GAM7 not linked ($($gamCheck.Error))")
         }
-        if (-not $gamDone) {
-            $errors.Add("Google GAM7 deprovision failed for $($tryList -join ', ')")
-        }
-    } else {
-        $errors.Add("Google GAM7 not linked ($($gamCheck.Error))")
     }
 
-    $status = (if ($summaryParts.Count -gt 0) { "SUCCESS" } else { "WARN" })
-    $details = (if ($summaryParts.Count -gt 0) { ($summaryParts -join ' | ') } else { ($errors -join ' | ') })
+    $status = $(if ($summaryParts.Count -gt 0 -and $errors.Count -eq 0) { "SUCCESS" } elseif ($summaryParts.Count -gt 0) { "PARTIAL" } else { "FAILED" })
+    $details = $(if ($summaryParts.Count -gt 0) { ($summaryParts -join ' | ') + $(if ($errors.Count -gt 0) { " | Notes: $($errors -join ' | ')" } else { "" }) } else { ($errors -join ' | ') })
     return @{
         Success = ($summaryParts.Count -gt 0)
         Status  = $status
@@ -4309,7 +4349,7 @@ function Ensure-GraphMailboxAuditorAppSafe {
         $requiredAppRoles = Get-RequiredGraphAuditorAppRoles
 
         $appResp = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/applications?`$filter=displayName eq '$appDisplayName'&`$select=id,appId,displayName" -ErrorAction Stop
-        $targetApp = (if ($appResp -and $appResp.value -and $appResp.value.Count -gt 0) { $appResp.value[0] } else { $null })
+        $targetApp = $(if ($appResp -and $appResp.value -and $appResp.value.Count -gt 0) { $appResp.value[0] } else { $null })
 
         if (-not $targetApp) {
             $resAccessList = @($requiredAppRoles | ForEach-Object { @{ id = $_.Id; type = 'Role' } })
@@ -4330,7 +4370,7 @@ function Ensure-GraphMailboxAuditorAppSafe {
         $clientAppId = [string]$targetApp.appId
 
         $spResp = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/servicePrincipals?`$filter=appId eq '$clientAppId'&`$select=id,appId,displayName" -ErrorAction Stop
-        $clientSp = (if ($spResp -and $spResp.value -and $spResp.value.Count -gt 0) { $spResp.value[0] } else { $null })
+        $clientSp = $(if ($spResp -and $spResp.value -and $spResp.value.Count -gt 0) { $spResp.value[0] } else { $null })
         if (-not $clientSp) {
             $createSpBody = (@{ appId = $clientAppId } | ConvertTo-Json -Compress)
             $clientSp = Invoke-MgGraphRequest -Method POST -Uri 'https://graph.microsoft.com/v1.0/servicePrincipals' -Body $createSpBody -ContentType 'application/json' -ErrorAction Stop
@@ -4456,7 +4496,7 @@ function Get-GraphMailboxAppTokenSafe {
         throw "Microsoft Entra ID did not return an App-Only access token."
     }
 
-    $expiresIn = (if ($tokResp.expires_in) { [int]$tokResp.expires_in } else { 3599 })
+    $expiresIn = $(if ($tokResp.expires_in) { [int]$tokResp.expires_in } else { 3599 })
     $script:cachedGraphAppToken = [string]$tokResp.access_token
     $script:cachedGraphAppTokenExpiry = (Get-Date).ToUniversalTime().AddSeconds([Math]::Max(60, ($expiresIn - 300)))
     return $script:cachedGraphAppToken
@@ -4565,7 +4605,7 @@ function Get-UserForwardingAndInboxRulesSafe {
             }
         }
 
-        $resolvedM365User = (if ($candidateIds.Count -gt 0) { $candidateIds[0] } else { [string]$UserObj.UserPrincipalName })
+        $resolvedM365User = $(if ($candidateIds.Count -gt 0) { $candidateIds[0] } else { [string]$UserObj.UserPrincipalName })
         try {
             $rulesResp = $null
             $lastGraphErr = $null
@@ -4586,7 +4626,7 @@ function Get-UserForwardingAndInboxRulesSafe {
                 throw $lastGraphErr
             }
 
-            $ruleItems = (if ($rulesResp -and $null -ne $rulesResp.value) { @($rulesResp.value) } else { @() })
+            $ruleItems = $(if ($rulesResp -and $null -ne $rulesResp.value) { @($rulesResp.value) } else { @() })
             foreach ($r in $ruleItems) {
                 if ($null -eq $r) { continue }
                 $rId = [string]$r.id
@@ -4657,7 +4697,7 @@ function Get-UserForwardingAndInboxRulesSafe {
     $gamCheck = Invoke-VerifyGAM -QuickStartup
     if ($gamCheck.Verified -and $gamCheck.Executable) {
         $gamExe = $gamCheck.Executable
-        $targetGamId = (if ($UserObj.GamTargetId) { $UserObj.GamTargetId } else { $UserObj.UserPrincipalName })
+        $targetGamId = $(if ($UserObj.GamTargetId) { $UserObj.GamTargetId } else { $UserObj.UserPrincipalName })
         try {
             $fwdCli  = Invoke-GamCliSafe -GamExecutable $gamExe -Arguments @('user', $targetGamId, 'show', 'forward') -TimeoutSeconds 8
             $addrCli = Invoke-GamCliSafe -GamExecutable $gamExe -Arguments @('user', $targetGamId, 'show', 'forwardingaddresses') -TimeoutSeconds 8
@@ -4671,7 +4711,7 @@ function Get-UserForwardingAndInboxRulesSafe {
             if ($fwdExit -eq 0 -and $fwdOut) {
                 $isFwdEnabled = $fwdOut -match 'Enabled:\s*True'
                 $fwdEmailMatch = [regex]::Match($fwdOut, 'Forward To:\s*(\S+)')
-                $fwdDest = (if ($fwdEmailMatch.Success) { $fwdEmailMatch.Groups[1].Value } else { "None Configured" })
+                $fwdDest = $(if ($fwdEmailMatch.Success) { $fwdEmailMatch.Groups[1].Value } else { "None Configured" })
                 $rulesList.Add([PSCustomObject]@{
                     Provider   = "Gmail Auto-Forward"
                     RuleType   = "Auto-Forward"
@@ -4711,7 +4751,7 @@ function Get-UserForwardingAndInboxRulesSafe {
                     if ($line -match 'Filter:\s*(\S+)') {
                         if ($currentFilterId) {
                             $actStr = $currentSummary -join '; '
-                            $risk = (if ($actStr -match 'Forward|TRASH') { "HIGH RISK (Filter Forward/Trash)" } else { "NORMAL" })
+                            $risk = $(if ($actStr -match 'Forward|TRASH') { "HIGH RISK (Filter Forward/Trash)" } else { "NORMAL" })
                             $rulesList.Add([PSCustomObject]@{
                                 Provider   = "Gmail Filter"
                                 RuleType   = "Gmail Filter"
@@ -4732,7 +4772,7 @@ function Get-UserForwardingAndInboxRulesSafe {
                 }
                 if ($currentFilterId) {
                     $actStr = $currentSummary -join '; '
-                    $risk = (if ($actStr -match 'Forward|TRASH') { "HIGH RISK (Filter Forward/Trash)" } else { "NORMAL" })
+                    $risk = $(if ($actStr -match 'Forward|TRASH') { "HIGH RISK (Filter Forward/Trash)" } else { "NORMAL" })
                     $rulesList.Add([PSCustomObject]@{
                         Provider   = "Gmail Filter"
                         RuleType   = "Gmail Filter"
@@ -4802,7 +4842,7 @@ function Disable-OrRemoveForwardingRuleSafe {
         throw "Rule provider or Rule ID was not specified."
     }
 
-    $displayLabel = (if (-not [string]::IsNullOrWhiteSpace($ruleName)) { "'$ruleName' ($RuleId)" } else { "'$RuleId'" })
+    $displayLabel = $(if (-not [string]::IsNullOrWhiteSpace($ruleName)) { "'$ruleName' ($RuleId)" } else { "'$RuleId'" })
 
     if ($Provider -match "M365|Graph|Inbox Rule") {
         $encUser = [Uri]::EscapeDataString($TargetUser)
@@ -4879,7 +4919,7 @@ function Set-ADExtendedLockdownSafe {
         throw "Target sAMAccountName is empty."
     }
 
-    $wks = (if (-not [string]::IsNullOrWhiteSpace($RestrictWorkstationsValue)) {
+    $wks = $(if (-not [string]::IsNullOrWhiteSpace($RestrictWorkstationsValue)) {
         $RestrictWorkstationsValue.Trim()
     } elseif (-not [string]::IsNullOrWhiteSpace($WorkstationValue)) {
         $WorkstationValue.Trim()
@@ -4888,7 +4928,7 @@ function Set-ADExtendedLockdownSafe {
     })
 
     $hasServer = Test-ValidADServer $Server
-    $targetDomain = (if ($hasServer) { $Server } else { $script:targetDomain })
+    $targetDomain = $(if ($hasServer) { $Server } else { $script:targetDomain })
     $expiryUpdated = $false
     $wksUpdated = $false
     $lastErr = ""
@@ -4930,15 +4970,15 @@ function Set-ADExtendedLockdownSafe {
     if ((-not $expiryUpdated -and ($ExpireImmediately -or $ClearExpiration)) -or (-not $wksUpdated -and ($ClearWorkstations -or (-not [string]::IsNullOrWhiteSpace($wks)) -or $ClearOrRestrictWorkstations))) {
         try {
             Add-Type -AssemblyName System.DirectoryServices.AccountManagement -ErrorAction SilentlyContinue
-            $pCtx = (if (Test-ValidADServer $targetDomain) {
+            $pCtx = $(if (Test-ValidADServer $targetDomain) {
                 if ($Cred) {
                     New-Object System.DirectoryServices.AccountManagement.PrincipalContext([System.DirectoryServices.AccountManagement.ContextType]::Domain, $targetDomain, $Cred.UserName, $Cred.GetNetworkCredential().Password)
                 } else {
                     New-Object System.DirectoryServices.AccountManagement.PrincipalContext([System.DirectoryServices.AccountManagement.ContextType]::Domain, $targetDomain)
-                })
+                }
             } else {
                 New-Object System.DirectoryServices.AccountManagement.PrincipalContext([System.DirectoryServices.AccountManagement.ContextType]::Domain)
-            }
+            })
             $usr = $null
             try {
                 $usr = [System.DirectoryServices.AccountManagement.UserPrincipal]::FindByIdentity($pCtx, [System.DirectoryServices.AccountManagement.IdentityType]::SamAccountName, $SamAccount)
@@ -4977,8 +5017,8 @@ function Set-ADExtendedLockdownSafe {
 
     # Method 3: Native LDAP via System.DirectoryServices.Protocols + ADSI fallback (bypasses ADSI COM marshaling errors)
     if ((-not $expiryUpdated -and ($ExpireImmediately -or $ClearExpiration)) -or (-not $wksUpdated -and ($ClearWorkstations -or (-not [string]::IsNullOrWhiteSpace($wks)) -or $ClearOrRestrictWorkstations))) {
-        $path = (if (Test-ValidADServer $targetDomain) { "LDAP://$targetDomain" } else { "LDAP://" })
-        $root = (if ($Cred) {
+        $path = $(if (Test-ValidADServer $targetDomain) { "LDAP://$targetDomain" } else { "LDAP://" })
+        $root = $(if ($Cred) {
             New-Object System.DirectoryServices.DirectoryEntry($path, $Cred.UserName, $Cred.GetNetworkCredential().Password)
         } else {
             New-Object System.DirectoryServices.DirectoryEntry($path)
@@ -4991,14 +5031,14 @@ function Set-ADExtendedLockdownSafe {
             if ($null -eq $match) {
                 throw "User '$SamAccount' not found in Active Directory."
             }
-            $userDn = (if ($match.Properties["distinguishedname"] -and $match.Properties["distinguishedname"].Count -gt 0) { [string]$match.Properties["distinguishedname"][0] } else { "" })
+            $userDn = $(if ($match.Properties["distinguishedname"] -and $match.Properties["distinguishedname"].Count -gt 0) { [string]$match.Properties["distinguishedname"][0] } else { "" })
 
             # Step 3A: Direct System.DirectoryServices.Protocols LDAP ModifyRequest (RFC 4511 wire format, zero COM marshaling)
             if (-not [string]::IsNullOrWhiteSpace($userDn)) {
                 try {
                     Add-Type -AssemblyName System.DirectoryServices.Protocols -ErrorAction SilentlyContinue
-                    $ldapSrv = (if (Test-ValidADServer $targetDomain) { $targetDomain } else { $env:USERDNSDOMAIN })
-                    $ldapConn = (if ($ldapSrv) {
+                    $ldapSrv = $(if (Test-ValidADServer $targetDomain) { $targetDomain } else { $env:USERDNSDOMAIN })
+                    $ldapConn = $(if ($ldapSrv) {
                         New-Object System.DirectoryServices.Protocols.LdapConnection($ldapSrv)
                     } else {
                         New-Object System.DirectoryServices.Protocols.LdapConnection("")
@@ -5037,7 +5077,7 @@ function Set-ADExtendedLockdownSafe {
                     # Set or Clear accountExpires via Protocols
                     if (-not $expiryUpdated -and ($ExpireImmediately -or $ClearExpiration)) {
                         try {
-                            $targetTicksStr = (if ($ExpireImmediately) { [string]((Get-Date).AddDays(-1).ToFileTimeUtc()) } else { "0" })
+                            $targetTicksStr = $(if ($ExpireImmediately) { [string]((Get-Date).AddDays(-1).ToFileTimeUtc()) } else { "0" })
                             $expMod = New-Object System.DirectoryServices.Protocols.DirectoryAttributeModification
                             $expMod.Operation = [System.DirectoryServices.Protocols.DirectoryAttributeOperation]::Replace
                             $expMod.Name = "accountExpires"
@@ -5058,7 +5098,7 @@ function Set-ADExtendedLockdownSafe {
 
             # Step 3B: DirectoryEntry fallback if Protocols did not run or partially succeeded
             if ((-not $expiryUpdated -and ($ExpireImmediately -or $ClearExpiration)) -or (-not $wksUpdated -and ($ClearWorkstations -or (-not [string]::IsNullOrWhiteSpace($wks)) -or $ClearOrRestrictWorkstations))) {
-                $userEntry = (if ($Cred) {
+                $userEntry = $(if ($Cred) {
                     New-Object System.DirectoryServices.DirectoryEntry($match.Path, $Cred.UserName, $Cred.GetNetworkCredential().Password)
                 } else {
                     $match.GetDirectoryEntry()
@@ -5184,7 +5224,7 @@ function Get-DecodedEventIntelligence {
     $logonTypeDesc = ""
     if ($combinedText -match 'Logon Type:\s+(\d+)') {
         $lt = $Matches[1]
-        $logonTypeDesc = (if ($logonTypeMap.ContainsKey($lt)) { $logonTypeMap[$lt] } else { "Logon Type $lt" })
+        $logonTypeDesc = $(if ($logonTypeMap.ContainsKey($lt)) { $logonTypeMap[$lt] } else { "Logon Type $lt" })
     }
 
     $srcHost = ""
@@ -5193,7 +5233,7 @@ function Get-DecodedEventIntelligence {
     elseif ($combinedText -match 'Client Address:\s+([^\r\n\s]+)') { $srcHost = $Matches[1] }
     if ($combinedText -match 'Source Network Address:\s+([^\r\n\s-]+)') {
         $ip = $Matches[1]
-        $srcHost = (if ($srcHost -and $srcHost -ne $ip) { "$srcHost ($ip)" } else { $ip })
+        $srcHost = $(if ($srcHost -and $srcHost -ne $ip) { "$srcHost ($ip)" } else { $ip })
     }
     if ([string]::IsNullOrWhiteSpace($srcHost)) { $srcHost = "Local / DC" }
 
@@ -5206,7 +5246,7 @@ function Get-DecodedEventIntelligence {
     }
 
     # Normalize code lookup
-    $targetCode = (if (-not [string]::IsNullOrWhiteSpace($EventCode)) {
+    $targetCode = $(if (-not [string]::IsNullOrWhiteSpace($EventCode)) {
         $EventCode.Trim()
     } elseif ($null -ne $EventId -and [string]$EventId -ne "0") {
         [string]$EventId
@@ -5217,14 +5257,14 @@ function Get-DecodedEventIntelligence {
     # Match Active Directory / Windows Security Event IDs
     switch ($targetCode) {
         "4624" {
-            $sev = (if ($logonTypeDesc -match 'Type 10|Type 9') { "CRITICAL" } else { "INFO" })
-            $codeLabel = (if ($logonTypeDesc) { "4624 ($($logonTypeDesc.Split(':')[0]))" } else { "4624 (Logon Success)" })
+            $sev = $(if ($logonTypeDesc -match 'Type 10|Type 9') { "CRITICAL" } else { "INFO" })
+            $codeLabel = $(if ($logonTypeDesc) { "4624 ($($logonTypeDesc.Split(':')[0]))" } else { "4624 (Logon Success)" })
             return @{
                 EventCode = $codeLabel
                 Title     = "Logon Success"
                 Severity  = $sev
                 SourceIP  = $srcHost
-                Meaning   = "Successful Windows logon$(if($logonTypeDesc){' — ' + $logonTypeDesc})."
+                Meaning   = "Successful Windows logon$(if($logonTypeDesc){' - ' + $logonTypeDesc})."
                 Decision  = "Verify if '$srcHost' is an authorized workstation for this user. If unrecognized or Type 10 (RDP), revoke sessions and disable/expire the account."
             }
         }
@@ -5446,7 +5486,7 @@ function Get-DecodedEventIntelligence {
                 Severity  = "CRITICAL"
                 SourceIP  = "Microsoft Entra Risk Engine"
                 Meaning   = "Entra Identity Protection flagged anomalous token, impossible travel, anonymous IP, or leaked credential."
-                Decision  = "CRITICAL CLOUD THREAT: Click 'Block Entra Sign-In', 'Wipe Cloud MFA & Tokens', and 'Audit M365 & Gmail Rules'."
+                Decision  = "CRITICAL CLOUD THREAT: Click 'Block Entra Sign-In', 'Wipe All (Entra + GAM7)', and 'Audit M365 & Gmail Rules'."
             }
         }
         "AUDIT_MFA_CHANGE" {
@@ -5456,7 +5496,7 @@ function Get-DecodedEventIntelligence {
                 Severity  = "CRITICAL"
                 SourceIP  = "Microsoft Entra Audit"
                 Meaning   = "An authentication factor (Authenticator, FIDO2, phone, or software token) was registered or modified."
-                Decision  = "SUSPICIOUS PERSISTENCE: If not initiated by user, an attacker registered a persistence factor. Run 'Wipe Cloud MFA & Tokens'."
+                Decision  = "SUSPICIOUS PERSISTENCE: If not initiated by user, an attacker registered a persistence factor. Run 'Wipe Entra 2FA Methods' (or 'Wipe All (Entra + GAM7)')."
             }
         }
         "OAUTH_CONSENT_GRANT" {
@@ -5466,7 +5506,7 @@ function Get-DecodedEventIntelligence {
                 Severity  = "CRITICAL"
                 SourceIP  = "Microsoft Entra Audit"
                 Meaning   = "A third-party application was granted delegated or application API permissions to user data."
-                Decision  = "If unrecognized application, click 'Wipe Cloud MFA & Tokens' on Tab 3 to delete all OAuth permission grants."
+                Decision  = "If unrecognized application, click 'Wipe Entra OAuth Grants' (or 'Wipe All (Entra + GAM7)') on Tab 3 to delete all OAuth permission grants."
             }
         }
         # Google Workspace Codes
@@ -5497,7 +5537,7 @@ function Get-DecodedEventIntelligence {
                 Severity  = "WARNING"
                 SourceIP  = "Google Security Audit"
                 Meaning   = "Authorized Google OAuth token granted to an external application or client."
-                Decision  = "If application is unrecognized, click 'Wipe Cloud MFA & Tokens' ('gam user deprovision') to revoke all tokens."
+                Decision  = "If application is unrecognized, click 'Wipe Google OAuth Grants' ('gam user deprovision') on Tab 3 to revoke all tokens."
             }
         }
         "USER_SUSPENDED" {
@@ -5521,7 +5561,7 @@ function Get-DecodedEventIntelligence {
             }
         }
         default {
-            $codeLabel = (if ($targetCode -ne "UNKNOWN") { "$targetCode" } else { "Event Telemetry" })
+            $codeLabel = $(if ($targetCode -ne "UNKNOWN") { "$targetCode" } else { "Event Telemetry" })
             return @{
                 EventCode = $codeLabel
                 Title     = $codeLabel
@@ -5547,13 +5587,13 @@ function Get-UserSecurityEventsSafe {
     $startTime = (Get-Date).AddHours(-1 * [Math]::Abs($HoursBack))
     $sam = [string]$UserObj.SamAccountName
     $upn = [string]$UserObj.UserPrincipalName
-    $targetGraphId = (if ($UserObj.GraphTargetId) { [string]$UserObj.GraphTargetId } else { $upn })
-    $targetGamId = (if ($UserObj.GamTargetId) { [string]$UserObj.GamTargetId } else { $upn })
+    $targetGraphId = $(if ($UserObj.GraphTargetId) { [string]$UserObj.GraphTargetId } else { $upn })
+    $targetGamId = $(if ($UserObj.GamTargetId) { [string]$UserObj.GamTargetId } else { $upn })
 
     # 1. Pull Active Directory Multi-DC Non-Replicated Telemetry + Bounded (<4.5s) Multi-DC Windows Security Event Logs
     if ($SourceFilter -eq "All Sources" -or $SourceFilter -match "Windows|AD|Active Directory") {
         $discoveredDCs = @(Get-DomainControllersListSafe -PreferredServer $Server)
-        $dcCountText = (if ($discoveredDCs.Count -gt 1) { " across $($discoveredDCs.Count) Domain Controllers ($($discoveredDCs -join ', '))" } else { "" })
+        $dcCountText = $(if ($discoveredDCs.Count -gt 1) { " across $($discoveredDCs.Count) Domain Controllers ($($discoveredDCs -join ', '))" } else { "" })
         if (Get-Command Write-AppLog -ErrorAction SilentlyContinue) {
             Write-AppLog "[Event Triage 1/3] Querying Active Directory security state & non-replicated logon/lockout events for '$sam'$dcCountText..." "INFO"
             if ($form) { [System.Windows.Forms.Application]::DoEvents() }
@@ -5568,14 +5608,14 @@ function Get-UserSecurityEventsSafe {
             if ($adSnap -and $adSnap.Count -gt 0) {
                 $uSnap = $adSnap[0]
                 $isLockedAny = ([bool]$uSnap.LockedOut) -or ([bool]$multiDc.IsLockedOutAnyDC)
-                $bestLogonStr = (if ($multiDc.LatestLogonDisplay -and $multiDc.LatestLogonDisplay -ne "Never / Unknown") {
+                $bestLogonStr = $(if ($multiDc.LatestLogonDisplay -and $multiDc.LatestLogonDisplay -ne "Never / Unknown") {
                     [string]$multiDc.LatestLogonDisplay
                 } elseif ($uSnap.LastLogonDisplay -and $uSnap.LastLogonDisplay -ne "Never / Unknown") {
                     [string]$uSnap.LastLogonDisplay
                 } else {
                     (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
                 })
-                $dcsQueriedStr = (if ($multiDc.QueriedDCs -and $multiDc.QueriedDCs.Count -gt 0) {
+                $dcsQueriedStr = $(if ($multiDc.QueriedDCs -and $multiDc.QueriedDCs.Count -gt 0) {
                     $multiDc.QueriedDCs -join ', '
                 } elseif ($Server) {
                     $Server
@@ -5583,8 +5623,8 @@ function Get-UserSecurityEventsSafe {
                     "Domain Controller"
                 })
 
-                $adSev = (if ($isLockedAny) { "CRITICAL" } elseif (-not $uSnap.Enabled) { "WARNING" } else { "INFO" })
-                $adCode = (if ($isLockedAny) { "4740 (AD Locked Out)" } elseif (-not $uSnap.Enabled) { "4725 (AD Disabled)" } else { "AD_SECURITY_STATE" })
+                $adSev = $(if ($isLockedAny) { "CRITICAL" } elseif (-not $uSnap.Enabled) { "WARNING" } else { "INFO" })
+                $adCode = $(if ($isLockedAny) { "4740 (AD Locked Out)" } elseif (-not $uSnap.Enabled) { "4725 (AD Disabled)" } else { "AD_SECURITY_STATE" })
                 $eventsList.Add([PSCustomObject]@{
                     Timestamp = $bestLogonStr
                     Source    = "Active Directory"
@@ -5623,7 +5663,7 @@ function Get-UserSecurityEventsSafe {
 
         # 1B. Fast bounded query (max 4.5 seconds) across all discovered Domain Controllers for non-replicated Security Event IDs with strict deduplication
         try {
-            $targetDcArray = (if ($discoveredDCs -and $discoveredDCs.Count -gt 0) { @($discoveredDCs | Select-Object -First 5) } else { @("") })
+            $targetDcArray = $(if ($discoveredDCs -and $discoveredDCs.Count -gt 0) { @($discoveredDCs | Select-Object -First 5) } else { @("") })
             $winJob = Start-Job -ScriptBlock {
                 param($SamName, $UpnName, $StartDt, $DcServers)
                 $out = @()
@@ -5666,8 +5706,8 @@ function Get-UserSecurityEventsSafe {
                 foreach ($je in $jobEvts) {
                     if (-not $je -or -not $je.Id) { continue }
                     $decoded = Get-DecodedEventIntelligence -EventId ([int]$je.Id) -RawMessage ([string]$je.Message)
-                    $sevNorm = (if ($decoded.Severity -eq "HIGH") { "WARNING" } else { $decoded.Severity })
-                    $hostOrIpVal = (if ($decoded.SourceIP -and $decoded.SourceIP -ne "Local / Unknown Host") {
+                    $sevNorm = $(if ($decoded.Severity -eq "HIGH") { "WARNING" } else { $decoded.Severity })
+                    $hostOrIpVal = $(if ($decoded.SourceIP -and $decoded.SourceIP -ne "Local / Unknown Host") {
                         "$($decoded.SourceIP) (via $(($je.Machine -split '\.')[0]))"
                     } else {
                         [string]$je.Machine
@@ -5709,9 +5749,9 @@ function Get-UserSecurityEventsSafe {
                 $graphUser = Resolve-GraphUserObjectSafe -PrimaryId $targetGraphId -CandidateIds $UserObj.CloudCandidates -SamAccountName $sam
                 $gUid = [string]$graphUser.id
                 $encUid = [Uri]::EscapeDataString($gUid)
-                $gUpn = (if ($graphUser.userPrincipalName) { [string]$graphUser.userPrincipalName } else { $targetGraphId })
-                $acctEnabled = (if ($null -ne $graphUser.accountEnabled) { [bool]$graphUser.accountEnabled } else { $true })
-                $validFrom = (if ($graphUser.signInSessionsValidFromDateTime) {
+                $gUpn = $(if ($graphUser.userPrincipalName) { [string]$graphUser.userPrincipalName } else { $targetGraphId })
+                $acctEnabled = $(if ($null -ne $graphUser.accountEnabled) { [bool]$graphUser.accountEnabled } else { $true })
+                $validFrom = $(if ($graphUser.signInSessionsValidFromDateTime) {
                     ([DateTime]$graphUser.signInSessionsValidFromDateTime).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
                 } else { (Get-Date).ToString("yyyy-MM-dd HH:mm:ss") })
 
@@ -5739,8 +5779,8 @@ function Get-UserSecurityEventsSafe {
                             $rType = [string]$rd.riskEventType
                             $rLevel = [string]$rd.riskLevel
                             $rState = [string]$rd.riskState
-                            $rIp = (if ($rd.ipAddress) { [string]$rd.ipAddress } else { "Cloud Risk Engine" })
-                            $sev = (if ($rLevel -match 'high|medium') { "CRITICAL" } else { "WARNING" })
+                            $rIp = $(if ($rd.ipAddress) { [string]$rd.ipAddress } else { "Cloud Risk Engine" })
+                            $sev = $(if ($rLevel -match 'high|medium') { "CRITICAL" } else { "WARNING" })
                             $eventsList.Add([PSCustomObject]@{
                                 Timestamp = $rTime
                                 Source    = "Microsoft Entra ID"
@@ -5748,7 +5788,7 @@ function Get-UserSecurityEventsSafe {
                                 Severity  = $sev
                                 HostOrIP  = $rIp
                                 Meaning   = "Suspicious Entra Risk Detection '$rType' (RiskLevel: $rLevel, State: $rState) for $gUpn."
-                                Decision  = "CRITICAL CLOUD INDICATOR: Run 'Block Entra Sign-In', 'Wipe Cloud MFA & Tokens', and 'Audit M365 & Gmail Rules' on Tab 3."
+                                Decision  = "CRITICAL CLOUD INDICATOR: Run 'Block Entra Sign-In', 'Wipe All (Entra + GAM7)', and 'Audit M365 & Gmail Rules' on Tab 3."
                                 RawDetail = ($rd | ConvertTo-Json -Depth 4)
                             })
                         }
@@ -5771,7 +5811,7 @@ function Get-UserSecurityEventsSafe {
                                 Severity  = if ($isHighRiskScope) { "CRITICAL" } else { "WARNING" }
                                 HostOrIP  = "ClientId: $($g.clientId)"
                                 Meaning   = "Active OAuth App Grant (Scopes: $scopeStr)."
-                                Decision  = "If this OAuth app grant is unfamiliar or requests Mail/Files scopes, click 'Wipe Cloud MFA & Tokens' on Tab 3 to revoke all consented OAuth grants."
+                                Decision  = "If this OAuth app grant is unfamiliar or requests Mail/Files scopes, click 'Wipe Entra OAuth Grants' on Tab 3 to revoke all consented OAuth grants."
                                 RawDetail = ($g | ConvertTo-Json -Depth 4)
                             })
                         }
@@ -5791,9 +5831,9 @@ function Get-UserSecurityEventsSafe {
                             $actTime = try { ([DateTime]$a.activityDateTime).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") } catch { [string]$a.activityDateTime }
                             $resType = [string]$a.result
                             $isSuspiciousAudit = $actName -match 'security info|Consent|OAuth|role|delegation|forwarding'
-                            $sev = (if ($isSuspiciousAudit) { "CRITICAL" } elseif ($actName -match 'Revoke|Disable|Reset') { "WARNING" } else { "INFO" })
-                            $dec = (if ($isSuspiciousAudit) {
-                                "SUSPICIOUS PERSISTENCE: '$actName' may indicate an attacker registered rogue MFA or consented to an OAuth app. Run 'Wipe Cloud MFA & Tokens'."
+                            $sev = $(if ($isSuspiciousAudit) { "CRITICAL" } elseif ($actName -match 'Revoke|Disable|Reset') { "WARNING" } else { "INFO" })
+                            $dec = $(if ($isSuspiciousAudit) {
+                                "SUSPICIOUS PERSISTENCE: '$actName' may indicate an attacker registered rogue 2FA or consented to an OAuth app. Run 'Wipe Entra 2FA Methods' and 'Wipe Entra OAuth Grants' (or 'Wipe All (Entra + GAM7)')."
                             } else {
                                 "Correlate this Entra ID audit event with your incident containment timeline."
                             })
@@ -5821,11 +5861,11 @@ function Get-UserSecurityEventsSafe {
                         foreach ($s in @($signInResp.value)) {
                             if ($null -eq $s) { continue }
                             $sTime = try { ([DateTime]$s.createdDateTime).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") } catch { [string]$s.createdDateTime }
-                            $errCode = (if ($s.status -and $null -ne $s.status.errorCode) { [int]$s.status.errorCode } else { 0 })
-                            $failReason = (if ($s.status -and $s.status.failureReason) { [string]$s.status.failureReason } else { "Success" })
-                            $ipAddr = (if ($s.ipAddress) { [string]$s.ipAddress } else { "Unknown IP" })
-                            $appDisplay = (if ($s.appDisplayName) { [string]$s.appDisplayName } else { "M365 App" })
-                            $riskSignIn = (if ($s.riskLevelDuringSignIn) { [string]$s.riskLevelDuringSignIn } else { "none" })
+                            $errCode = $(if ($s.status -and $null -ne $s.status.errorCode) { [int]$s.status.errorCode } else { 0 })
+                            $failReason = $(if ($s.status -and $s.status.failureReason) { [string]$s.status.failureReason } else { "Success" })
+                            $ipAddr = $(if ($s.ipAddress) { [string]$s.ipAddress } else { "Unknown IP" })
+                            $appDisplay = $(if ($s.appDisplayName) { [string]$s.appDisplayName } else { "M365 App" })
+                            $riskSignIn = $(if ($s.riskLevelDuringSignIn) { [string]$s.riskLevelDuringSignIn } else { "none" })
 
                             $codeDesc = switch ($errCode) {
                                 0     { if ($riskSignIn -match 'high|medium') { "Entra 0 (RISKY Sign-In: $riskSignIn)" } else { "Entra 0 (Sign-In Success)" } }
@@ -5838,7 +5878,7 @@ function Get-UserSecurityEventsSafe {
                                 53003 { "Entra 53003 (Blocked by Cond. Access)" }
                                 default { "Entra $errCode" }
                             }
-                            $sev = (if ($riskSignIn -match 'high|medium' -or $errCode -eq 50053) { "CRITICAL" } elseif ($errCode -in @(50126, 50173, 50057, 53003)) { "WARNING" } else { "INFO" })
+                            $sev = $(if ($riskSignIn -match 'high|medium' -or $errCode -eq 50053) { "CRITICAL" } elseif ($errCode -in @(50126, 50173, 50057, 53003)) { "WARNING" } else { "INFO" })
                             $decision = switch ($errCode) {
                                 0     { "Successful cloud sign-in to '$appDisplay' from IP $ipAddr (Risk: $riskSignIn). If unrecognized, revoke 365 sessions and block Entra sign-in." }
                                 50173 { "CONFIRMED CONTAINMENT: Refresh token was rejected because sessions were revoked." }
@@ -5881,7 +5921,7 @@ function Get-UserSecurityEventsSafe {
                 if ($infoCli.ExitCode -eq 0 -and $gInfo) {
                     $isSusp = $gInfo -match 'Account Suspended:\s*True'
                     $lastLoginMatch = [regex]::Match($gInfo, 'Last login time:\s*(.+)')
-                    $lastLoginStr = (if ($lastLoginMatch.Success) { $lastLoginMatch.Groups[1].Value.Trim() } else { (Get-Date).ToString("yyyy-MM-dd HH:mm:ss") })
+                    $lastLoginStr = $(if ($lastLoginMatch.Success) { $lastLoginMatch.Groups[1].Value.Trim() } else { (Get-Date).ToString("yyyy-MM-dd HH:mm:ss") })
                     $eventsList.Add([PSCustomObject]@{
                         Timestamp = $lastLoginStr
                         Source    = "Google Workspace"
@@ -5889,7 +5929,7 @@ function Get-UserSecurityEventsSafe {
                         Severity  = if ($isSusp) { "WARNING" } else { "INFO" }
                         HostOrIP  = "accounts.google.com"
                         Meaning   = "Google User '$targetGamId' | Suspended: $isSusp | Last Login: $lastLoginStr"
-                        Decision  = if ($isSusp) { "Google Workspace account is currently SUSPENDED." } else { "Account is active in Google Workspace. Use '3. Revoke Google Sessions', 'Suspend Google User', or 'Wipe Cloud MFA & Tokens' if compromised." }
+                        Decision  = if ($isSusp) { "Google Workspace account is currently SUSPENDED." } else { "Account is active in Google Workspace. Use '3. Revoke Google Sessions', 'Suspend Google User', or 'Wipe All (Entra + GAM7)' if compromised." }
                         RawDetail = $gInfo.Trim()
                     })
                 }
@@ -5908,7 +5948,7 @@ function Get-UserSecurityEventsSafe {
                                 Severity  = "WARNING"
                                 HostOrIP  = "Third-Party OAuth"
                                 Meaning   = "Authorized Google OAuth Client: '$appName' for $targetGamId."
-                                Decision  = "If '$appName' is unrecognized, click 'Wipe Cloud MFA & Tokens' (runs 'gam user deprovision') to revoke all Google OAuth grants."
+                                Decision  = "If '$appName' is unrecognized, click 'Wipe Google OAuth Grants' (runs 'gam user deprovision') on Tab 3 to revoke all Google OAuth grants."
                                 RawDetail = $tokOut.Trim()
                             })
                         }
@@ -5947,33 +5987,36 @@ $lblTitle.Text = "Security Incident Response Console"
 $lblTitle.Font = New-Object System.Drawing.Font("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
 $lblTitle.ForeColor = [System.Drawing.Color]::White
 $lblTitle.Location = New-Object System.Drawing.Point(18, 7)
-$lblTitle.Size = New-Object System.Drawing.Size(350, 26)
+$lblTitle.Size = New-Object System.Drawing.Size(510, 26)
 $lblTitle.AutoSize = $false
+$lblTitle.UseMnemonic = $false
 $headerPanel.Controls.Add($lblTitle)
 
 $lblSub = New-Object System.Windows.Forms.Label
-$activeDom = (if ($script:targetDomain) { $script:targetDomain } elseif ($script:targetServer) { $script:targetServer } else { "Not Connected (Workgroup)" })
-$activeServerStr = (if ($script:targetServer -and $script:targetServer -ne $activeDom) { " (DC: $($script:targetServer))" } else { "" })
+$activeDom = $(if ($script:targetDomain) { $script:targetDomain } elseif ($script:targetServer) { $script:targetServer } else { "Not Connected (Workgroup)" })
+$activeServerStr = $(if ($script:targetServer -and $script:targetServer -ne $activeDom) { " (DC: $($script:targetServer))" } else { "" })
 $showPrefix = ($script:domainProfilesData -and $script:activeProfile -and (($script:domainProfilesData.Profiles.Count -gt 1) -or (-not [bool]$script:activeProfile.IsPrimary -and (-not [bool]$script:domainProfilesData.PrimaryConfigured))))
-$profPrefix = (if ($showPrefix) {
-    $primTag = if ([bool]$script:activeProfile.IsPrimary) { "Primary: " } else { "" })
+$profPrefix = $(if ($showPrefix) {
+    $primTag = if ([bool]$script:activeProfile.IsPrimary) { "Primary: " } else { "" }
     "[$primTag$($script:activeProfile.Name)] "
 } else {
     ""
-}
+})
 $lblSub.Text = "${profPrefix}Domain: $activeDom$activeServerStr | Operator: $($script:adminAccount)"
 $lblSub.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
 $lblSub.ForeColor = [System.Drawing.Color]::FromArgb(148, 163, 184)
 $lblSub.Location = New-Object System.Drawing.Point(20, 35)
-$lblSub.Size = New-Object System.Drawing.Size(350, 22)
+$lblSub.Size = New-Object System.Drawing.Size(510, 22)
 $lblSub.AutoSize = $false
+$lblSub.UseMnemonic = $false
 $headerPanel.Controls.Add($lblSub)
 
-# Clickable Theme Toggle, Check Updates, and Domain / Profile Switcher buttons on the top right
+# Clickable Check Updates and Theme Toggle buttons on the top right
 $btnCheckUpdates = New-Object System.Windows.Forms.Button
 $btnCheckUpdates.Text = "Check for Updates"
-$btnCheckUpdates.Location = New-Object System.Drawing.Point(380, 15)
-$btnCheckUpdates.Size = New-Object System.Drawing.Size(145, 32)
+$btnCheckUpdates.UseMnemonic = $false
+$btnCheckUpdates.Location = New-Object System.Drawing.Point(550, 15)
+$btnCheckUpdates.Size = New-Object System.Drawing.Size(150, 32)
 $btnCheckUpdates.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnCheckUpdates.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
 $btnCheckUpdates.ForeColor = [System.Drawing.Color]::FromArgb(56, 189, 248)
@@ -5983,23 +6026,14 @@ $headerPanel.Controls.Add($btnCheckUpdates)
 
 $btnThemeToggle = New-Object System.Windows.Forms.Button
 $btnThemeToggle.Text = "[ Light Mode ]"
-$btnThemeToggle.Location = New-Object System.Drawing.Point(535, 15)
-$btnThemeToggle.Size = New-Object System.Drawing.Size(140, 32)
+$btnThemeToggle.UseMnemonic = $false
+$btnThemeToggle.Location = New-Object System.Drawing.Point(710, 15)
+$btnThemeToggle.Size = New-Object System.Drawing.Size(145, 32)
 $btnThemeToggle.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnThemeToggle.BackColor = [System.Drawing.Color]::FromArgb(51, 65, 85)
 $btnThemeToggle.ForeColor = [System.Drawing.Color]::FromArgb(250, 204, 21)
 $btnThemeToggle.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $headerPanel.Controls.Add($btnThemeToggle)
-
-$btnSwitchDomain = New-Object System.Windows.Forms.Button
-$btnSwitchDomain.Text = "Switch Domain / Profile"
-$btnSwitchDomain.Location = New-Object System.Drawing.Point(685, 15)
-$btnSwitchDomain.Size = New-Object System.Drawing.Size(170, 32)
-$btnSwitchDomain.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-$btnSwitchDomain.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
-$btnSwitchDomain.ForeColor = [System.Drawing.Color]::FromArgb(56, 189, 248)
-$btnSwitchDomain.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-$headerPanel.Controls.Add($btnSwitchDomain)
 
 # TabControl for 5 tabs: All 5 fit side-by-side without horizontal scrolling
 $tabControl = New-Object System.Windows.Forms.TabControl
@@ -6422,17 +6456,17 @@ function Add-AuditEntry {
         [string]$Details
     )
     $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-    $admin = (if ($script:adminAccount) { $script:adminAccount } else { "admin" })
-    $upn = (if ($script:currentUser) {
+    $admin = $(if ($script:adminAccount) { $script:adminAccount } else { "admin" })
+    $upn = $(if ($script:currentUser) {
         if ($script:currentUser.Mail -and (-not [string]::Equals($script:currentUser.UserPrincipalName, $script:currentUser.Mail, [StringComparison]::OrdinalIgnoreCase))) {
             "$($script:currentUser.UserPrincipalName) ($($script:currentUser.Mail))"
         } else {
             "$($script:currentUser.UserPrincipalName) ($($script:currentUser.SamAccountName))"
-        })
+        }
     } else {
         "N/A"
-    }
-    $name = (if ($script:currentUser -and $script:currentUser.DisplayName) { $script:currentUser.DisplayName } else { "N/A" })
+    })
+    $name = $(if ($script:currentUser -and $script:currentUser.DisplayName) { $script:currentUser.DisplayName } else { "N/A" })
 
     $entryObj = [PSCustomObject]@{
         Timestamp  = $ts
@@ -6530,26 +6564,26 @@ function Update-IntegrationAlertBanner {
     if (-not $graphVerified) { $unlinked.Add("Microsoft Graph") }
     if (-not $gamVerified) { $unlinked.Add("Google GAM7") }
 
-    $isDark = (if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
 
     if ($unlinked.Count -gt 0) {
         $lblAlertText.Text = "ACCOUNT LINK REQUIRED: $($unlinked.Count) integration(s) not linked ($($unlinked -join ', ')). Check Tab 1 ('1. Setup')."
-        $pnlAlert.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(69, 10, 10) } else { [System.Drawing.Color]::FromArgb(254, 242, 242) })
-        $lblAlertText.ForeColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(254, 202, 202) } else { [System.Drawing.Color]::FromArgb(185, 28, 28) })
+        $pnlAlert.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(69, 10, 10) } else { [System.Drawing.Color]::FromArgb(254, 242, 242) })
+        $lblAlertText.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(254, 202, 202) } else { [System.Drawing.Color]::FromArgb(185, 28, 28) })
     } elseif ($null -eq $script:currentUser) {
         $lblAlertText.Text = "ALL INTEGRATIONS VERIFIED: Search for a target user above to begin incident investigation."
-        $pnlAlert.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(6, 78, 59) } else { [System.Drawing.Color]::FromArgb(240, 253, 244) })
-        $lblAlertText.ForeColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(167, 243, 208) } else { [System.Drawing.Color]::FromArgb(21, 128, 61) })
+        $pnlAlert.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(6, 78, 59) } else { [System.Drawing.Color]::FromArgb(240, 253, 244) })
+        $lblAlertText.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(167, 243, 208) } else { [System.Drawing.Color]::FromArgb(21, 128, 61) })
     } elseif (-not $chkVerified.Checked) {
-        $uName = (if ($script:currentUser.DisplayName) { $script:currentUser.DisplayName } else { $script:currentUser.SamAccountName })
+        $uName = $(if ($script:currentUser.DisplayName) { $script:currentUser.DisplayName } else { $script:currentUser.SamAccountName })
         $lblAlertText.Text = "TARGET USER LOADED ($uName): Verify details above and check confirmation box below to unlock containment actions."
-        $pnlAlert.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(30, 58, 138) } else { [System.Drawing.Color]::FromArgb(239, 246, 255) })
-        $lblAlertText.ForeColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(191, 219, 254) } else { [System.Drawing.Color]::FromArgb(29, 78, 216) })
+        $pnlAlert.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 58, 138) } else { [System.Drawing.Color]::FromArgb(239, 246, 255) })
+        $lblAlertText.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(191, 219, 254) } else { [System.Drawing.Color]::FromArgb(29, 78, 216) })
     } else {
-        $uName = (if ($script:currentUser.DisplayName) { $script:currentUser.DisplayName } else { $script:currentUser.SamAccountName })
+        $uName = $(if ($script:currentUser.DisplayName) { $script:currentUser.DisplayName } else { $script:currentUser.SamAccountName })
         $lblAlertText.Text = "ACTIONS UNLOCKED: Containment decks active for $uName ($($script:currentUser.SamAccountName)). Proceed with containment."
-        $pnlAlert.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(6, 78, 59) } else { [System.Drawing.Color]::FromArgb(236, 253, 245) })
-        $lblAlertText.ForeColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(167, 243, 208) } else { [System.Drawing.Color]::FromArgb(4, 120, 87) })
+        $pnlAlert.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(6, 78, 59) } else { [System.Drawing.Color]::FromArgb(236, 253, 245) })
+        $lblAlertText.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(167, 243, 208) } else { [System.Drawing.Color]::FromArgb(4, 120, 87) })
     }
 }
 
@@ -6558,15 +6592,15 @@ function Update-IntegrationAlertBanner {
 # -----------------------------------------------------------------------------
 function Update-HeaderSubLabelSafe {
     if (-not $lblSub) { return }
-    $activeDom = (if ($script:targetDomain) { $script:targetDomain } elseif ($script:targetServer) { $script:targetServer } else { "Not Connected (Cloud Only)" })
-    $activeServerStr = (if ($script:targetServer -and $script:targetServer -ne $activeDom) { " (DC: $($script:targetServer))" } else { "" })
+    $activeDom = $(if ($script:targetDomain) { $script:targetDomain } elseif ($script:targetServer) { $script:targetServer } else { "Not Connected (Cloud Only)" })
+    $activeServerStr = $(if ($script:targetServer -and $script:targetServer -ne $activeDom) { " (DC: $($script:targetServer))" } else { "" })
     $showPrefix = ($script:domainProfilesData -and $script:activeProfile -and (($script:domainProfilesData.Profiles.Count -gt 1) -or (-not [bool]$script:activeProfile.IsPrimary -and (-not [bool]$script:domainProfilesData.PrimaryConfigured))))
-    $profPrefix = (if ($showPrefix) {
-        $primTag = if ([bool]$script:activeProfile.IsPrimary) { "Primary: " } else { "" })
+    $profPrefix = $(if ($showPrefix) {
+        $primTag = if ([bool]$script:activeProfile.IsPrimary) { "Primary: " } else { "" }
         "[$primTag$($script:activeProfile.Name)] "
     } else {
         ""
-    }
+    })
     $lblSub.Text = "${profPrefix}Domain: $activeDom$activeServerStr | Admin: $($script:adminAccount)"
 }
 
@@ -6600,8 +6634,8 @@ function Sync-DiagProfileControls {
         $selIdx = 0
         $i = 0
         foreach ($pr in $script:domainProfilesData.Profiles) {
-            $domTag = (if (-not [string]::IsNullOrWhiteSpace([string]$pr.TargetDomain)) { " ($($pr.TargetDomain))" } else { "" })
-            $primTag = (if ([bool]$pr.IsPrimary) { " [Primary]" } else { "" })
+            $domTag = $(if (-not [string]::IsNullOrWhiteSpace([string]$pr.TargetDomain)) { " ($($pr.TargetDomain))" } else { "" })
+            $primTag = $(if ([bool]$pr.IsPrimary) { " [Primary]" } else { "" })
             [void]$cmbDiagProfile.Items.Add("$($pr.Name)$domTag$primTag")
             if ($script:activeProfile -and [string]::Equals([string]$pr.Id, [string]$script:activeProfile.Id, [StringComparison]::OrdinalIgnoreCase)) {
                 $selIdx = $i
@@ -6614,12 +6648,12 @@ function Sync-DiagProfileControls {
         if ($grpDiagProfile) {
             $count = $script:domainProfilesData.Profiles.Count
             $hasPrimary = [bool]$script:domainProfilesData.PrimaryConfigured -or ($null -ne (Get-PrimaryDomainProfileSafe))
-            $grpDiagProfile.Text = (if (-not $hasPrimary) {
-                " Active Domain Profile (No Primary Profile set — click 'Manage / AD...' or '+ New Profile') "
+            $grpDiagProfile.Text = $(if (-not $hasPrimary) {
+                " Active Domain Profile (No Primary Profile set - click 'Manage / AD...' or '+ New Profile') "
             } elseif ($count -gt 1) {
-                " Active Domain Profile ($count configured — AD + Graph + GAM7 isolated per profile) "
+                " Active Domain Profile ($count configured - AD + Graph + GAM7 isolated per profile) "
             } else {
-                " Active Domain Profile (Single-Domain Mode — click '+ New Profile' for multi-domain switching) "
+                " Active Domain Profile (Single-Domain Mode - click '+ New Profile' for multi-domain switching) "
             })
         }
     } finally {
@@ -6746,7 +6780,7 @@ function Show-PrimaryProfilePromptSafe {
     if (-not $script:domainProfilesData) { return }
     if ([bool]$script:domainProfilesData.PrimaryConfigured -or ($null -ne (Get-PrimaryDomainProfileSafe))) { return }
 
-    $isDark = (if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
     $hasClientProfiles = (@($script:domainProfilesData.Profiles | Where-Object { -not [bool]$_.IsDefault }).Count -gt 0)
     $isOnClientProfile = ($script:activeProfile -and (-not [bool]$script:activeProfile.IsDefault))
 
@@ -6757,12 +6791,12 @@ function Show-PrimaryProfilePromptSafe {
     $dlgPrim.FormBorderStyle = "FixedDialog"
     $dlgPrim.MaximizeBox = $false
     $dlgPrim.MinimizeBox = $false
-    $dlgPrim.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
-    $dlgPrim.ForeColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $dlgPrim.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
+    $dlgPrim.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
 
     $hdr = New-Object System.Windows.Forms.Panel
     $hdr.Size = New-Object System.Drawing.Size(540, 48)
-    $hdr.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $hdr.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $dlgPrim.Controls.Add($hdr)
 
     $lblHdr = New-Object System.Windows.Forms.Label
@@ -6773,7 +6807,7 @@ function Show-PrimaryProfilePromptSafe {
     $lblHdr.AutoSize = $true
     $hdr.Controls.Add($lblHdr)
 
-    $envLabel = (if ($script:isDomainJoined) { "Joined Domain: $($script:detectedDomain)" } else { "Workgroup / Remote Workstation" })
+    $envLabel = $(if ($script:isDomainJoined) { "Joined Domain: $($script:detectedDomain)" } else { "Workgroup / Remote Workstation" })
     $lblQuestion = New-Object System.Windows.Forms.Label
     $lblQuestion.Location = New-Object System.Drawing.Point(18, 60)
     $lblQuestion.Size = New-Object System.Drawing.Size(492, 66)
@@ -6792,11 +6826,11 @@ function Show-PrimaryProfilePromptSafe {
     $txtPrimName.Location = New-Object System.Drawing.Point(18, 155)
     $txtPrimName.Size = New-Object System.Drawing.Size(490, 24)
     $txtPrimName.Font = New-Object System.Drawing.Font("Segoe UI", 9.25)
-    $txtPrimName.Text = (if ($script:isDomainJoined -and (-not [string]::IsNullOrWhiteSpace($script:detectedDomain))) { "$($script:detectedDomain) (Primary)" } else { "Primary Domain" })
+    $txtPrimName.Text = $(if ($script:isDomainJoined -and (-not [string]::IsNullOrWhiteSpace($script:detectedDomain))) { "$($script:detectedDomain) (Primary)" } else { "Primary Domain" })
     $dlgPrim.Controls.Add($txtPrimName)
 
     $lblOtherName = New-Object System.Windows.Forms.Label
-    $lblOtherName.Text = (if ($isOnClientProfile) { "Or keep assisting another domain (leave Primary unset for home):" } else { "If assisting another domain instead, name that temporary/client profile:" })
+    $lblOtherName.Text = $(if ($isOnClientProfile) { "Or keep assisting another domain (leave Primary unset for home):" } else { "If assisting another domain instead, name that temporary/client profile:" })
     $lblOtherName.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
     $lblOtherName.Location = New-Object System.Drawing.Point(18, 190)
     $lblOtherName.Size = New-Object System.Drawing.Size(492, 18)
@@ -6807,12 +6841,12 @@ function Show-PrimaryProfilePromptSafe {
     $txtClientName.Location = New-Object System.Drawing.Point(18, 211)
     $txtClientName.Size = New-Object System.Drawing.Size(490, 24)
     $txtClientName.Font = New-Object System.Drawing.Font("Segoe UI", 9.25)
-    $txtClientName.Text = (if ($isOnClientProfile) { [string]$script:activeProfile.Name } else { "Assisting Domain $nextClientNum" })
+    $txtClientName.Text = $(if ($isOnClientProfile) { [string]$script:activeProfile.Name } else { "Assisting Domain $nextClientNum" })
     if ($isOnClientProfile) { $txtClientName.ReadOnly = $true }
     $dlgPrim.Controls.Add($txtClientName)
 
     $btnYesPrimary = New-Object System.Windows.Forms.Button
-    $btnYesPrimary.Text = "Yes — Set as My Primary Profile"
+    $btnYesPrimary.Text = "Yes - Set as My Primary Profile"
     $btnYesPrimary.UseMnemonic = $false
     $btnYesPrimary.Location = New-Object System.Drawing.Point(18, 252)
     $btnYesPrimary.Size = New-Object System.Drawing.Size(214, 34)
@@ -6823,7 +6857,7 @@ function Show-PrimaryProfilePromptSafe {
     $dlgPrim.Controls.Add($btnYesPrimary)
 
     $btnNoAssisting = New-Object System.Windows.Forms.Button
-    $btnNoAssisting.Text = (if ($isOnClientProfile) { "No — Stay on Current Profile" } else { "No — Assisting Another Domain" })
+    $btnNoAssisting.Text = $(if ($isOnClientProfile) { "No - Stay on Current Profile" } else { "No - Assisting Another Domain" })
     $btnNoAssisting.UseMnemonic = $false
     $btnNoAssisting.Location = New-Object System.Drawing.Point(240, 252)
     $btnNoAssisting.Size = New-Object System.Drawing.Size(184, 34)
@@ -6843,7 +6877,7 @@ function Show-PrimaryProfilePromptSafe {
     $dlgPrim.Controls.Add($btnLater)
 
     $btnYesPrimary.Add_Click({
-        $primTitle = (if (-not [string]::IsNullOrWhiteSpace($txtPrimName.Text)) { $txtPrimName.Text.Trim() } else { "Primary Domain" })
+        $primTitle = $(if (-not [string]::IsNullOrWhiteSpace($txtPrimName.Text)) { $txtPrimName.Text.Trim() } else { "Primary Domain" })
         $defPr = Get-ProfileByIdSafe -ProfileId 'default'
         if (-not $defPr) { $defPr = $script:domainProfilesData.Profiles[0] }
 
@@ -6873,7 +6907,7 @@ function Show-PrimaryProfilePromptSafe {
             $dlgPrim.Close()
             return
         }
-        $clientTitle = (if (-not [string]::IsNullOrWhiteSpace($txtClientName.Text)) { $txtClientName.Text.Trim() } else { "Assisting Domain $nextClientNum" })
+        $clientTitle = $(if (-not [string]::IsNullOrWhiteSpace($txtClientName.Text)) { $txtClientName.Text.Trim() } else { "Assisting Domain $nextClientNum" })
         $newClientPr = New-DomainProfileSafe -ProfileName $clientTitle
         Switch-ActiveDomainProfileSafe -TargetProfile $newClientPr -UseExplicitAdCreds $true -SkipAdVerify $true
         Write-AppLog "Created isolated Domain Profile '$($newClientPr.Name)' for assisting another domain. Primary Domain Profile kept clean and unset for your home domain." "INFO"
@@ -6889,7 +6923,7 @@ function Show-PrimaryProfilePromptSafe {
 function Show-NewDomainProfileModal {
     param([System.Windows.Forms.Form]$OwnerForm = $form)
 
-    $isDark = (if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
     $dlgNew = New-Object System.Windows.Forms.Form
     $dlgNew.Text = "Add Domain Profile"
     $dlgNew.Size = New-Object System.Drawing.Size(470, 235)
@@ -6897,8 +6931,8 @@ function Show-NewDomainProfileModal {
     $dlgNew.FormBorderStyle = "FixedDialog"
     $dlgNew.MaximizeBox = $false
     $dlgNew.MinimizeBox = $false
-    $dlgNew.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
-    $dlgNew.ForeColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $dlgNew.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
+    $dlgNew.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
 
     $lblPrompt = New-Object System.Windows.Forms.Label
     $lblPrompt.Text = "Domain Profile Name (e.g. 'Home Domain', 'Contoso Corp', 'Client A'):"
@@ -7053,7 +7087,7 @@ function Show-DomainSwitcher {
 
     # SECTION 2: ACTIVE DIRECTORY DOMAIN & CREDENTIALS
     $lblDlgServer = New-Object System.Windows.Forms.Label
-    $lblDlgServer.Text = "Target AD Domain (FQDN or Domain Controller — optional if switching Cloud only):"
+    $lblDlgServer.Text = "Target AD Domain (FQDN or Domain Controller - optional if switching Cloud only):"
     $lblDlgServer.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $lblDlgServer.Location = New-Object System.Drawing.Point(20, 166)
     $lblDlgServer.AutoSize = $true
@@ -7180,8 +7214,8 @@ function Show-DomainSwitcher {
         $targetIdx = 0
         $idx = 0
         foreach ($pr in $script:domainProfilesData.Profiles) {
-            $primTag = (if ([bool]$pr.IsPrimary) { " [Primary]" } else { "" })
-            $actTag = (if ($script:activeProfile -and $pr.Id -eq $script:activeProfile.Id) { " [Active]" } else { "" })
+            $primTag = $(if ([bool]$pr.IsPrimary) { " [Primary]" } else { "" })
+            $actTag = $(if ($script:activeProfile -and $pr.Id -eq $script:activeProfile.Id) { " [Active]" } else { "" })
             [void]$cmbProf.Items.Add("$($pr.Name)$primTag$actTag")
             if ($TargetId -and [string]::Equals([string]$pr.Id, [string]$TargetId, [StringComparison]::OrdinalIgnoreCase)) {
                 $targetIdx = $idx
@@ -7202,7 +7236,7 @@ function Show-DomainSwitcher {
         $btnDelProf.Enabled = (-not $isDef)
         $btnSetPrimaryProf.Enabled = (-not ([bool]$pr.IsPrimary -and [bool]$script:domainProfilesData.PrimaryConfigured))
 
-        $txtDlgServer.Text = (if (-not [string]::IsNullOrWhiteSpace([string]$pr.TargetDomain)) {
+        $txtDlgServer.Text = $(if (-not [string]::IsNullOrWhiteSpace([string]$pr.TargetDomain)) {
             [string]$pr.TargetDomain
         } elseif (-not [string]::IsNullOrWhiteSpace([string]$pr.TargetServer)) {
             [string]$pr.TargetServer
@@ -7219,7 +7253,7 @@ function Show-DomainSwitcher {
         $chkUseAlt.Checked = $shouldUseAlt
         $grpCreds.Enabled = $chkUseAlt.Checked
 
-        $txtDlgUser.Text = (if (-not [string]::IsNullOrWhiteSpace([string]$pr.AdminUsername)) {
+        $txtDlgUser.Text = $(if (-not [string]::IsNullOrWhiteSpace([string]$pr.AdminUsername)) {
             [string]$pr.AdminUsername
         } elseif ($isDef -and $script:useExplicitCreds -and $script:adminAccount -ne "admin") {
             $script:adminAccount
@@ -7229,10 +7263,10 @@ function Show-DomainSwitcher {
         $txtDlgPass.Text = ""
 
         $summary = Get-DomainProfileStatusSummary -ProfileObj $pr
-        $gStat = (if ($summary.GraphReady) { "Verified ($($summary.GraphLabel))" } else { "Not linked yet" })
+        $gStat = $(if ($summary.GraphReady) { "Verified ($($summary.GraphLabel))" } else { "Not linked yet" })
         $gamStat = $summary.GamLabel
         $lblProfCloud.Text = "Microsoft Graph: $gStat`r`nGoogle GAM7: $gamStat"
-        $lblProfCloud.ForeColor = (if ($summary.GraphReady -and $summary.GamReady) { [System.Drawing.Color]::FromArgb(21, 128, 61) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
+        $lblProfCloud.ForeColor = $(if ($summary.GraphReady -and $summary.GamReady) { [System.Drawing.Color]::FromArgb(21, 128, 61) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
         $lblDlgStatus.Text = ""
     }
 
@@ -7326,7 +7360,7 @@ function Show-DomainSwitcher {
         }
     })
 
-    $initialTargetId = (if (-not [string]::IsNullOrWhiteSpace($PreselectProfileId)) { $PreselectProfileId } elseif ($script:activeProfile) { $script:activeProfile.Id } else { 'default' })
+    $initialTargetId = $(if (-not [string]::IsNullOrWhiteSpace($PreselectProfileId)) { $PreselectProfileId } elseif ($script:activeProfile) { $script:activeProfile.Id } else { 'default' })
     & $populateProfileCombo $initialTargetId
     & $loadSelectedProfileFields
 
@@ -7371,7 +7405,7 @@ function Show-DomainSwitcher {
 
         try {
             $testServer = $target
-            $testCred = (if ($chkUseAlt.Checked) {
+            $testCred = $(if ($chkUseAlt.Checked) {
                 if ([string]::IsNullOrEmpty($txtDlgUser.Text) -or [string]::IsNullOrEmpty($txtDlgPass.Text)) {
                     $lblDlgStatus.Text = "Username and password are required when using alternate AD credentials."
                     $lblDlgStatus.ForeColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
@@ -7402,7 +7436,7 @@ function Show-DomainSwitcher {
         }
         catch {
             $rawMsg = $_.Exception.Message
-            $cleanMsg = (if ($rawMsg -match 'member\s+"Dispose":\s*"([^"]+)"') { $matches[1] } else { $rawMsg })
+            $cleanMsg = $(if ($rawMsg -match 'member\s+"Dispose":\s*"([^"]+)"') { $matches[1] } else { $rawMsg })
             $lblDlgStatus.Text = "Verification failed: $cleanMsg"
             $lblDlgStatus.ForeColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
             Write-AppLog "Domain connection verification failed: $cleanMsg" "ERROR"
@@ -7423,7 +7457,7 @@ function Show-ChangelogWindow {
     if ([string]::IsNullOrWhiteSpace($VersionTag)) {
         $VersionTag = "v$($script:AppVersion)"
     }
-    $isDark = (if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
 
     $dlgNotes = New-Object System.Windows.Forms.Form
     $dlgNotes.Text = "Security Incident Automator - Release Notes ($VersionTag)"
@@ -7432,11 +7466,11 @@ function Show-ChangelogWindow {
     $dlgNotes.FormBorderStyle = "FixedDialog"
     $dlgNotes.MaximizeBox = $false
     $dlgNotes.MinimizeBox = $false
-    $dlgNotes.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
+    $dlgNotes.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
 
     $dlgHeader = New-Object System.Windows.Forms.Panel
     $dlgHeader.Size = New-Object System.Drawing.Size(640, 50)
-    $dlgHeader.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $dlgHeader.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $dlgNotes.Controls.Add($dlgHeader)
 
     $dlgTitle = New-Object System.Windows.Forms.Label
@@ -7450,7 +7484,7 @@ function Show-ChangelogWindow {
     $resolvedNotes = $ChangelogText
     if ([string]::IsNullOrWhiteSpace($resolvedNotes)) {
         try {
-            $baseDir = (if (-not [string]::IsNullOrWhiteSpace($script:MainScriptPath)) {
+            $baseDir = $(if (-not [string]::IsNullOrWhiteSpace($script:MainScriptPath)) {
                 Split-Path -Parent $script:MainScriptPath
             } else {
                 Split-Path -Parent ((Get-Process -Id $PID).Path)
@@ -7466,26 +7500,27 @@ function Show-ChangelogWindow {
             "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
             "===========================================================`r`n" +
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+            "## [1.1.57] - 2026-11-12`r`n" +
+            "### Changed & Improved`r`n" +
+            "  * Unified Tab 3 ('3. Deep Isolation') red cloud persistence eradication buttons with parallel naming across Microsoft 365 (Entra ID) and Google Workspace (GAM7):`r`n" +
+            "    - Wipe Entra 2FA Methods | Wipe Entra OAuth Grants | Wipe Google 2FA Methods | Wipe Google OAuth Grants | Wipe All (Entra + GAM7).`r`n" +
+            "  * Added Temporary Access Pass (temporaryAccessPassMethods) deletion to 'Wipe Entra 2FA Methods' and descriptive hover tooltips on Tab 3 controls.`r`n" +
+            "  * Refined UI wording, dialog titles, event triage recommendations, and documentation across all 5 tabs.`r`n`r`n" +
+            "## [1.1.56] - 2026-11-12`r`n" +
+            "### Changed & Fixed`r`n" +
+            "  * Aligned Tab 1 ('1. Setup') buttons by service column: Column 1 = Active Directory (Test AD, Install RSAT, Switch AD Account / Domain); Column 2 = Microsoft Graph (Test, 1. Setup, Switch); Column 3 = Google GAM7 (Test, 2. Setup, Switch).`r`n" +
+            "  * Separated Tab 3 cloud persistence eradication into 5 distinct buttons (2 for Entra + 2 for Google + 1 Wipe All).`r`n`r`n" +
+            "## [1.1.55] - 2026-11-12`r`n" +
+            "### Changed & Fixed`r`n" +
+            "  * Fixed Windows PowerShell 5.1 syntax & runtime subexpression parsing across 293 conditional assignments, eliminated non-ASCII UTF-8 em-dash quotes, and hardened child-script here-string templates.`r`n" +
+            "  * Removed redundant top-bar 'Switch Domain / Profile' button (Domain & Profile management now lives cleanly on Tab 1).`r`n" +
+            "  * Fixed WinForms ampersand mnemonic parsing across buttons and labels (including 'Audit M365 & Gmail Rules' on Tab 3).`r`n`r`n" +
             "## [1.1.54] - 2026-11-12`r`n" +
             "### Added & Improved`r`n" +
             "  * Multi-Domain Profile Manager (isolated AD Domain, Microsoft Graph tenant/app, and Google GAM7 config folder per Domain Profile) while staying zero-step seamless for single-domain users.`r`n" +
             "  * Primary Profile Prompt on Startup: If no Primary Domain Profile is configured yet, prompts whether the current environment is your Primary (Home) Domain or an assisting/temporary domain.`r`n" +
             "  * Dual-account WAM/SSO fix + Tab 1 Switch Graph Account, Switch GAM Account, and Switch AD Account / Domain buttons.`r`n" +
-            "  * Switch Cloud Only (Skip AD) option for off-VPN or cloud-only triage.`r`n`r`n" +
-            "## [1.1.53] - 2026-11-12`r`n" +
-            "### Added & Improved`r`n" +
-            "  * Added automatic local PS2EXE recompilation inside Update & Restart for IncidentResponse.exe when no .exe release asset exists on GitHub.`r`n" +
-            "  * Replaced -EncodedCommand swap execution with clean -File scripts staged inside the application folder.`r`n" +
-            "  * Added UTF-8 byte-array decoding for PowerShell 5.1 GitHub API responses and commit-SHA lookup to bypass CDN caching.`r`n`r`n" +
-            "## [1.1.52] - 2026-11-12`r`n" +
-            "### Changed`r`n" +
-            "  * Testing Update Feature`r`n`r`n" +
-            "## [1.1.51] - 2026-11-12`r`n" +
-            "### Added & Fixed`r`n" +
-            "  * Added GitHub Check for Updates & Self-Updater dialog supporting both Launch-IncidentAutomator.bat (.ps1) and compiled IncidentResponse.exe hot-swap restarts.`r`n" +
-            "  * Added dedicated View Changelog release notes dialog with Light / Dark mode support.`r`n" +
-            "  * Colorized update status output lines (green when up to date, red when an update is available) and fixed WinForms mnemonic rendering on 'Update & Restart'.`r`n" +
-            "  * Fixed Microsoft Graph silent CurrentUser MSAL session restoration for delegated operators on fresh workstations."
+            "  * Switch Cloud Only (Skip AD) option for off-VPN or cloud-only triage."
     }
 
     $txtNotes = New-Object System.Windows.Forms.TextBox
@@ -7495,8 +7530,8 @@ function Show-ChangelogWindow {
     $txtNotes.Location = New-Object System.Drawing.Point(15, 62)
     $txtNotes.Size = New-Object System.Drawing.Size(595, 340)
     $txtNotes.Font = New-Object System.Drawing.Font("Consolas", 9)
-    $txtNotes.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
-    $txtNotes.ForeColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $txtNotes.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
+    $txtNotes.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $txtNotes.Text = $resolvedNotes
     $txtNotes.SelectionStart = 0
     $txtNotes.SelectionLength = 0
@@ -7508,8 +7543,8 @@ function Show-ChangelogWindow {
     $btnCloseNotes.Location = New-Object System.Drawing.Point(490, 412)
     $btnCloseNotes.Size = New-Object System.Drawing.Size(120, 32)
     $btnCloseNotes.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $btnCloseNotes.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
-    $btnCloseNotes.ForeColor = (if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $btnCloseNotes.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+    $btnCloseNotes.ForeColor = $(if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $btnCloseNotes.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btnCloseNotes.Add_Click({ $dlgNotes.Close() })
     $dlgNotes.Controls.Add($btnCloseNotes)
@@ -7522,12 +7557,12 @@ function Show-ChangelogWindow {
 # CHECK FOR UPDATES DIALOG (GitHub Release Check, Colorized Log, & Self-Updater)
 # -----------------------------------------------------------------------------
 function Show-UpdateCheckWindow {
-    $isDark = (if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
 
-    $bgLog    = (if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
-    $fgLog    = (if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
-    $fgGreen  = (if ($isDark) { [System.Drawing.Color]::FromArgb(74, 222, 128) } else { [System.Drawing.Color]::FromArgb(22, 163, 74) })
-    $fgRed    = (if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
+    $bgLog    = $(if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
+    $fgLog    = $(if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $fgGreen  = $(if ($isDark) { [System.Drawing.Color]::FromArgb(74, 222, 128) } else { [System.Drawing.Color]::FromArgb(22, 163, 74) })
+    $fgRed    = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
 
     $dlgUpd = New-Object System.Windows.Forms.Form
     $dlgUpd.Text = "Security Incident Automator - Check for Updates"
@@ -7536,14 +7571,14 @@ function Show-UpdateCheckWindow {
     $dlgUpd.FormBorderStyle = "FixedDialog"
     $dlgUpd.MaximizeBox = $false
     $dlgUpd.MinimizeBox = $false
-    $dlgUpd.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
+    $dlgUpd.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
 
     # Top Section GroupBox Container
     $grpTop = New-Object System.Windows.Forms.GroupBox
     $grpTop.Location = New-Object System.Drawing.Point(15, 10)
     $grpTop.Size = New-Object System.Drawing.Size(615, 122)
-    $grpTop.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
-    $grpTop.ForeColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $grpTop.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
+    $grpTop.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $dlgUpd.Controls.Add($grpTop)
 
     $lblAppVer = New-Object System.Windows.Forms.Label
@@ -7551,7 +7586,7 @@ function Show-UpdateCheckWindow {
     $lblAppVer.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
     $lblAppVer.Location = New-Object System.Drawing.Point(15, 14)
     $lblAppVer.Size = New-Object System.Drawing.Size(585, 24)
-    $lblAppVer.ForeColor = (if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $lblAppVer.ForeColor = $(if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $grpTop.Controls.Add($lblAppVer)
 
     $lblSubDesc = New-Object System.Windows.Forms.Label
@@ -7559,7 +7594,7 @@ function Show-UpdateCheckWindow {
     $lblSubDesc.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
     $lblSubDesc.Location = New-Object System.Drawing.Point(15, 38)
     $lblSubDesc.Size = New-Object System.Drawing.Size(585, 34)
-    $lblSubDesc.ForeColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(100, 116, 139) })
+    $lblSubDesc.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(100, 116, 139) })
     $grpTop.Controls.Add($lblSubDesc)
 
     $lblRepo = New-Object System.Windows.Forms.Label
@@ -7567,7 +7602,7 @@ function Show-UpdateCheckWindow {
     $lblRepo.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $lblRepo.Location = New-Object System.Drawing.Point(15, 80)
     $lblRepo.Size = New-Object System.Drawing.Size(202, 22)
-    $lblRepo.ForeColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(51, 65, 85) })
+    $lblRepo.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(51, 65, 85) })
     $grpTop.Controls.Add($lblRepo)
 
     $txtRepo = New-Object System.Windows.Forms.TextBox
@@ -7585,8 +7620,8 @@ function Show-UpdateCheckWindow {
     $btnCheckNow.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnCheckNow.Location = New-Object System.Drawing.Point(472, 76)
     $btnCheckNow.Size = New-Object System.Drawing.Size(128, 28)
-    $btnCheckNow.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
-    $btnCheckNow.ForeColor = (if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $btnCheckNow.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
+    $btnCheckNow.ForeColor = $(if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $btnCheckNow.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $grpTop.Controls.Add($btnCheckNow)
 
@@ -7625,8 +7660,8 @@ function Show-UpdateCheckWindow {
     $btnViewChangelog.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnViewChangelog.Location = New-Object System.Drawing.Point(15, 398)
     $btnViewChangelog.Size = New-Object System.Drawing.Size(145, 36)
-    $btnViewChangelog.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
-    $btnViewChangelog.ForeColor = (if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $btnViewChangelog.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
+    $btnViewChangelog.ForeColor = $(if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $btnViewChangelog.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $dlgUpd.Controls.Add($btnViewChangelog)
 
@@ -7637,7 +7672,7 @@ function Show-UpdateCheckWindow {
     $btnUpdateRestart.Location = New-Object System.Drawing.Point(325, 398)
     $btnUpdateRestart.Size = New-Object System.Drawing.Size(160, 36)
     $btnUpdateRestart.Enabled = $false
-    $btnUpdateRestart.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(203, 213, 225) })
+    $btnUpdateRestart.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(203, 213, 225) })
     $btnUpdateRestart.ForeColor = [System.Drawing.Color]::White
     $btnUpdateRestart.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $dlgUpd.Controls.Add($btnUpdateRestart)
@@ -7648,8 +7683,8 @@ function Show-UpdateCheckWindow {
     $btnCloseUpd.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
     $btnCloseUpd.Location = New-Object System.Drawing.Point(500, 398)
     $btnCloseUpd.Size = New-Object System.Drawing.Size(130, 36)
-    $btnCloseUpd.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
-    $btnCloseUpd.ForeColor = (if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $btnCloseUpd.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
+    $btnCloseUpd.ForeColor = $(if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $btnCloseUpd.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btnCloseUpd.Add_Click({ $dlgUpd.Close() })
     $dlgUpd.Controls.Add($btnCloseUpd)
@@ -7681,7 +7716,7 @@ function Show-UpdateCheckWindow {
     $decodeWebContent = {
         param($Resp)
         if ($null -eq $Resp -or $null -eq $Resp.Content) { return "" }
-        $txt = (if ($Resp.Content -is [byte[]]) {
+        $txt = $(if ($Resp.Content -is [byte[]]) {
             [System.Text.Encoding]::UTF8.GetString($Resp.Content)
         } else {
             [string]$Resp.Content
@@ -7708,7 +7743,7 @@ function Show-UpdateCheckWindow {
         }
 
         $btnUpdateRestart.Enabled = $false
-        $btnUpdateRestart.BackColor = (if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(203, 213, 225) })
+        $btnUpdateRestart.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(203, 213, 225) })
         $prgUpd.Value = 15
 
         $instVer = [string]$script:AppVersion
@@ -7732,7 +7767,7 @@ function Show-UpdateCheckWindow {
             try {
                 $relObj = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 10 -ErrorAction Stop
                 $updState.ReleaseData = $relObj
-                $latestTag = (if ($relObj.tag_name) { [string]$relObj.tag_name } else { "v$instVer" })
+                $latestTag = $(if ($relObj.tag_name) { [string]$relObj.tag_name } else { "v$instVer" })
             } catch {
                 # If no formal GitHub Release has been published yet (HTTP 404), resolve latest commit on main
                 # and query GitHub API Contents (raw) first to bypass raw.githubusercontent.com 5-minute CDN cache.
@@ -7771,7 +7806,7 @@ function Show-UpdateCheckWindow {
                 }
 
                 if ([string]::IsNullOrWhiteSpace($cleanRaw)) { throw "Empty VERSION response from GitHub." }
-                $latestTag = (if ($cleanRaw.StartsWith('v', [StringComparison]::OrdinalIgnoreCase)) { $cleanRaw } else { "v$cleanRaw" })
+                $latestTag = $(if ($cleanRaw.StartsWith('v', [StringComparison]::OrdinalIgnoreCase)) { $cleanRaw } else { "v$cleanRaw" })
                 $updState.UseRawMainFallback = $true
                 try {
                     $rawChgResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$repoTarget/contents/CHANGELOG.md?ref=$fallbackRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
@@ -7831,14 +7866,14 @@ function Show-UpdateCheckWindow {
     })
 
     $btnViewChangelog.Add_Click({
-        $notes = (if ($updState.ReleaseData -and $updState.ReleaseData.body) {
+        $notes = $(if ($updState.ReleaseData -and $updState.ReleaseData.body) {
             ([string]$updState.ReleaseData.body) -replace "`r?`n", "`r`n"
         } elseif (-not [string]::IsNullOrWhiteSpace($updState.RawFallbackNotes)) {
             $updState.RawFallbackNotes
         } else {
             ""
         })
-        $tag = (if (-not [string]::IsNullOrWhiteSpace($updState.LatestTag)) {
+        $tag = $(if (-not [string]::IsNullOrWhiteSpace($updState.LatestTag)) {
             $updState.LatestTag
         } else {
             "v$($script:AppVersion)"
@@ -7863,11 +7898,11 @@ function Show-UpdateCheckWindow {
             $procPath = (Get-Process -Id $PID).Path
             $isCompiledExe = (-not [string]::IsNullOrWhiteSpace($procPath)) -and (-not ($procPath -match 'powershell(\.exe)?$|pwsh(\.exe)?$'))
             $repoTarget = $updState.RepoTarget
-            $refName = (if ($updState.UseRawMainFallback -or [string]::IsNullOrWhiteSpace($updState.LatestTag)) {
-                if (-not [string]::IsNullOrWhiteSpace($updState.FallbackRef)) { $updState.FallbackRef } else { "main" })
+            $refName = $(if ($updState.UseRawMainFallback -or [string]::IsNullOrWhiteSpace($updState.LatestTag)) {
+                if (-not [string]::IsNullOrWhiteSpace($updState.FallbackRef)) { $updState.FallbackRef } else { "main" }
             } else {
                 $updState.LatestTag
-            }
+            })
 
             $psExe = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
             if (-not (Test-Path -LiteralPath $psExe)) { $psExe = "powershell.exe" }
@@ -7948,7 +7983,7 @@ function Show-UpdateCheckWindow {
                     $safeStagedExe  = $stagedExe.Replace("'", "''")
                     $safeExeVersion = $exeVersion.Replace("'", "''")
 
-                    $compileScriptBody = @"
+                    $compileScriptBody = @'
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 if (-not (Get-Module -ListAvailable -Name ps2exe)) {
@@ -7963,18 +7998,18 @@ if (-not (Get-Module -ListAvailable -Name ps2exe)) {
 }
 Import-Module ps2exe -Force -ErrorAction Stop
 $compileParams = @{
-    inputFile    = '$safeStagedPs1'
-    outputFile   = '$safeStagedExe'
+    inputFile    = '__STAGED_PS1__'
+    outputFile   = '__STAGED_EXE__'
     noConsole    = $true
     title        = 'Security Incident Response Automator'
     description  = 'Incident Response Console for Active Directory, Microsoft 365 and Google Workspace'
     company      = 'Security Incident Response Automator Contributors'
     product      = 'Security Incident Response Automator'
-    version      = '$safeExeVersion'
+    version      = '__EXE_VERSION__'
     requireAdmin = $true
 }
 Invoke-ps2exe @compileParams
-"@
+'@.Replace('__STAGED_PS1__', $safeStagedPs1).Replace('__STAGED_EXE__', $safeStagedExe).Replace('__EXE_VERSION__', $safeExeVersion)
                     Set-Content -LiteralPath $compilePs1 -Value $compileScriptBody -Encoding UTF8 -Force
 
                     $compileProc = Start-Process -FilePath $psExe -ArgumentList @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$compilePs1`"") -WorkingDirectory $buildWorkDir -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru
@@ -8016,20 +8051,20 @@ Invoke-ps2exe @compileParams
                 $safeStageDir     = $stageDir.Replace("'", "''")
                 $safeBuildWorkDir = $buildWorkDir.Replace("'", "''")
                 $safeSwapPs1      = $swapPs1.Replace("'", "''")
-                $swapScript = @"
-$parentPid = $PID
+                $swapScript = @'
+$parentPid = __PARENT_PID__
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 while ($sw.Elapsed.TotalSeconds -lt 20) {
     if (-not (Get-Process -Id $parentPid -ErrorAction SilentlyContinue)) { break }
     Start-Sleep -Milliseconds 250
 }
 Start-Sleep -Milliseconds 500
-Move-Item -LiteralPath '$safeStagedExe' -Destination '$safeProcPath' -Force
-Start-Process -FilePath '$safeProcPath'
-if (Test-Path -LiteralPath '$safeBuildWorkDir') { Remove-Item -LiteralPath '$safeBuildWorkDir' -Recurse -Force -ErrorAction SilentlyContinue }
-if (Test-Path -LiteralPath '$safeStageDir') { Remove-Item -LiteralPath '$safeStageDir' -Recurse -Force -ErrorAction SilentlyContinue }
-if (Test-Path -LiteralPath '$safeSwapPs1') { Remove-Item -LiteralPath '$safeSwapPs1' -Force -ErrorAction SilentlyContinue }
-"@
+Move-Item -LiteralPath '__STAGED_EXE__' -Destination '__PROC_PATH__' -Force
+Start-Process -FilePath '__PROC_PATH__'
+if (Test-Path -LiteralPath '__BUILD_WORK_DIR__') { Remove-Item -LiteralPath '__BUILD_WORK_DIR__' -Recurse -Force -ErrorAction SilentlyContinue }
+if (Test-Path -LiteralPath '__STAGE_DIR__') { Remove-Item -LiteralPath '__STAGE_DIR__' -Recurse -Force -ErrorAction SilentlyContinue }
+if (Test-Path -LiteralPath '__SWAP_PS1__') { Remove-Item -LiteralPath '__SWAP_PS1__' -Force -ErrorAction SilentlyContinue }
+'@.Replace('__PARENT_PID__', [string]$PID).Replace('__STAGED_EXE__', $safeStagedExe).Replace('__PROC_PATH__', $safeProcPath).Replace('__BUILD_WORK_DIR__', $safeBuildWorkDir).Replace('__STAGE_DIR__', $safeStageDir).Replace('__SWAP_PS1__', $safeSwapPs1)
             } else {
                 $targetPs1 = $script:MainScriptPath
                 if ([string]::IsNullOrWhiteSpace($targetPs1) -or (-not (Test-Path -LiteralPath $targetPs1))) {
@@ -8075,7 +8110,7 @@ if (Test-Path -LiteralPath '$safeSwapPs1') { Remove-Item -LiteralPath '$safeSwap
                 $safeTargetPs1 = $targetPs1.Replace("'", "''")
                 $safeSwapPs1   = $swapPs1.Replace("'", "''")
                 $batPath = Join-Path $targetDir "Launch-IncidentAutomator.bat"
-                $relaunchCmd = (if (Test-Path -LiteralPath $batPath) {
+                $relaunchCmd = $(if (Test-Path -LiteralPath $batPath) {
                     $safeBatPath = $batPath.Replace("'", "''")
                     "Start-Process -FilePath '$safeBatPath' -WorkingDirectory '$safeTargetDir'"
                 } else {
@@ -8083,23 +8118,23 @@ if (Test-Path -LiteralPath '$safeSwapPs1') { Remove-Item -LiteralPath '$safeSwap
                     "Start-Process -FilePath '$safePsExe' -ArgumentList '-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-STA','-File','$safeTargetPs1' -WorkingDirectory '$safeTargetDir'"
                 })
 
-                $swapScript = @"
-$parentPid = $PID
+                $swapScript = @'
+$parentPid = __PARENT_PID__
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 while ($sw.Elapsed.TotalSeconds -lt 20) {
     if (-not (Get-Process -Id $parentPid -ErrorAction SilentlyContinue)) { break }
     Start-Sleep -Milliseconds 250
 }
 Start-Sleep -Milliseconds 400
-Copy-Item -Path '$safeStageDir\*' -Destination '$safeTargetDir' -Force
-Remove-Item -LiteralPath '$safeStageDir' -Recurse -Force -ErrorAction SilentlyContinue
-$relaunchCmd
-if (Test-Path -LiteralPath '$safeSwapPs1') { Remove-Item -LiteralPath '$safeSwapPs1' -Force -ErrorAction SilentlyContinue }
-"@
+Copy-Item -Path '__STAGE_DIR__\*' -Destination '__TARGET_DIR__' -Force
+Remove-Item -LiteralPath '__STAGE_DIR__' -Recurse -Force -ErrorAction SilentlyContinue
+__RELAUNCH_CMD__
+if (Test-Path -LiteralPath '__SWAP_PS1__') { Remove-Item -LiteralPath '__SWAP_PS1__' -Force -ErrorAction SilentlyContinue }
+'@.Replace('__PARENT_PID__', [string]$PID).Replace('__STAGE_DIR__', $safeStageDir).Replace('__TARGET_DIR__', $safeTargetDir).Replace('__RELAUNCH_CMD__', $relaunchCmd).Replace('__SWAP_PS1__', $safeSwapPs1)
             }
 
             Set-Content -LiteralPath $swapPs1 -Value $swapScript -Encoding UTF8 -Force
-            $swapWorkDir = (if ($isCompiledExe -and $buildWorkDir) { Split-Path -Parent $procPath } else { Split-Path -Parent $script:MainScriptPath })
+            $swapWorkDir = $(if ($isCompiledExe -and $buildWorkDir) { Split-Path -Parent $procPath } else { Split-Path -Parent $script:MainScriptPath })
             Start-Process -FilePath $psExe -ArgumentList @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$swapPs1`"") -WorkingDirectory $swapWorkDir -WindowStyle Hidden
 
             $prgUpd.Value = 100
@@ -8125,10 +8160,6 @@ if (Test-Path -LiteralPath '$safeSwapPs1') { Remove-Item -LiteralPath '$safeSwap
 
     [void]$dlgUpd.ShowDialog($form)
 }
-
-$btnSwitchDomain.Add_Click({
-    Show-DomainSwitcher
-})
 
 $script:currentUser = $null
 $script:matchedUsers = @()
@@ -8214,7 +8245,7 @@ $btnLookup.Add_Click({
         $adUsers = @(Query-ADUsersSafe -LdapFilter $ldapFilter -Server $script:targetServer -Cred $script:adCredential)
 
         if (-not $adUsers -or $adUsers.Count -eq 0) {
-            $term = (if ($words.Count -gt 0) { $words[0] } else { $safeQuery })
+            $term = $(if ($words.Count -gt 0) { $words[0] } else { $safeQuery })
             $fallbackFilter = "(&(objectCategory=person)(objectClass=user)(|(sAMAccountName=*$term*)(userPrincipalName=*$term*)(mail=*$term*)(displayName=*$term*)(name=*$term*)))"
             $adUsers = @(Query-ADUsersSafe -LdapFilter $fallbackFilter -Server $script:targetServer -Cred $script:adCredential)
         }
@@ -8232,11 +8263,11 @@ $btnLookup.Add_Click({
         $lblSearchStatus.ForeColor = [System.Drawing.Color]::FromArgb(21, 128, 61)
 
         foreach ($u in $adUsers) {
-            $dispName = (if ($u.DisplayName) { $u.DisplayName } elseif ($u.Name) { $u.Name } else { "$($u.GivenName) $($u.Surname)" })
-            $dept = (if ($u.Department) { $u.Department } else { "No Dept" })
-            $stat = (if (-not $u.Enabled) { "DISABLED" } elseif ($u.LockedOut) { "LOCKED" } else { "ACTIVE" })
-            $upn = (if ($u.UserPrincipalName) { $u.UserPrincipalName } else { $u.Mail })
-            $mailTag = (if ($u.Mail -and (-not [string]::Equals($upn, $u.Mail, [StringComparison]::OrdinalIgnoreCase))) { "  |  Mail: $($u.Mail)" } else { "" })
+            $dispName = $(if ($u.DisplayName) { $u.DisplayName } elseif ($u.Name) { $u.Name } else { "$($u.GivenName) $($u.Surname)" })
+            $dept = $(if ($u.Department) { $u.Department } else { "No Dept" })
+            $stat = $(if (-not $u.Enabled) { "DISABLED" } elseif ($u.LockedOut) { "LOCKED" } else { "ACTIVE" })
+            $upn = $(if ($u.UserPrincipalName) { $u.UserPrincipalName } else { $u.Mail })
+            $mailTag = $(if ($u.Mail -and (-not [string]::Equals($upn, $u.Mail, [StringComparison]::OrdinalIgnoreCase))) { "  |  Mail: $($u.Mail)" } else { "" })
             $line = "$dispName  |  UPN: $upn$mailTag  |  sAM: $($u.SamAccountName)  |  [$stat]  |  $dept"
             [void]$lstResults.Items.Add($line)
         }
@@ -8248,7 +8279,7 @@ $btnLookup.Add_Click({
         $lblSearchStatus.Text = "AD Search Error: $($_.Exception.Message)"
         $lblSearchStatus.ForeColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
         $lblIdName.Text = "Name: (Query error)"
-        Write-AppLog "Active Directory query error: $($_.Exception.Message). If not domain joined, click 'Switch Domain / Profile'." "ERROR"
+        Write-AppLog "Active Directory query error: $($_.Exception.Message). If not domain joined, open Tab 1 ('1. Setup') and click 'Switch AD Account / Domain'." "ERROR"
     }
 })
 
@@ -8293,19 +8324,19 @@ $lstResults.Add_SelectedIndexChanged({
     $selectedADUser = $script:matchedUsers[$lstResults.SelectedIndex]
     if ($null -eq $selectedADUser) { return }
 
-    $dispName = (if ($selectedADUser.DisplayName) { $selectedADUser.DisplayName } elseif ($selectedADUser.Name) { $selectedADUser.Name } else { "$($selectedADUser.GivenName) $($selectedADUser.Surname)" })
-    $upn = (if ($selectedADUser.UserPrincipalName) { $selectedADUser.UserPrincipalName } else { $selectedADUser.Mail })
-    $mail = (if ($selectedADUser.Mail) { $selectedADUser.Mail } else { $upn })
-    $graphTarget = (if ($selectedADUser.GraphTargetId) { $selectedADUser.GraphTargetId } else { $upn })
-    $gamTarget = (if ($selectedADUser.GamTargetId) { $selectedADUser.GamTargetId } else { $mail })
-    $cloudCands = (if ($selectedADUser.CloudCandidates) { @($selectedADUser.CloudCandidates) } else { @($upn, $mail) })
+    $dispName = $(if ($selectedADUser.DisplayName) { $selectedADUser.DisplayName } elseif ($selectedADUser.Name) { $selectedADUser.Name } else { "$($selectedADUser.GivenName) $($selectedADUser.Surname)" })
+    $upn = $(if ($selectedADUser.UserPrincipalName) { $selectedADUser.UserPrincipalName } else { $selectedADUser.Mail })
+    $mail = $(if ($selectedADUser.Mail) { $selectedADUser.Mail } else { $upn })
+    $graphTarget = $(if ($selectedADUser.GraphTargetId) { $selectedADUser.GraphTargetId } else { $upn })
+    $gamTarget = $(if ($selectedADUser.GamTargetId) { $selectedADUser.GamTargetId } else { $mail })
+    $cloudCands = $(if ($selectedADUser.CloudCandidates) { @($selectedADUser.CloudCandidates) } else { @($upn, $mail) })
 
-    $office = (if ($selectedADUser.Office) { $selectedADUser.Office } else { "Main Office" })
-    $pwdAge = (if ($null -ne $selectedADUser.PasswordAge) { $selectedADUser.PasswordAge } else { "Unknown" })
-    $pwdSetFmt = (if ($selectedADUser.PasswordLastSetFormatted) { $selectedADUser.PasswordLastSetFormatted } elseif ($selectedADUser.PasswordLastSet) { [string]$selectedADUser.PasswordLastSet } else { "--" })
-    $lastLogon = (if ($selectedADUser.LastLogonDisplay) { $selectedADUser.LastLogonDisplay } else { "Unknown" })
-    $acctExpDisp = (if ($selectedADUser.AccountExpiresDisplay) { $selectedADUser.AccountExpiresDisplay } else { "Never Expires" })
-    $logonWksDisp = (if ($selectedADUser.LogonWorkstationsDisplay) { $selectedADUser.LogonWorkstationsDisplay } else { "All Workstations" })
+    $office = $(if ($selectedADUser.Office) { $selectedADUser.Office } else { "Main Office" })
+    $pwdAge = $(if ($null -ne $selectedADUser.PasswordAge) { $selectedADUser.PasswordAge } else { "Unknown" })
+    $pwdSetFmt = $(if ($selectedADUser.PasswordLastSetFormatted) { $selectedADUser.PasswordLastSetFormatted } elseif ($selectedADUser.PasswordLastSet) { [string]$selectedADUser.PasswordLastSet } else { "--" })
+    $lastLogon = $(if ($selectedADUser.LastLogonDisplay) { $selectedADUser.LastLogonDisplay } else { "Unknown" })
+    $acctExpDisp = $(if ($selectedADUser.AccountExpiresDisplay) { $selectedADUser.AccountExpiresDisplay } else { "Never Expires" })
+    $logonWksDisp = $(if ($selectedADUser.LogonWorkstationsDisplay) { $selectedADUser.LogonWorkstationsDisplay } else { "All Workstations" })
     $isLocked = [bool]$selectedADUser.LockedOut
 
     # Query non-replicated lastLogon & lockoutTime across all Domain Controllers so 9-14 day lastLogonTimestamp lag never hides recent logons
@@ -8341,16 +8372,16 @@ $lstResults.Add_SelectedIndexChanged({
 
     $u = $script:currentUser
     $lblIdName.Text = "Name: $($u.DisplayName)  (sAMAccountName: $($u.SamAccountName))"
-    $mailDisplay = (if ($u.Mail -and (-not [string]::Equals($u.UserPrincipalName, $u.Mail, [StringComparison]::OrdinalIgnoreCase))) { "  |  Mail: $($u.Mail)" } else { "" })
+    $mailDisplay = $(if ($u.Mail -and (-not [string]::Equals($u.UserPrincipalName, $u.Mail, [StringComparison]::OrdinalIgnoreCase))) { "  |  Mail: $($u.Mail)" } else { "" })
     $lblIdDept.Text = "UPN: $($u.UserPrincipalName)$mailDisplay  |  Dept: $($u.Department)  |  Site: $($u.Office)"
 
     # Populate Security Intelligence & Active Session Metric Boxes
-    $lblCardPassVal.Text = (if ($u.PasswordLastSet -eq "Must Change at Logon") { "0 days (Expired)" } elseif ($u.PasswordAge -ne "Unknown") { "$($u.PasswordAge) days" } else { "Unknown" })
+    $lblCardPassVal.Text = $(if ($u.PasswordLastSet -eq "Must Change at Logon") { "0 days (Expired)" } elseif ($u.PasswordAge -ne "Unknown") { "$($u.PasswordAge) days" } else { "Unknown" })
     $lblCardPassSub.Text = "Set: $($u.PasswordLastSet)"
 
-    $lblCardAcctVal.Text = (if (-not $u.Enabled) { "DISABLED" } elseif ($u.LockedOut) { "LOCKED OUT" } else { "ACTIVE" })
+    $lblCardAcctVal.Text = $(if (-not $u.Enabled) { "DISABLED" } elseif ($u.LockedOut) { "LOCKED OUT" } else { "ACTIVE" })
     $lblCardAcctSub.Text = "Logon: $($u.LastLogonDisplay)"
-    $btnEmergencyLock.Text = (if ($u.Enabled) { "4. Disable Account" } else { "4. Enable Account" })
+    $btnEmergencyLock.Text = $(if ($u.Enabled) { "4. Disable Account" } else { "4. Enable Account" })
 
     $chkVerified.Enabled = $true
     $chkVerified.Checked = $false
@@ -8386,6 +8417,10 @@ $chkVerified.Add_CheckedChanged({
     if ($btnUnblockEntraSignIn) { $btnUnblockEntraSignIn.Enabled = $isEnabled }
     if ($btnSuspendGoogle) { $btnSuspendGoogle.Enabled = $isEnabled }
     if ($btnUnsuspendGoogle) { $btnUnsuspendGoogle.Enabled = $isEnabled }
+    if ($btnWipeEntraMfa) { $btnWipeEntraMfa.Enabled = $isEnabled }
+    if ($btnWipeEntraOAuth) { $btnWipeEntraOAuth.Enabled = $isEnabled }
+    if ($btnWipeGoogle2fa) { $btnWipeGoogle2fa.Enabled = $isEnabled }
+    if ($btnWipeGoogleTokens) { $btnWipeGoogleTokens.Enabled = $isEnabled }
     if ($btnWipeCloudMfa) { $btnWipeCloudMfa.Enabled = $isEnabled }
     if ($btnExpireAdNow) { $btnExpireAdNow.Enabled = $isEnabled }
     if ($btnRestoreAdRestrictions) { $btnRestoreAdRestrictions.Enabled = $isEnabled }
@@ -8418,12 +8453,12 @@ function Prompt-CheckDiagnosticsTab {
     $msg = "$ServiceName is not linked or verified on this workstation.$nl$nl" +
            "Status: $Reason$nl$nl" +
            "$SetupInstruction$nl$nl" +
-           "Please check the second tab ('Health & Diagnostics') to link and verify your accounts.$nl$nl" +
-           "Would you like to switch to the 'Health & Diagnostics' tab now?"
+           "Please check Tab 1 ('1. Setup') to link and verify your accounts.$nl$nl" +
+           "Would you like to switch to Tab 1 ('1. Setup') now?"
     $ans = [System.Windows.Forms.MessageBox]::Show(
         $form,
         $msg,
-        "$ServiceName Account Not Linked - Check Tab 2 (Health & Diagnostics)",
+        "$ServiceName Account Not Linked - Check Tab 1 (1. Setup)",
         [System.Windows.Forms.MessageBoxButtons]::YesNo,
         [System.Windows.Forms.MessageBoxIcon]::Warning
     )
@@ -8542,8 +8577,8 @@ function Show-PasswordResetCustomDialog {
         }
 
         if (-not $script:isDomainJoined -and -not (Test-ValidADServer $script:targetServer)) {
-            Write-AppLog "Active Directory domain is not linked. Please check Tab 1 ('1. Setup') or click 'Switch Domain / Profile'." "WARN"
-            Prompt-CheckDiagnosticsTab -ServiceName "Active Directory" -Reason "No Active Directory domain or Domain Controller is connected." -SetupInstruction "Click 'Switch Domain / Profile' in the top-right header or check Tab 1 ('1. Setup') to test Active Directory connectivity."
+            Write-AppLog "Active Directory domain is not linked. Please open Tab 1 ('1. Setup') and click 'Switch AD Account / Domain'." "WARN"
+            Prompt-CheckDiagnosticsTab -ServiceName "Active Directory" -Reason "No Active Directory domain or Domain Controller is connected." -SetupInstruction "Open Tab 1 ('1. Setup') and click 'Switch AD Account / Domain' (or 'Manage / AD...') to connect to your domain."
             return
         }
 
@@ -8551,7 +8586,7 @@ function Show-PasswordResetCustomDialog {
         try {
             Set-ADPasswordSafe -SamAccount $u.SamAccountName -NewPassword $chosenPass -Server $script:targetServer -Cred $script:adCredential
             $lblCardPassVal.Text = "0 days (Reset)"
-            $lblCardPassSub.Text = (if ($chkMustChange.Checked) { "Must change at logon" } else { "Password updated" })
+            $lblCardPassSub.Text = $(if ($chkMustChange.Checked) { "Must change at logon" } else { "Password updated" })
             if ($txtCustomPass) { $txtCustomPass.Text = $chosenPass }
             Write-AppLog "SUCCESS: Active Directory password successfully reset and verified for '$($u.SamAccountName)'. New password active." "SUCCESS"
             Add-AuditEntry "Reset Password" "SUCCESS" "Active Directory password reset and verified for sAM '$($u.SamAccountName)'."
@@ -8572,7 +8607,7 @@ $btnResetPass.Add_Click({
 # ACTION 2: Revoke 365 Sessions (Uses Verified Graph Context & Multi-Attribute Matching)
 $btnRevoke365.Add_Click({
     if ($null -eq $script:currentUser) { return }
-    $targetGraphId = (if ($script:currentUser.GraphTargetId) { $script:currentUser.GraphTargetId } else { $script:currentUser.UserPrincipalName })
+    $targetGraphId = $(if ($script:currentUser.GraphTargetId) { $script:currentUser.GraphTargetId } else { $script:currentUser.UserPrincipalName })
     Write-AppLog "Verifying Microsoft Graph session before revoking tokens for '$targetGraphId'..." "INFO"
     try {
         $graphCheck = Invoke-VerifyGraph
@@ -8586,7 +8621,7 @@ $btnRevoke365.Add_Click({
         $activeCtx = $revokeInfo.Context
         $matchedGraphUser = $revokeInfo.MatchedUserId
         $script:currentUser.GraphTargetId = $matchedGraphUser
-        $verifiedAcct = (if ($activeCtx -and $activeCtx.Account) { $activeCtx.Account } else { $graphCheck.Account })
+        $verifiedAcct = $(if ($activeCtx -and $activeCtx.Account) { $activeCtx.Account } else { $graphCheck.Account })
 
         $lblStatusGraph.Text = "Microsoft Graph SDK & Auth: VERIFIED ($verifiedAcct)"
         $lblStatusGraph.ForeColor = [System.Drawing.Color]::FromArgb(21, 128, 61)
@@ -8606,7 +8641,7 @@ $btnRevoke365.Add_Click({
 # ACTION 3: Revoke Google Sessions (Uses Verified GAM7 & Multi-Attribute Email/UPN Matching)
 $btnRevokeGoogle.Add_Click({
     if ($null -eq $script:currentUser) { return }
-    $targetGamId = (if ($script:currentUser.GamTargetId) { $script:currentUser.GamTargetId } else { $script:currentUser.UserPrincipalName })
+    $targetGamId = $(if ($script:currentUser.GamTargetId) { $script:currentUser.GamTargetId } else { $script:currentUser.UserPrincipalName })
     Write-AppLog "Verifying GAM7 installation & OAuth before revoking Google Workspace sessions for '$targetGamId'..." "INFO"
     try {
         $gamCheck = Invoke-VerifyGAM
@@ -8642,13 +8677,13 @@ $btnRevokeGoogle.Add_Click({
 $btnEmergencyLock.Add_Click({
     if ($null -eq $script:currentUser) { return }
     if (-not $script:isDomainJoined -and -not (Test-ValidADServer $script:targetServer)) {
-        Write-AppLog "Active Directory domain is not linked. Please check Tab 1 ('1. Setup') or click 'Switch Domain / Profile'." "WARN"
-        Prompt-CheckDiagnosticsTab -ServiceName "Active Directory" -Reason "No Active Directory domain or Domain Controller is connected." -SetupInstruction "Click 'Switch Domain / Profile' in the top-right header or check Tab 1 ('1. Setup') to verify your Active Directory connection."
+        Write-AppLog "Active Directory domain is not linked. Please open Tab 1 ('1. Setup') and click 'Switch AD Account / Domain'." "WARN"
+        Prompt-CheckDiagnosticsTab -ServiceName "Active Directory" -Reason "No Active Directory domain or Domain Controller is connected." -SetupInstruction "Open Tab 1 ('1. Setup') and click 'Switch AD Account / Domain' (or 'Manage / AD...') to verify your Active Directory connection."
         return
     }
     $targetEnableState = -not [bool]$script:currentUser.Enabled
-    $actionVerb = (if ($targetEnableState) { "Re-enabling" } else { "Disabling" })
-    $actTitle = (if ($targetEnableState) { "Enable AD Account" } else { "Disable AD Account" })
+    $actionVerb = $(if ($targetEnableState) { "Re-enabling" } else { "Disabling" })
+    $actTitle = $(if ($targetEnableState) { "Enable AD Account" } else { "Disable AD Account" })
     Write-AppLog "$actionVerb Active Directory account '$($script:currentUser.SamAccountName)'..." "INFO"
     try {
         Set-ADAccountEnableSafe -SamAccount $script:currentUser.SamAccountName -Enable $targetEnableState -Server $script:targetServer -Cred $script:adCredential
@@ -8685,7 +8720,7 @@ $btnContainAll.Add_Click({
     $passedSteps = [System.Collections.Generic.List[string]]::new()
     $failedSteps = [System.Collections.Generic.List[string]]::new()
 
-    $tempPass = (if (-not [string]::IsNullOrEmpty($txtCustomPass.Text.Trim())) {
+    $tempPass = $(if (-not [string]::IsNullOrEmpty($txtCustomPass.Text.Trim())) {
         $txtCustomPass.Text.Trim()
     } else {
         "Secure#" + (Get-Random -Minimum 1000 -Maximum 9999) + "!Safe"
@@ -8705,7 +8740,7 @@ $btnContainAll.Add_Click({
     }
 
     # Step 2: Revoke Microsoft 365 Sessions via Graph
-    $targetGraphId = (if ($script:currentUser.GraphTargetId) { $script:currentUser.GraphTargetId } else { $script:currentUser.UserPrincipalName })
+    $targetGraphId = $(if ($script:currentUser.GraphTargetId) { $script:currentUser.GraphTargetId } else { $script:currentUser.UserPrincipalName })
     Write-AppLog "[2/4] Revoking Microsoft 365 / Entra ID sessions via Microsoft Graph for '$targetGraphId'..." "INFO"
     try {
         $graphCheck = Invoke-VerifyGraph
@@ -8725,7 +8760,7 @@ $btnContainAll.Add_Click({
     }
 
     # Step 3: Revoke Google Workspace Sessions via GAM7
-    $targetGamId = (if ($script:currentUser.GamTargetId) { $script:currentUser.GamTargetId } else { $script:currentUser.UserPrincipalName })
+    $targetGamId = $(if ($script:currentUser.GamTargetId) { $script:currentUser.GamTargetId } else { $script:currentUser.UserPrincipalName })
     Write-AppLog "[3/4] Revoking Google Workspace sessions via GAM7 for '$targetGamId'..." "INFO"
     try {
         $gamCheck = Invoke-VerifyGAM
@@ -8848,6 +8883,7 @@ $tabDiag.Controls.Add($grpDiagStatus)
 
 $lblStatusAD = New-Object System.Windows.Forms.Label
 $lblStatusAD.Text = "Active Directory: Checking connection mode..."
+$lblStatusAD.UseMnemonic = $false
 $lblStatusAD.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $lblStatusAD.Location = New-Object System.Drawing.Point(15, 22)
 $lblStatusAD.Size = New-Object System.Drawing.Size(790, 22)
@@ -8855,6 +8891,7 @@ $grpDiagStatus.Controls.Add($lblStatusAD)
 
 $lblStatusGraph = New-Object System.Windows.Forms.Label
 $lblStatusGraph.Text = "Microsoft Graph SDK & Auth: Checking..."
+$lblStatusGraph.UseMnemonic = $false
 $lblStatusGraph.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $lblStatusGraph.Location = New-Object System.Drawing.Point(15, 49)
 $lblStatusGraph.Size = New-Object System.Drawing.Size(790, 22)
@@ -8862,12 +8899,13 @@ $grpDiagStatus.Controls.Add($lblStatusGraph)
 
 $lblStatusGAM = New-Object System.Windows.Forms.Label
 $lblStatusGAM.Text = "Google Apps Manager (GAM7): Checking..."
+$lblStatusGAM.UseMnemonic = $false
 $lblStatusGAM.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $lblStatusGAM.Location = New-Object System.Drawing.Point(15, 76)
 $lblStatusGAM.Size = New-Object System.Drawing.Size(790, 22)
 $grpDiagStatus.Controls.Add($lblStatusGAM)
 
-# Diagnostic Action Buttons
+# Diagnostic Action Buttons (Aligned by Service Column: Col 1 = Active Directory, Col 2 = Microsoft Graph, Col 3 = Google GAM7)
 $grpDiagActions = New-Object System.Windows.Forms.GroupBox
 $grpDiagActions.Text = " Live Integration Verification & Account Setup / Switching (Active Profile) "
 $grpDiagActions.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
@@ -8875,10 +8913,12 @@ $grpDiagActions.Location = New-Object System.Drawing.Point(10, 176)
 $grpDiagActions.Size = New-Object System.Drawing.Size(820, 166)
 $tabDiag.Controls.Add($grpDiagActions)
 
+# Row 1: Test Buttons (Col 1 = AD | Col 2 = Graph | Col 3 = GAM7)
 $btnTestAD = New-Object System.Windows.Forms.Button
 $btnTestAD.Text = "Test Active Directory"
+$btnTestAD.UseMnemonic = $false
 $btnTestAD.Location = New-Object System.Drawing.Point(15, 22)
-$btnTestAD.Size = New-Object System.Drawing.Size(250, 34)
+$btnTestAD.Size = New-Object System.Drawing.Size(250, 35)
 $btnTestAD.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnTestAD.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnTestAD.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -8886,8 +8926,9 @@ $grpDiagActions.Controls.Add($btnTestAD)
 
 $btnTestM365 = New-Object System.Windows.Forms.Button
 $btnTestM365.Text = "Test Microsoft Graph"
+$btnTestM365.UseMnemonic = $false
 $btnTestM365.Location = New-Object System.Drawing.Point(278, 22)
-$btnTestM365.Size = New-Object System.Drawing.Size(255, 34)
+$btnTestM365.Size = New-Object System.Drawing.Size(255, 35)
 $btnTestM365.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnTestM365.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnTestM365.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -8895,17 +8936,31 @@ $grpDiagActions.Controls.Add($btnTestM365)
 
 $btnTestGoogle = New-Object System.Windows.Forms.Button
 $btnTestGoogle.Text = "Test Google GAM7"
+$btnTestGoogle.UseMnemonic = $false
 $btnTestGoogle.Location = New-Object System.Drawing.Point(546, 22)
-$btnTestGoogle.Size = New-Object System.Drawing.Size(258, 34)
+$btnTestGoogle.Size = New-Object System.Drawing.Size(258, 35)
 $btnTestGoogle.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnTestGoogle.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnTestGoogle.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $grpDiagActions.Controls.Add($btnTestGoogle)
 
+# Row 2: Setup / Install Buttons (Col 1 = AD RSAT | Col 2 = Graph Setup | Col 3 = GAM7 Setup)
+$btnRunRsatSetup = New-Object System.Windows.Forms.Button
+$btnRunRsatSetup.Text = "Install RSAT (Optional)"
+$btnRunRsatSetup.UseMnemonic = $false
+$btnRunRsatSetup.Location = New-Object System.Drawing.Point(15, 67)
+$btnRunRsatSetup.Size = New-Object System.Drawing.Size(250, 35)
+$btnRunRsatSetup.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+$btnRunRsatSetup.BackColor = [System.Drawing.Color]::FromArgb(124, 58, 237)
+$btnRunRsatSetup.ForeColor = [System.Drawing.Color]::White
+$btnRunRsatSetup.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$grpDiagActions.Controls.Add($btnRunRsatSetup)
+
 $btnRunGraphSetup = New-Object System.Windows.Forms.Button
 $btnRunGraphSetup.Text = "1. Setup Microsoft Graph"
-$btnRunGraphSetup.Location = New-Object System.Drawing.Point(15, 66)
-$btnRunGraphSetup.Size = New-Object System.Drawing.Size(250, 36)
+$btnRunGraphSetup.UseMnemonic = $false
+$btnRunGraphSetup.Location = New-Object System.Drawing.Point(278, 67)
+$btnRunGraphSetup.Size = New-Object System.Drawing.Size(255, 35)
 $btnRunGraphSetup.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnRunGraphSetup.BackColor = [System.Drawing.Color]::FromArgb(2, 132, 199)
 $btnRunGraphSetup.ForeColor = [System.Drawing.Color]::White
@@ -8914,29 +8969,31 @@ $grpDiagActions.Controls.Add($btnRunGraphSetup)
 
 $btnRunGamSetup = New-Object System.Windows.Forms.Button
 $btnRunGamSetup.Text = "2. Setup Google GAM7"
-$btnRunGamSetup.Location = New-Object System.Drawing.Point(278, 66)
-$btnRunGamSetup.Size = New-Object System.Drawing.Size(255, 36)
+$btnRunGamSetup.UseMnemonic = $false
+$btnRunGamSetup.Location = New-Object System.Drawing.Point(546, 67)
+$btnRunGamSetup.Size = New-Object System.Drawing.Size(258, 35)
 $btnRunGamSetup.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnRunGamSetup.BackColor = [System.Drawing.Color]::FromArgb(5, 150, 105)
 $btnRunGamSetup.ForeColor = [System.Drawing.Color]::White
 $btnRunGamSetup.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $grpDiagActions.Controls.Add($btnRunGamSetup)
 
-$btnRunRsatSetup = New-Object System.Windows.Forms.Button
-$btnRunRsatSetup.Text = "3. Install RSAT (Optional)"
-$btnRunRsatSetup.Location = New-Object System.Drawing.Point(546, 66)
-$btnRunRsatSetup.Size = New-Object System.Drawing.Size(258, 36)
-$btnRunRsatSetup.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-$btnRunRsatSetup.BackColor = [System.Drawing.Color]::FromArgb(124, 58, 237)
-$btnRunRsatSetup.ForeColor = [System.Drawing.Color]::White
-$btnRunRsatSetup.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-$grpDiagActions.Controls.Add($btnRunRsatSetup)
+# Row 3: Switch Account Buttons (Col 1 = Switch AD | Col 2 = Switch Graph | Col 3 = Switch GAM)
+$btnSwitchAdAcct = New-Object System.Windows.Forms.Button
+$btnSwitchAdAcct.Text = "Switch AD Account / Domain"
+$btnSwitchAdAcct.UseMnemonic = $false
+$btnSwitchAdAcct.Location = New-Object System.Drawing.Point(15, 112)
+$btnSwitchAdAcct.Size = New-Object System.Drawing.Size(250, 35)
+$btnSwitchAdAcct.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+$btnSwitchAdAcct.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
+$btnSwitchAdAcct.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$grpDiagActions.Controls.Add($btnSwitchAdAcct)
 
 $btnSwitchGraphAcct = New-Object System.Windows.Forms.Button
 $btnSwitchGraphAcct.Text = "Switch Graph Account"
 $btnSwitchGraphAcct.UseMnemonic = $false
-$btnSwitchGraphAcct.Location = New-Object System.Drawing.Point(15, 112)
-$btnSwitchGraphAcct.Size = New-Object System.Drawing.Size(250, 36)
+$btnSwitchGraphAcct.Location = New-Object System.Drawing.Point(278, 112)
+$btnSwitchGraphAcct.Size = New-Object System.Drawing.Size(255, 35)
 $btnSwitchGraphAcct.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnSwitchGraphAcct.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnSwitchGraphAcct.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -8945,22 +9002,12 @@ $grpDiagActions.Controls.Add($btnSwitchGraphAcct)
 $btnSwitchGamAcct = New-Object System.Windows.Forms.Button
 $btnSwitchGamAcct.Text = "Switch GAM Account"
 $btnSwitchGamAcct.UseMnemonic = $false
-$btnSwitchGamAcct.Location = New-Object System.Drawing.Point(278, 112)
-$btnSwitchGamAcct.Size = New-Object System.Drawing.Size(255, 36)
+$btnSwitchGamAcct.Location = New-Object System.Drawing.Point(546, 112)
+$btnSwitchGamAcct.Size = New-Object System.Drawing.Size(258, 35)
 $btnSwitchGamAcct.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnSwitchGamAcct.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnSwitchGamAcct.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $grpDiagActions.Controls.Add($btnSwitchGamAcct)
-
-$btnSwitchAdAcct = New-Object System.Windows.Forms.Button
-$btnSwitchAdAcct.Text = "Switch AD Account / Domain"
-$btnSwitchAdAcct.UseMnemonic = $false
-$btnSwitchAdAcct.Location = New-Object System.Drawing.Point(546, 112)
-$btnSwitchAdAcct.Size = New-Object System.Drawing.Size(258, 36)
-$btnSwitchAdAcct.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-$btnSwitchAdAcct.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
-$btnSwitchAdAcct.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-$grpDiagActions.Controls.Add($btnSwitchAdAcct)
 
 # Setup Readiness & Architecture Reference Card (Fits cleanly above the shared global log)
 $grpDiagGuide = New-Object System.Windows.Forms.GroupBox
@@ -8971,10 +9018,11 @@ $grpDiagGuide.Size = New-Object System.Drawing.Size(820, 170)
 $tabDiag.Controls.Add($grpDiagGuide)
 
 $lblDiagGuide = New-Object System.Windows.Forms.Label
+$lblDiagGuide.UseMnemonic = $false
 $lblDiagGuide.Location = New-Object System.Drawing.Point(16, 20)
 $lblDiagGuide.Size = New-Object System.Drawing.Size(788, 144)
 $lblDiagGuide.Font = New-Object System.Drawing.Font("Segoe UI", 8.0)
-$lblDiagGuide.Text = "1. ACTIVE DIRECTORY: Uses native .NET LDAP/ADSI (or RSAT). Use 'Switch Domain / Profile' to connect to another domain or enter separate Admin credentials.`r`n" +
+$lblDiagGuide.Text = "1. ACTIVE DIRECTORY: Uses native .NET LDAP/ADSI (or RSAT). Use 'Switch AD Account / Domain' (or 'Manage / AD...') to connect to another domain or enter separate Admin credentials.`r`n" +
                      "2. MICROSOFT GRAPH: Click '1. Setup Microsoft Graph' (or 'Switch Graph Account') and complete device-code sign-in in an Admin/InPrivate browser.`r`n" +
                      "3. GOOGLE GAM7: Click '2. Setup Google GAM7' (or 'Switch GAM Account') to authorize Google Workspace Admin OAuth for the active profile.`r`n" +
                      "4. MULTI-DOMAIN WORKFLOW: Single-domain technicians stay on their Primary profile. To manage multiple domains/tenants, click '+ New Profile', switch to it, and link its Graph/GAM/AD once."
@@ -9008,13 +9056,13 @@ $btnDiagNewProfile.Add_Click({
 
 $btnDiagManageProfiles.Add_Click({
     $idx = $cmbDiagProfile.SelectedIndex
-    $preId = (if ($idx -ge 0 -and $idx -lt $script:domainProfilesData.Profiles.Count) { [string]$script:domainProfilesData.Profiles[$idx].Id } else { "" })
+    $preId = $(if ($idx -ge 0 -and $idx -lt $script:domainProfilesData.Profiles.Count) { [string]$script:domainProfilesData.Profiles[$idx].Id } else { "" })
     Show-DomainSwitcher -PreselectProfileId $preId
 })
 
 function Write-DiagLog {
     param([string]$Message)
-    $lvl = (if ($Message -match '^\[FAIL\]|^\[ERROR\]') { "ERROR" } elseif ($Message -match '^\[PASS\]|^\[SUCCESS\]') { "SUCCESS" } elseif ($Message -match '^\[WARN\]') { "WARN" } else { "INFO" })
+    $lvl = $(if ($Message -match '^\[FAIL\]|^\[ERROR\]') { "ERROR" } elseif ($Message -match '^\[PASS\]|^\[SUCCESS\]') { "SUCCESS" } elseif ($Message -match '^\[WARN\]') { "WARN" } else { "INFO" })
     Write-AppLog $Message $lvl
 }
 
@@ -9184,7 +9232,8 @@ $btnSwitchGraphAcct.Add_Click({
         $logDir = Get-ActiveGraphSetupDir
         $safeLogDir = $logDir.Replace("'", "''")
 
-        $switchScript = @"
+        $safeScopeCsv = $scopeCsv.Replace("'", "''")
+        $switchScript = @'
 $ErrorActionPreference = 'Stop'
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host '       SWITCH MICROSOFT GRAPH ACCOUNT (DEVICE-CODE)' -ForegroundColor Cyan
@@ -9201,16 +9250,16 @@ try {
     }
     try { Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null } catch {}
 
-    Connect-MgGraph -Scopes ('$scopeCsv' -split ',') -ContextScope CurrentUser -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
+    Connect-MgGraph -Scopes ('__SCOPE_CSV__' -split ',') -ContextScope CurrentUser -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
     $ctx = Get-MgContext -ErrorAction Stop
     if (-not $ctx -or [string]::IsNullOrWhiteSpace([string]$ctx.Account)) {
         throw 'Microsoft Graph did not return a signed-in account.'
     }
 
-    if (-not (Test-Path -LiteralPath '$safeLogDir')) {
-        New-Item -ItemType Directory -Path '$safeLogDir' -Force | Out-Null
+    if (-not (Test-Path -LiteralPath '__LOG_DIR__')) {
+        New-Item -ItemType Directory -Path '__LOG_DIR__' -Force | Out-Null
     }
-    $logFile = Join-Path '$safeLogDir' 'Setup.log'
+    $logFile = Join-Path '__LOG_DIR__' 'Setup.log'
     $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     $logLines = @(
         "Microsoft Graph setup started: $ts",
@@ -9220,7 +9269,7 @@ try {
         "[$ts] [Success] Setup completed successfully for $($ctx.Account)."
     )
     Set-Content -LiteralPath $logFile -Value $logLines -Encoding UTF8 -Force
-    Set-Content -LiteralPath '$safeFlagPath' -Value ([string]$ctx.Account) -Encoding UTF8 -Force
+    Set-Content -LiteralPath '__FLAG_PATH__' -Value ([string]$ctx.Account) -Encoding UTF8 -Force
 
     Write-Host ''
     Write-Host "Switched Microsoft Graph account to: $($ctx.Account)" -ForegroundColor Green
@@ -9231,7 +9280,7 @@ try {
     Read-Host 'Press Enter to close'
     exit 1
 }
-"@
+'@.Replace('__SCOPE_CSV__', $safeScopeCsv).Replace('__LOG_DIR__', $safeLogDir).Replace('__FLAG_PATH__', $safeFlagPath)
         Set-Content -LiteralPath $switchPs1 -Value $switchScript -Encoding UTF8 -Force
         $psExe = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
         if (-not (Test-Path -LiteralPath $psExe)) { $psExe = "powershell.exe" }
@@ -9305,28 +9354,28 @@ $btnSwitchGamAcct.Add_Click({
         $safeGamExe = $gamExe.Replace("'", "''")
         $safeGamFlag = $gamFlag.Replace("'", "''")
         $safeCfgDir = $cfgDir.Replace("'", "''")
-        $gamSwitchScript = @"
+        $gamSwitchScript = @'
 $ErrorActionPreference = 'Continue'
-$env:GAMCFGDIR = '$safeCfgDir'
+$env:GAMCFGDIR = '__CFG_DIR__'
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host '      SWITCH GOOGLE WORKSPACE GAM7 ADMIN ACCOUNT' -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
-Write-Host "Config Folder: $safeCfgDir" -ForegroundColor DarkCyan
+Write-Host 'Config Folder: __CFG_DIR__' -ForegroundColor DarkCyan
 Write-Host ''
 Write-Host 'Clearing existing GAM OAuth token and starting new authorization...' -ForegroundColor Yellow
 Write-Host 'TIP: If a browser tab opens to your primary Google account, switch to or' -ForegroundColor Yellow
 Write-Host '     copy the authorization URL into an InPrivate/Admin browser window.' -ForegroundColor Yellow
 Write-Host ''
-& '$safeGamExe' oauth delete
+& '__GAM_EXE__' oauth delete
 Write-Host ''
-& '$safeGamExe' oauth create
+& '__GAM_EXE__' oauth create
 $createCode = $LASTEXITCODE
 Write-Host ''
 if ($createCode -eq 0) {
-    & '$safeGamExe' oauth verify
+    & '__GAM_EXE__' oauth verify
     if ($LASTEXITCODE -eq 0) {
-        & '$safeGamExe' oauth info
-        Set-Content -LiteralPath '$safeGamFlag' -Value 'OK' -Encoding UTF8 -Force
+        & '__GAM_EXE__' oauth info
+        Set-Content -LiteralPath '__GAM_FLAG__' -Value 'OK' -Encoding UTF8 -Force
         Write-Host ''
         Write-Host 'Google Workspace GAM7 account switched and verified!' -ForegroundColor Green
         Start-Sleep -Seconds 2
@@ -9337,7 +9386,7 @@ Write-Host ''
 Write-Host 'GAM OAuth switch did not complete verification. Review messages above.' -ForegroundColor Red
 Read-Host 'Press Enter to close'
 exit 1
-"@
+'@.Replace('__CFG_DIR__', $safeCfgDir).Replace('__GAM_EXE__', $safeGamExe).Replace('__GAM_FLAG__', $safeGamFlag)
         Set-Content -LiteralPath $switchGamPs1 -Value $gamSwitchScript -Encoding UTF8 -Force
         $psExe = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
         if (-not (Test-Path -LiteralPath $psExe)) { $psExe = "powershell.exe" }
@@ -9451,17 +9500,77 @@ $btnUnsuspendGoogle.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $btnUnsuspendGoogle.Enabled = $false
 $grpExtControls.Controls.Add($btnUnsuspendGoogle)
 
-# Row 2: Wipe Persistent MFA Devices, OAuth App Grants, App Passwords & Backup Codes
+# Row 2: 5 Separated Cloud Persistence Wipe Actions (Entra 2FA | Entra OAuth | Google 2FA | Google OAuth | Wipe All)
+$btnWipeEntraMfa = New-Object System.Windows.Forms.Button
+$btnWipeEntraMfa.Text = "Wipe Entra 2FA Methods"
+$btnWipeEntraMfa.UseMnemonic = $false
+$btnWipeEntraMfa.Location = New-Object System.Drawing.Point(15, 60)
+$btnWipeEntraMfa.Size = New-Object System.Drawing.Size(154, 34)
+$btnWipeEntraMfa.Font = New-Object System.Drawing.Font("Segoe UI", 7.5, [System.Drawing.FontStyle]::Bold)
+$btnWipeEntraMfa.BackColor = [System.Drawing.Color]::FromArgb(190, 18, 60)
+$btnWipeEntraMfa.ForeColor = [System.Drawing.Color]::White
+$btnWipeEntraMfa.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$btnWipeEntraMfa.Enabled = $false
+$grpExtControls.Controls.Add($btnWipeEntraMfa)
+
+$btnWipeEntraOAuth = New-Object System.Windows.Forms.Button
+$btnWipeEntraOAuth.Text = "Wipe Entra OAuth Grants"
+$btnWipeEntraOAuth.UseMnemonic = $false
+$btnWipeEntraOAuth.Location = New-Object System.Drawing.Point(174, 60)
+$btnWipeEntraOAuth.Size = New-Object System.Drawing.Size(154, 34)
+$btnWipeEntraOAuth.Font = New-Object System.Drawing.Font("Segoe UI", 7.5, [System.Drawing.FontStyle]::Bold)
+$btnWipeEntraOAuth.BackColor = [System.Drawing.Color]::FromArgb(190, 18, 60)
+$btnWipeEntraOAuth.ForeColor = [System.Drawing.Color]::White
+$btnWipeEntraOAuth.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$btnWipeEntraOAuth.Enabled = $false
+$grpExtControls.Controls.Add($btnWipeEntraOAuth)
+
+$btnWipeGoogle2fa = New-Object System.Windows.Forms.Button
+$btnWipeGoogle2fa.Text = "Wipe Google 2FA Methods"
+$btnWipeGoogle2fa.UseMnemonic = $false
+$btnWipeGoogle2fa.Location = New-Object System.Drawing.Point(333, 60)
+$btnWipeGoogle2fa.Size = New-Object System.Drawing.Size(158, 34)
+$btnWipeGoogle2fa.Font = New-Object System.Drawing.Font("Segoe UI", 7.5, [System.Drawing.FontStyle]::Bold)
+$btnWipeGoogle2fa.BackColor = [System.Drawing.Color]::FromArgb(190, 18, 60)
+$btnWipeGoogle2fa.ForeColor = [System.Drawing.Color]::White
+$btnWipeGoogle2fa.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$btnWipeGoogle2fa.Enabled = $false
+$grpExtControls.Controls.Add($btnWipeGoogle2fa)
+
+$btnWipeGoogleTokens = New-Object System.Windows.Forms.Button
+$btnWipeGoogleTokens.Text = "Wipe Google OAuth Grants"
+$btnWipeGoogleTokens.UseMnemonic = $false
+$btnWipeGoogleTokens.Location = New-Object System.Drawing.Point(496, 60)
+$btnWipeGoogleTokens.Size = New-Object System.Drawing.Size(162, 34)
+$btnWipeGoogleTokens.Font = New-Object System.Drawing.Font("Segoe UI", 7.5, [System.Drawing.FontStyle]::Bold)
+$btnWipeGoogleTokens.BackColor = [System.Drawing.Color]::FromArgb(190, 18, 60)
+$btnWipeGoogleTokens.ForeColor = [System.Drawing.Color]::White
+$btnWipeGoogleTokens.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$btnWipeGoogleTokens.Enabled = $false
+$grpExtControls.Controls.Add($btnWipeGoogleTokens)
+
 $btnWipeCloudMfa = New-Object System.Windows.Forms.Button
-$btnWipeCloudMfa.Text = "Wipe Cloud MFA Methods, OAuth App Grants, App Passwords & Backup Codes (Entra Graph + GAM7 Deprovision)"
-$btnWipeCloudMfa.Location = New-Object System.Drawing.Point(15, 60)
-$btnWipeCloudMfa.Size = New-Object System.Drawing.Size(790, 34)
-$btnWipeCloudMfa.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-$btnWipeCloudMfa.BackColor = [System.Drawing.Color]::FromArgb(190, 18, 60)
+$btnWipeCloudMfa.Text = "Wipe All (Entra + GAM7)"
+$btnWipeCloudMfa.UseMnemonic = $false
+$btnWipeCloudMfa.Location = New-Object System.Drawing.Point(663, 60)
+$btnWipeCloudMfa.Size = New-Object System.Drawing.Size(142, 34)
+$btnWipeCloudMfa.Font = New-Object System.Drawing.Font("Segoe UI", 7.5, [System.Drawing.FontStyle]::Bold)
+$btnWipeCloudMfa.BackColor = [System.Drawing.Color]::FromArgb(153, 27, 27)
 $btnWipeCloudMfa.ForeColor = [System.Drawing.Color]::White
 $btnWipeCloudMfa.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $btnWipeCloudMfa.Enabled = $false
 $grpExtControls.Controls.Add($btnWipeCloudMfa)
+
+$tab3ToolTip = New-Object System.Windows.Forms.ToolTip
+$tab3ToolTip.AutoPopDelay = 12000
+$tab3ToolTip.InitialDelay = 300
+$tab3ToolTip.ReshowDelay = 200
+$tab3ToolTip.ShowAlways = $true
+$tab3ToolTip.SetToolTip($btnWipeEntraMfa, "Deletes non-password Entra 2FA methods: Authenticator, Phone/SMS, FIDO2 keys, Software OATH tokens & Temporary Access Passes.")
+$tab3ToolTip.SetToolTip($btnWipeEntraOAuth, "Revokes Entra refresh tokens and deletes all third-party OAuth app permission grants (oauth2PermissionGrants).")
+$tab3ToolTip.SetToolTip($btnWipeGoogle2fa, "Turns off Google 2-Step Verification (2FA) enrollments, security keys & backup verification codes (gam user <id> turnoff2sv).")
+$tab3ToolTip.SetToolTip($btnWipeGoogleTokens, "Revokes all third-party Google OAuth app grants, Application-Specific Passwords & backup codes (gam user <id> deprovision).")
+$tab3ToolTip.SetToolTip($btnWipeCloudMfa, "Executes all 4 cloud persistence wipe actions across Microsoft Entra ID and Google Workspace in one click.")
 
 # Row 3: AD LogonWorkstations & AccountExpires Immediate Kerberos KDC Hard-Lock
 $lblWksRestrict = New-Object System.Windows.Forms.Label
@@ -9481,6 +9590,7 @@ $grpExtControls.Controls.Add($txtLockWorkstations)
 
 $btnExpireAdNow = New-Object System.Windows.Forms.Button
 $btnExpireAdNow.Text = "Expire AD Account & Restrict Workstations"
+$btnExpireAdNow.UseMnemonic = $false
 $btnExpireAdNow.Location = New-Object System.Drawing.Point(358, 100)
 $btnExpireAdNow.Size = New-Object System.Drawing.Size(262, 32)
 $btnExpireAdNow.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
@@ -9492,6 +9602,7 @@ $grpExtControls.Controls.Add($btnExpireAdNow)
 
 $btnRestoreAdRestrictions = New-Object System.Windows.Forms.Button
 $btnRestoreAdRestrictions.Text = "Restore AD Expiry & Workstations"
+$btnRestoreAdRestrictions.UseMnemonic = $false
 $btnRestoreAdRestrictions.Location = New-Object System.Drawing.Point(626, 100)
 $btnRestoreAdRestrictions.Size = New-Object System.Drawing.Size(178, 32)
 $btnRestoreAdRestrictions.Font = New-Object System.Drawing.Font("Segoe UI", 7.75, [System.Drawing.FontStyle]::Bold)
@@ -9511,6 +9622,7 @@ $tabLockdown.Controls.Add($grpRulesAudit)
 
 $btnAuditForwardingRules = New-Object System.Windows.Forms.Button
 $btnAuditForwardingRules.Text = "Audit M365 & Gmail Rules"
+$btnAuditForwardingRules.UseMnemonic = $false
 $btnAuditForwardingRules.Location = New-Object System.Drawing.Point(15, 20)
 $btnAuditForwardingRules.Size = New-Object System.Drawing.Size(182, 30)
 $btnAuditForwardingRules.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
@@ -9655,10 +9767,10 @@ $gridRules.Add_SelectionChanged({
     if ($idx -ge 0 -and $idx -lt $script:loadedForwardingRules.Count) {
         $rObj = $script:loadedForwardingRules[$idx]
         $nl = [System.Environment]::NewLine
-        $plat = (if ($rObj.PSObject.Properties['Provider'] -and $rObj.Provider) { $rObj.Provider } else { $rObj.Platform })
-        $rType = (if ($rObj.PSObject.Properties['RuleType'] -and $rObj.RuleType) { $rObj.RuleType } else { "Rule" })
-        $sumText = (if ($rObj.PSObject.Properties['ActionDest'] -and $rObj.ActionDest) { $rObj.ActionDest } else { $rObj.Summary })
-        $recAction = (if ($rObj.Risk -like "*HIGH*" -or $rObj.Risk -like "*SUSPICIOUS*") {
+        $plat = $(if ($rObj.PSObject.Properties['Provider'] -and $rObj.Provider) { $rObj.Provider } else { $rObj.Platform })
+        $rType = $(if ($rObj.PSObject.Properties['RuleType'] -and $rObj.RuleType) { $rObj.RuleType } else { "Rule" })
+        $sumText = $(if ($rObj.PSObject.Properties['ActionDest'] -and $rObj.ActionDest) { $rObj.ActionDest } else { $rObj.Summary })
+        $recAction = $(if ($rObj.Risk -like "*HIGH*" -or $rObj.Risk -like "*SUSPICIOUS*") {
             "RECOMMENDED: HIGH BEC EXFILTRATION / STEALTH RISK - Click 'Disable Rule' or 'Delete Rule' above immediately."
         } else {
             "RECOMMENDED: Review rule destination/criteria. You can Disable, Enable, or Delete this rule using the buttons above."
@@ -9744,19 +9856,83 @@ $btnUnsuspendGoogle.Add_Click({
     }
 })
 
-$btnWipeCloudMfa.Add_Click({
+$btnWipeEntraMfa.Add_Click({
     if ($null -eq $script:currentUser) { return }
-    Write-AppLog "Wiping persistent MFA methods, OAuth grants, app passwords & backup codes across Entra ID and Google for '$($script:currentUser.UserPrincipalName)'..." "INFO"
+    Write-AppLog "Wiping Entra ID non-password 2FA methods (Authenticator, Phone, FIDO2, OATH, TAP, Email) for '$($script:currentUser.UserPrincipalName)'..." "INFO"
     $form.Refresh()
     try {
-        $wipeRes = Invoke-WipeCloudMfaAndTokensSafe -UserObj $script:currentUser
-        Write-AppLog "Wipe Cloud MFA & Persistent Tokens [$($wipeRes.Status)]: $($wipeRes.Details)" "SUCCESS"
-        Add-AuditEntry "Wipe Cloud MFA & OAuth Tokens" $wipeRes.Status $wipeRes.Details
-        Show-ActionPopup -ActionTitle "Wipe Cloud MFA & Persistent Tokens" -Succeeded ($wipeRes.Status -ne "FAILED") -Details $wipeRes.Details
+        $wipeRes = Invoke-WipeCloudMfaAndTokensSafe -UserObj $script:currentUser -Scope 'EntraMfa'
+        Write-AppLog "Wipe Entra 2FA Methods [$($wipeRes.Status)]: $($wipeRes.Details)" $(if ($wipeRes.Success) { "SUCCESS" } else { "WARN" })
+        Add-AuditEntry "Wipe Entra 2FA Methods" $wipeRes.Status $wipeRes.Details
+        Show-ActionPopup -ActionTitle "Wipe Entra 2FA Methods" -Succeeded $wipeRes.Success -Details $wipeRes.Details
     } catch {
-        Write-AppLog "ERROR: Wipe Cloud MFA & Tokens failed: $($_.Exception.Message)" "ERROR"
-        Add-AuditEntry "Wipe Cloud MFA & OAuth Tokens" "FAILED" $_.Exception.Message
-        Show-ActionPopup -ActionTitle "Wipe Cloud MFA & Persistent Tokens" -Succeeded $false -Details $_.Exception.Message
+        Write-AppLog "ERROR: Wipe Entra 2FA Methods failed: $($_.Exception.Message)" "ERROR"
+        Add-AuditEntry "Wipe Entra 2FA Methods" "FAILED" $_.Exception.Message
+        Show-ActionPopup -ActionTitle "Wipe Entra 2FA Methods" -Succeeded $false -Details $_.Exception.Message
+    }
+})
+
+$btnWipeEntraOAuth.Add_Click({
+    if ($null -eq $script:currentUser) { return }
+    Write-AppLog "Revoking Entra refresh tokens & wiping third-party OAuth permission grants for '$($script:currentUser.UserPrincipalName)'..." "INFO"
+    $form.Refresh()
+    try {
+        $wipeRes = Invoke-WipeCloudMfaAndTokensSafe -UserObj $script:currentUser -Scope 'EntraOAuth'
+        Write-AppLog "Wipe Entra OAuth Grants [$($wipeRes.Status)]: $($wipeRes.Details)" $(if ($wipeRes.Success) { "SUCCESS" } else { "WARN" })
+        Add-AuditEntry "Wipe Entra OAuth Grants" $wipeRes.Status $wipeRes.Details
+        Show-ActionPopup -ActionTitle "Wipe Entra OAuth Grants" -Succeeded $wipeRes.Success -Details $wipeRes.Details
+    } catch {
+        Write-AppLog "ERROR: Wipe Entra OAuth Grants failed: $($_.Exception.Message)" "ERROR"
+        Add-AuditEntry "Wipe Entra OAuth Grants" "FAILED" $_.Exception.Message
+        Show-ActionPopup -ActionTitle "Wipe Entra OAuth Grants" -Succeeded $false -Details $_.Exception.Message
+    }
+})
+
+$btnWipeGoogle2fa.Add_Click({
+    if ($null -eq $script:currentUser) { return }
+    Write-AppLog "Turning off Google 2-Step Verification (2FA) & wiping backup codes via GAM7 (turnoff2sv) for '$($script:currentUser.UserPrincipalName)'..." "INFO"
+    $form.Refresh()
+    try {
+        $wipeRes = Invoke-WipeCloudMfaAndTokensSafe -UserObj $script:currentUser -Scope 'GoogleTwoStep'
+        Write-AppLog "Wipe Google 2FA Methods [$($wipeRes.Status)]: $($wipeRes.Details)" $(if ($wipeRes.Success) { "SUCCESS" } else { "WARN" })
+        Add-AuditEntry "Wipe Google 2FA Methods" $wipeRes.Status $wipeRes.Details
+        Show-ActionPopup -ActionTitle "Wipe Google 2FA Methods" -Succeeded $wipeRes.Success -Details $wipeRes.Details
+    } catch {
+        Write-AppLog "ERROR: Wipe Google 2FA Methods failed: $($_.Exception.Message)" "ERROR"
+        Add-AuditEntry "Wipe Google 2FA Methods" "FAILED" $_.Exception.Message
+        Show-ActionPopup -ActionTitle "Wipe Google 2FA Methods" -Succeeded $false -Details $_.Exception.Message
+    }
+})
+
+$btnWipeGoogleTokens.Add_Click({
+    if ($null -eq $script:currentUser) { return }
+    Write-AppLog "Wiping Google OAuth app grants & Application-Specific Passwords via GAM7 (deprovision) for '$($script:currentUser.UserPrincipalName)'..." "INFO"
+    $form.Refresh()
+    try {
+        $wipeRes = Invoke-WipeCloudMfaAndTokensSafe -UserObj $script:currentUser -Scope 'GoogleTokens'
+        Write-AppLog "Wipe Google OAuth Grants [$($wipeRes.Status)]: $($wipeRes.Details)" $(if ($wipeRes.Success) { "SUCCESS" } else { "WARN" })
+        Add-AuditEntry "Wipe Google OAuth Grants" $wipeRes.Status $wipeRes.Details
+        Show-ActionPopup -ActionTitle "Wipe Google OAuth Grants" -Succeeded $wipeRes.Success -Details $wipeRes.Details
+    } catch {
+        Write-AppLog "ERROR: Wipe Google OAuth Grants failed: $($_.Exception.Message)" "ERROR"
+        Add-AuditEntry "Wipe Google OAuth Grants" "FAILED" $_.Exception.Message
+        Show-ActionPopup -ActionTitle "Wipe Google OAuth Grants" -Succeeded $false -Details $_.Exception.Message
+    }
+})
+
+$btnWipeCloudMfa.Add_Click({
+    if ($null -eq $script:currentUser) { return }
+    Write-AppLog "Wiping ALL persistent 2FA methods and OAuth grants across Microsoft Entra ID and Google Workspace for '$($script:currentUser.UserPrincipalName)'..." "INFO"
+    $form.Refresh()
+    try {
+        $wipeRes = Invoke-WipeCloudMfaAndTokensSafe -UserObj $script:currentUser -Scope 'All'
+        Write-AppLog "Wipe All (Entra + GAM7) [$($wipeRes.Status)]: $($wipeRes.Details)" $(if ($wipeRes.Success) { "SUCCESS" } else { "WARN" })
+        Add-AuditEntry "Wipe All (Entra + GAM7)" $wipeRes.Status $wipeRes.Details
+        Show-ActionPopup -ActionTitle "Wipe All (Entra + GAM7)" -Succeeded $wipeRes.Success -Details $wipeRes.Details
+    } catch {
+        Write-AppLog "ERROR: Wipe All (Entra + GAM7) failed: $($_.Exception.Message)" "ERROR"
+        Add-AuditEntry "Wipe All (Entra + GAM7)" "FAILED" $_.Exception.Message
+        Show-ActionPopup -ActionTitle "Wipe All (Entra + GAM7)" -Succeeded $false -Details $_.Exception.Message
     }
 })
 
@@ -9817,7 +9993,7 @@ function Load-ForwardingRulesGrid {
         $auditRes = Get-UserForwardingAndInboxRulesSafe -UserObj $script:currentUser
         $rawRules = @()
         if ($auditRes -and $null -ne $auditRes.Rules) {
-            $rawRules = (if ($auditRes.Rules -is [array]) { $auditRes.Rules } else { @($auditRes.Rules) })
+            $rawRules = $(if ($auditRes.Rules -is [array]) { $auditRes.Rules } else { @($auditRes.Rules) })
         }
         $script:loadedForwardingRules = $rawRules
 
@@ -9879,18 +10055,18 @@ function Load-ForwardingRulesGrid {
             $statusMsg += " Diagnostics: $($auditRes.Diagnostics)"
         }
         $txtRuleDecision.Text = "$statusMsg Select any row above to Disable, Enable, or Delete a rule."
-        Write-AppLog "SUCCESS: Forwarding & Inbox Rules Audit completed for '$($script:currentUser.UserPrincipalName)': $statusMsg" "SUCCESS"
-        Add-AuditEntry "Audit Email Forwarding & Rules" "SUCCESS" $statusMsg
+        Write-AppLog "SUCCESS: M365 & Gmail Rules Audit completed for '$($script:currentUser.UserPrincipalName)': $statusMsg" "SUCCESS"
+        Add-AuditEntry "Audit M365 & Gmail Rules" "SUCCESS" $statusMsg
         if ($ShowPopupOnComplete) {
-            Show-ActionPopup -ActionTitle "Audit Forwarding & Inbox Rules" -Succeeded $true -Details $statusMsg
+            Show-ActionPopup -ActionTitle "Audit M365 & Gmail Rules" -Succeeded $true -Details $statusMsg
         }
     } catch {
         $errText = $_.Exception.Message
         $txtRuleDecision.Text = "AUDIT ERROR: $errText"
         Write-AppLog "ERROR: Mailbox Rules Audit Failed: $errText" "ERROR"
-        Add-AuditEntry "Audit Email Forwarding & Rules" "FAILED" $errText
+        Add-AuditEntry "Audit M365 & Gmail Rules" "FAILED" $errText
         if ($ShowPopupOnComplete) {
-            Show-ActionPopup -ActionTitle "Audit Forwarding & Inbox Rules" -Succeeded $false -Details $errText
+            Show-ActionPopup -ActionTitle "Audit M365 & Gmail Rules" -Succeeded $false -Details $errText
         }
     }
 }
@@ -9913,7 +10089,7 @@ function Invoke-SelectedRuleOperation {
     Write-AppLog "$verbIng selected email rule '$($ruleObj.RuleName)' (Provider: $($ruleObj.Provider), ID: $($ruleObj.RuleId))..." "INFO"
     try {
         $remRes = Disable-OrRemoveForwardingRuleSafe -RuleObj $ruleObj -Operation $Operation
-        $detailsStr = (if ($remRes -is [hashtable] -and $remRes.Details) { [string]$remRes.Details } else { [string]$remRes })
+        $detailsStr = $(if ($remRes -is [hashtable] -and $remRes.Details) { [string]$remRes.Details } else { [string]$remRes })
         Write-AppLog "SUCCESS: $detailsStr" "SUCCESS"
         Add-AuditEntry "$Operation Email Rule" "SUCCESS" $detailsStr
         Load-ForwardingRulesGrid
@@ -10080,7 +10256,7 @@ $txtEventDecision.Size = New-Object System.Drawing.Size(792, 108)
 $txtEventDecision.Font = New-Object System.Drawing.Font("Consolas", 8.5)
 $txtEventDecision.BackColor = [System.Drawing.Color]::FromArgb(2, 6, 23)
 $txtEventDecision.ForeColor = [System.Drawing.Color]::FromArgb(226, 232, 240)
-$txtEventDecision.Text = "Select a user on Tab 2 ('2. Containment') and click 'Pull Events (AD + Entra + Google)', or click 'View Event Code Guide' to browse all deciphered Windows AD, Entra ID, and Google Workspace security event codes and recommended actions."
+$txtEventDecision.Text = "Select a user on Tab 2 ('2. Containment') and click 'Pull Events (AD + Entra + Google)', or click 'View Event Guide' to browse all deciphered Windows AD, Entra ID, and Google Workspace security event codes and recommended actions."
 $grpEventDecision.Controls.Add($txtEventDecision)
 
 $script:allPulledEvents = @()
@@ -10100,7 +10276,7 @@ function Clear-SecurityEventsResults {
         $lblEventStats.Text = "Deciphers AD (4624/4625/4740/4768/4769/4771/4776/4720-4738/4778), Entra (50173/50057/50126/50053/53003/MFA/OAuth/Risk), & Google GAM7."
     }
     if ($txtEventDecision) {
-        $txtEventDecision.Text = "Select a user on Tab 2 ('2. Containment') and click 'Pull Events (AD + Entra + Google)', or click 'View Event Code Guide' to browse all deciphered Windows AD, Entra ID, and Google Workspace security event codes and recommended actions."
+        $txtEventDecision.Text = "Select a user on Tab 2 ('2. Containment') and click 'Pull Events (AD + Entra + Google)', or click 'View Event Guide' to browse all deciphered Windows AD, Entra ID, and Google Workspace security event codes and recommended actions."
     }
 }
 
@@ -10116,7 +10292,7 @@ $btnRestorePulledEvents.Add_Click({
         if ($gridEvents.Rows.Count -gt 0) {
             $gridEvents.Rows[0].Selected = $true
         }
-        $targetName = (if ($script:currentUser) { $script:currentUser.DisplayName } else { "user" })
+        $targetName = $(if ($script:currentUser) { $script:currentUser.DisplayName } else { "user" })
         Write-AppLog "Restored $($script:allPulledEvents.Count) previously pulled security event(s) for '$targetName' (no re-query required)." "INFO"
     }
 })
@@ -10124,8 +10300,8 @@ $btnRestorePulledEvents.Add_Click({
 function Render-SecurityEventsGrid {
     $gridEvents.Rows.Clear()
     $script:filteredEvents = @()
-    $srcFilter = (if ($cmbEventSourceFilter -and $cmbEventSourceFilter.SelectedIndex -gt 0) { [string]$cmbEventSourceFilter.SelectedItem } else { "All Sources" })
-    $sevFilter = (if ($cmbEventSeverityFilter -and $cmbEventSeverityFilter.SelectedIndex -gt 0) { [string]$cmbEventSeverityFilter.SelectedItem } else { "All Severities" })
+    $srcFilter = $(if ($cmbEventSourceFilter -and $cmbEventSourceFilter.SelectedIndex -gt 0) { [string]$cmbEventSourceFilter.SelectedItem } else { "All Sources" })
+    $sevFilter = $(if ($cmbEventSeverityFilter -and $cmbEventSeverityFilter.SelectedIndex -gt 0) { [string]$cmbEventSeverityFilter.SelectedItem } else { "All Severities" })
 
     $critCount = 0
     $warnCount = 0
@@ -10194,7 +10370,7 @@ $btnPullSecurityEvents.Add_Click({
     [System.Windows.Forms.Application]::DoEvents()
     try {
         $pulledRes = Get-UserSecurityEventsSafe -UserObj $script:currentUser -Server $script:targetServer -Cred $script:adCredential
-        $pulled = (if ($null -eq $pulledRes) { @() } elseif ($pulledRes -is [array]) { $pulledRes } else { @($pulledRes) })
+        $pulled = $(if ($null -eq $pulledRes) { @() } elseif ($pulledRes -is [array]) { $pulledRes } else { @($pulledRes) })
         $script:allPulledEvents = $pulled
         $script:savedUserPulledEvents = @($pulled)
         if ($btnRestorePulledEvents) {
@@ -10254,10 +10430,10 @@ $btnLoadReferenceCatalog.Add_Click({
         $catalogList = [System.Collections.Generic.List[psobject]]::new()
         foreach ($rc in $refCodes) {
             $intel = Get-DecodedEventIntelligence -Source $rc.Source -EventCode $rc.Code -RawSummary ""
-            $title = (if ($intel -and $intel.Title) { $intel.Title } else { $rc.Code })
-            $sev = (if ($intel -and $intel.Severity) { $intel.Severity } else { "INFO" })
-            $meaning = (if ($intel -and $intel.Meaning) { $intel.Meaning } else { "Reference guide entry for $($rc.Code)." })
-            $dec = (if ($intel -and $intel.Decision) { $intel.Decision } else { "Refer to security response playbook." })
+            $title = $(if ($intel -and $intel.Title) { $intel.Title } else { $rc.Code })
+            $sev = $(if ($intel -and $intel.Severity) { $intel.Severity } else { "INFO" })
+            $meaning = $(if ($intel -and $intel.Meaning) { $intel.Meaning } else { "Reference guide entry for $($rc.Code)." })
+            $dec = $(if ($intel -and $intel.Decision) { $intel.Decision } else { "Refer to security response playbook." })
             $catalogList.Add([PSCustomObject]@{
                 Timestamp = "REFERENCE GUIDE"
                 Source    = $rc.Source
@@ -10293,7 +10469,7 @@ function Update-ExtendedTabsUserHeader {
         return
     }
     $u = $script:currentUser
-    $lockState = (if ($chkVerified.Checked) { "UNLOCKED (Verified)" } else { "LOCKED (Check confirmation box on Tab 2)" })
+    $lockState = $(if ($chkVerified.Checked) { "UNLOCKED (Verified)" } else { "LOCKED (Check confirmation box on Tab 2)" })
     if ($lblLockdownTarget) {
         $lblLockdownTarget.Text = "Target: $($u.DisplayName)  |  AD sAM: $($u.SamAccountName)  |  Entra: $($u.GraphTargetId)  |  Google: $($u.GamTargetId)"
     }
@@ -10395,8 +10571,8 @@ function Load-AuditGrid {
     $successCount = 0
     $failCount = 0
 
-    $filterText = (if ($txtAuditFilter -and $txtAuditFilter.Text) { $txtAuditFilter.Text.Trim().ToLowerInvariant() } else { "" })
-    $statusFilter = (if ($cmbAuditStatus -and $cmbAuditStatus.SelectedIndex -gt 0) { [string]$cmbAuditStatus.SelectedItem } else { "All Statuses" })
+    $filterText = $(if ($txtAuditFilter -and $txtAuditFilter.Text) { $txtAuditFilter.Text.Trim().ToLowerInvariant() } else { "" })
+    $statusFilter = $(if ($cmbAuditStatus -and $cmbAuditStatus.SelectedIndex -gt 0) { [string]$cmbAuditStatus.SelectedItem } else { "All Statuses" })
 
     $rowsToRender = [System.Collections.Generic.List[psobject]]::new()
     $seenKeys = @{}
@@ -10584,12 +10760,12 @@ $script:isDark = $true
 function Apply-AppTheme {
     param([bool]$Dark)
 
-    $bgForm = (if ($Dark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
-    $bgCard = (if ($Dark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
-    $bgInput = (if ($Dark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
-    $fgText = (if ($Dark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
-    $fgSub = (if ($Dark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
-    $fgLabel = (if ($Dark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(51, 65, 85) })
+    $bgForm = $(if ($Dark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
+    $bgCard = $(if ($Dark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
+    $bgInput = $(if ($Dark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
+    $fgText = $(if ($Dark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $fgSub = $(if ($Dark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
+    $fgLabel = $(if ($Dark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(51, 65, 85) })
 
     $form.BackColor = $bgForm
     $tabControl.BackColor = $bgForm
@@ -10612,25 +10788,21 @@ function Apply-AppTheme {
     if ($lblDiagGuide) { $lblDiagGuide.ForeColor = $fgLabel }
 
     if ($headerPanel) {
-        $headerPanel.BackColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
+        $headerPanel.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
     }
     if ($lblTitle) {
-        $lblTitle.ForeColor = (if ($Dark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+        $lblTitle.ForeColor = $(if ($Dark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     }
     if ($lblSub) {
-        $lblSub.ForeColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
+        $lblSub.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
     }
     if ($btnCheckUpdates) {
-        $btnCheckUpdates.BackColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
-        $btnCheckUpdates.ForeColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) })
-    }
-    if ($btnSwitchDomain) {
-        $btnSwitchDomain.BackColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
-        $btnSwitchDomain.ForeColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) })
+        $btnCheckUpdates.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+        $btnCheckUpdates.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) })
     }
 
-    $bgLogBox = (if ($Dark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
-    $fgLogBox = (if ($Dark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $bgLogBox = $(if ($Dark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
+    $fgLogBox = $(if ($Dark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
 
     if ($txtSearch) { $txtSearch.BackColor = $bgInput; $txtSearch.ForeColor = $fgText }
     if ($lstResults) { $lstResults.BackColor = $bgInput; $lstResults.ForeColor = $fgText }
@@ -10658,22 +10830,22 @@ function Apply-AppTheme {
     $metricPanels = @($pnlCardPass, $pnlCard365, $pnlCardGoogle, $pnlCardAcct)
     foreach ($p in $metricPanels) {
         if ($p) {
-            $p.BackColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
+            $p.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
         }
     }
     $metricTitles = @($lblCardPassTitle, $lblCard365Title, $lblCardGoogleTitle, $lblCardAcctTitle)
     foreach ($t in $metricTitles) {
-        if ($t) { $t.ForeColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(100, 116, 139) }) }
+        if ($t) { $t.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(100, 116, 139) }) }
     }
     $metricSubs = @($lblCardPassSub, $lblCard365Sub, $lblCardGoogleSub, $lblCardAcctSub)
     foreach ($s in $metricSubs) {
-        if ($s) { $s.ForeColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(100, 116, 139) } else { [System.Drawing.Color]::FromArgb(148, 163, 184) }) }
+        if ($s) { $s.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(100, 116, 139) } else { [System.Drawing.Color]::FromArgb(148, 163, 184) }) }
     }
 
-    if ($lblCardPassVal) { $lblCardPassVal.ForeColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(250, 204, 21) } else { [System.Drawing.Color]::FromArgb(217, 119, 6) }) }
-    if ($lblCard365Val) { $lblCard365Val.ForeColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) }) }
-    if ($lblCardGoogleVal) { $lblCardGoogleVal.ForeColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(52, 211, 153) } else { [System.Drawing.Color]::FromArgb(5, 150, 105) }) }
-    if ($lblCardAcctVal) { $lblCardAcctVal.ForeColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) }) }
+    if ($lblCardPassVal) { $lblCardPassVal.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(250, 204, 21) } else { [System.Drawing.Color]::FromArgb(217, 119, 6) }) }
+    if ($lblCard365Val) { $lblCard365Val.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) }) }
+    if ($lblCardGoogleVal) { $lblCardGoogleVal.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(52, 211, 153) } else { [System.Drawing.Color]::FromArgb(5, 150, 105) }) }
+    if ($lblCardAcctVal) { $lblCardAcctVal.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) }) }
 
     if (Get-Command Update-IntegrationAlertBanner -ErrorAction SilentlyContinue) {
         Update-IntegrationAlertBanner
@@ -10682,8 +10854,8 @@ function Apply-AppTheme {
     $testBtns = @($btnDiagNewProfile, $btnDiagManageProfiles, $btnTestAD, $btnTestM365, $btnTestGoogle, $btnSwitchGraphAcct, $btnSwitchGamAcct, $btnSwitchAdAcct, $btnRefreshAudit, $btnExportAudit, $btnOpenAuditFolder, $btnViewAuditDetail, $btnClearAuditFilter, $btnRefreshUserSessions, $btnClearRules, $btnLoadReferenceCatalog, $btnRestorePulledEvents, $btnClearEvents)
     foreach ($b in $testBtns) {
         if ($b) {
-            $b.BackColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
-            $b.ForeColor = (if ($Dark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+            $b.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
+            $b.ForeColor = $(if ($Dark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
         }
     }
 
@@ -10695,17 +10867,17 @@ function Apply-AppTheme {
             $g.DefaultCellStyle.ForeColor = $fgText
             $g.DefaultCellStyle.SelectionBackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
             $g.DefaultCellStyle.SelectionForeColor = [System.Drawing.Color]::White
-            $g.AlternatingRowsDefaultCellStyle.BackColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
+            $g.AlternatingRowsDefaultCellStyle.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
             $g.AlternatingRowsDefaultCellStyle.ForeColor = $fgText
-            $g.ColumnHeadersDefaultCellStyle.BackColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+            $g.ColumnHeadersDefaultCellStyle.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
             $g.ColumnHeadersDefaultCellStyle.ForeColor = $fgText
         }
     }
 
     if ($btnThemeToggle) {
-        $btnThemeToggle.Text = (if ($Dark) { "[ Light Mode ]" } else { "[ Dark Mode ]" })
-        $btnThemeToggle.BackColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(30, 41, 59) })
-        $btnThemeToggle.ForeColor = (if ($Dark) { [System.Drawing.Color]::FromArgb(250, 204, 21) } else { [System.Drawing.Color]::FromArgb(148, 163, 184) })
+        $btnThemeToggle.Text = $(if ($Dark) { "[ Light Mode ]" } else { "[ Dark Mode ]" })
+        $btnThemeToggle.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(30, 41, 59) })
+        $btnThemeToggle.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(250, 204, 21) } else { [System.Drawing.Color]::FromArgb(148, 163, 184) })
     }
 }
 
@@ -10748,9 +10920,9 @@ function Register-ResponsiveControlTree {
     foreach ($ctrl in $ParentControl.Controls) {
         if ($null -eq $ctrl) { continue }
         if (-not ($ctrl -is [System.Windows.Forms.TabPage])) {
-            $fFam = (if ($ctrl.Font -and $ctrl.Font.FontFamily) { [string]$ctrl.Font.FontFamily.Name } else { "Segoe UI" })
-            $fPt  = (if ($ctrl.Font) { [double]$ctrl.Font.SizeInPoints } else { 9.0 })
-            $fSty = (if ($ctrl.Font) { $ctrl.Font.Style } else { [System.Drawing.FontStyle]::Regular })
+            $fFam = $(if ($ctrl.Font -and $ctrl.Font.FontFamily) { [string]$ctrl.Font.FontFamily.Name } else { "Segoe UI" })
+            $fPt  = $(if ($ctrl.Font) { [double]$ctrl.Font.SizeInPoints } else { 9.0 })
+            $fSty = $(if ($ctrl.Font) { $ctrl.Font.Style } else { [System.Drawing.FontStyle]::Regular })
             $script:responsiveMap.Add([PSCustomObject]@{
                 Control    = $ctrl
                 X          = [double]$ctrl.Location.X
@@ -10887,9 +11059,9 @@ $form.Add_Shown({
             $lblStatusAD.ForeColor = [System.Drawing.Color]::FromArgb(217, 119, 6)
             Update-HeaderSubLabelSafe
             if ($script:targetDomain) {
-                Write-AppLog "Pre-Flight [1/3]: Loaded profile '$($script:activeProfile.Name)' domain '$($script:targetDomain)' (Admin: '$($script:adminAccount)'). Password authentication required. Click 'Switch Domain / Profile' to connect." "INFO"
+                Write-AppLog "Pre-Flight [1/3]: Loaded profile '$($script:activeProfile.Name)' domain '$($script:targetDomain)' (Admin: '$($script:adminAccount)'). Password authentication required. Open Tab 1 and click 'Switch AD Account / Domain' to connect." "INFO"
             } else {
-                Write-AppLog "Pre-Flight [1/3]: Active Directory not connected ($($adCheck.Error)). Click 'Switch Domain / Profile' or check Tab 1 ('1. Setup')." "WARN"
+                Write-AppLog "Pre-Flight [1/3]: Active Directory not connected ($($adCheck.Error)). Open Tab 1 ('1. Setup') and click 'Switch AD Account / Domain'." "WARN"
             }
             $unlinkedIntegrations.Add("Active Directory: $($adCheck.Error)")
         }
@@ -10927,7 +11099,7 @@ $form.Add_Shown({
         }
 
         if ($unlinkedIntegrations.Count -gt 0) {
-            Write-AppLog "NOTICE: $($unlinkedIntegrations.Count) integration(s) not ready. Use Tab 1 ('1. Setup') or 'Switch Domain / Profile' to link accounts." "WARN"
+            Write-AppLog "NOTICE: $($unlinkedIntegrations.Count) integration(s) not ready. Use Tab 1 ('1. Setup') to link accounts or switch Domain Profiles." "WARN"
             $tabControl.SelectedTab = $tabDiag
         } else {
             Write-AppLog "All 3 integrations verified. Opening Tab 2 ('2. Containment'). Enter at least 3 characters above and click 'Find Users'." "SUCCESS"

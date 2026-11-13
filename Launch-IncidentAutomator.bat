@@ -17,7 +17,7 @@ type nul > "%SCRIPT_PATH%:Zone.Identifier" 2>nul
 set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 if not exist "%PS_EXE%" set "PS_EXE=powershell.exe"
 
-"%PS_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$t=$null; $e=$null; [void][System.Management.Automation.Language.Parser]::ParseFile($env:SCRIPT_PATH, [ref]$t, [ref]$e); if ($e.Count -gt 0) { foreach ($err in $e) { Write-Host ('[SYNTAX ERROR] Line ' + $err.Extent.StartLineNumber + ': ' + $err.Message) -ForegroundColor Red }; exit 1 }"
+"%PS_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$t=$null; $e=$null; $ast=[System.Management.Automation.Language.Parser]::ParseFile($env:SCRIPT_PATH, [ref]$t, [ref]$e); if ($e.Count -gt 0) { foreach ($err in $e) { Write-Host ('[SYNTAX ERROR] Line ' + $err.Extent.StartLineNumber + ': ' + $err.Message) -ForegroundColor Red }; exit 1 }; $badCmds = $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and ($n.GetCommandName() -in @('if','elseif','else','switch','foreach')) }, $true); if ($badCmds.Count -gt 0) { foreach ($b in $badCmds) { Write-Host ('[AST ERROR] Line ' + $b.Extent.StartLineNumber + ': Parenthesized statement keyword (' + $b.GetCommandName() + ') must use $(...) subexpression.') -ForegroundColor Red }; exit 1 }"
 if errorlevel 1 (
     echo.
     echo [ERROR] IncidentResponse-Automator.ps1 failed PowerShell syntax validation.

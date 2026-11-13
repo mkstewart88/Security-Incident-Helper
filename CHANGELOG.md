@@ -6,13 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.57] - 2026-11-12
+
+### Changed & Improved
+- **Symmetric Tab 3 (`3. Deep Isolation`) Cloud Persistence Eradication Controls & Tooltips:**
+  - Standardized the 5 red cloud persistence wipe buttons on **Tab 3 (`3. Deep Isolation`)** so Microsoft 365 (Entra ID) and Google Workspace (GAM7) use clean, symmetric naming and include detailed hover tooltips explaining every sub-item wiped:
+    1. **Wipe Entra 2FA Methods** (`-Scope EntraMfa`): Removes registered non-password Entra authentication factors (Microsoft Authenticator, Phone/SMS, FIDO2 security keys, Software OATH tokens, Temporary Access Passes, and Email methods).
+    2. **Wipe Entra OAuth Grants** (`-Scope EntraOAuth`): Revokes Entra ID refresh tokens (`revokeSignInSessions`) and deletes all delegated third-party OAuth 2.0 application permission grants (`oauth2PermissionGrants`).
+    3. **Wipe Google 2FA Methods** (`-Scope GoogleTwoStep`): Runs `gam user <id> turnoff2sv` + `gam user <id> signout` to turn off Google 2-Step Verification (Authenticator, prompts, security keys) and invalidate 10-digit backup verification codes.
+    4. **Wipe Google OAuth Grants** (`-Scope GoogleTokens`): Runs `gam user <id> deprovision` + `gam user <id> signout` to revoke all third-party Google OAuth application grants, 16-character Application-Specific Passwords (ASPs), and active session cookies.
+    5. **Wipe All (Entra + GAM7)** (`-Scope All`): Sequentially executes all 4 cloud persistence wipe actions above in a single click.
+- **Entra Temporary Access Pass Eradication:** Added `temporaryAccessPassAuthenticationMethod` (`temporaryAccessPassMethods`) to `Invoke-WipeCloudMfaAndTokensSafe` so **Wipe Entra 2FA Methods** also purges active Temporary Access Passes.
+- **Consistent UI & Documentation Wording:** Standardized all tab references, event triage recommendations, and documentation guides across all 5 tabs.
+
+## [1.1.56] - 2026-11-12
+
+### Changed & Improved
+- **Tab 1 (`1. Setup`) Service-Column Alignment:** Reorganized the 3x3 integration button grid so each identity provider occupies its own vertical column:
+  - **Column 1 (Active Directory):** **Test Active Directory** (Row 1) | **Install RSAT (Optional)** (Row 2) | **Switch AD Account / Domain** (Row 3)
+  - **Column 2 (Microsoft Graph):** **Test Microsoft Graph** (Row 1) | **1. Setup Microsoft Graph** (Row 2) | **Switch Graph Account** (Row 3)
+  - **Column 3 (Google GAM7):** **Test Google GAM7** (Row 1) | **2. Setup Google GAM7** (Row 2) | **Switch GAM Account** (Row 3)
+- **Full 5-Button Cloud Persistence Eradication Split on Tab 3 (`3. Deep Isolation`):**
+  - Expanded the red cloud persistence wipe controls into 5 dedicated buttons covering Entra ID 2FA methods, Entra OAuth grants, Google 2FA methods, Google OAuth grants, and Wipe All (Entra + GAM7).
+
+## [1.1.55] - 2026-11-12
+
+### Added
+- **Granular Tab 3 Cloud Persistence Wipe Actions:**
+  - Separated the monolithic **Wipe Cloud MFA Methods, OAuth App Grants, App Passwords & Backup Codes** button on **Tab 3 (`3. Deep Isolation`)** into four dedicated actions:
+    - **Wipe Entra MFA Methods** (removes non-password MFA registrations: Authenticator, Phone, FIDO2, TAP)
+    - **Wipe Entra OAuth Grants** (revokes Entra refresh tokens and third-party OAuth permission grants)
+    - **Wipe Google ASPs & 2SV** (runs `gam user <id> deprovision` to clear app-specific passwords, 2SV backup codes & OAuth tokens)
+    - **Wipe All (Entra + GAM7)** (executes all three cloud eradication steps sequentially)
+
+### Changed & Fixed
+- **Tab 1 (`1. Setup`) Service-Row Grid Alignment:** Reorganized the 3x3 button matrix so each identity provider sits on its own row:
+  - Row 1 (Active Directory): **Test Active Directory** | **Install RSAT (Optional)** | **Switch AD Account / Domain**
+  - Row 2 (Microsoft Graph): **Test Microsoft Graph** | **1. Setup Microsoft Graph** | **Switch Graph Account**
+  - Row 3 (Google GAM7): **Test Google GAM7** | **2. Setup Google GAM7** | **Switch GAM Account**
+- **Consolidated Domain & Profile Switching on Tab 1:** Removed the redundant top-bar **Switch Domain / Profile** button from the global header; domain and profile switching is unified via **Tab 1 (`1. Setup`)** (`Manage / AD...` and **Switch AD Account / Domain**).
+- **WinForms Ampersand Mnemonic Fix:** Disabled mnemonic `&` shortcut swallowing (`UseMnemonic = $false`) on WinForms buttons and labels so labels such as **Audit M365 & Gmail Rules**, **Wipe Google ASPs & 2SV**, and **Expire AD Account & Restrict Workstations** render `&` literally instead of an underscore.
+- **PowerShell 5.1 Compatibility & Runtime Hardening:** Converted 293 conditional subexpression assignments (`= (if ...)` -> `= $(if ...)`), eliminated non-ASCII UTF-8 em-dash quotes, converted child setup here-strings to single-quoted `@' ... '@` templates, and upgraded `Launch-IncidentAutomator.bat` pre-flight AST validation.
+
 ## [1.1.54] - 2026-11-12
 
 ### Added
 - **Multi-Domain Profile Manager (Zero-Friction Single-Domain + Multi-Tenant Switching):**
   - **First-Launch Primary Profile Prompt:** If no Primary Domain Profile is configured yet, prompts on startup whether the current environment is your **Primary (Home) Domain Profile** or if you are temporarily assisting another domain—keeping the clean Primary slot untouched until you return to your home domain.
   - **Seamless Default Mode:** Single-domain technicians stay on their Primary Domain Profile using standard `%USERPROFILE%\.gam` and `%LOCALAPPDATA%\MicrosoftGraphSetup` directories with zero extra steps or prompts.
-  - **Isolated Domain Profiles (`%LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>`):** Technicians supporting multiple corporate or client domains/tenants can create, rename, set as Primary, switch, and delete named Domain Profiles from the top header (**Switch Domain / Profile**) or the top profile bar on **Tab 1 (`1. Setup`)**.
+  - **Isolated Domain Profiles (`%LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>`):** Technicians supporting multiple corporate or client domains/tenants can create, rename, set as Primary, switch, and delete named Domain Profiles from the Profile bar on **Tab 1 (`1. Setup`)**.
   - **Isolated GAM7 & Microsoft Graph Per Profile:** Each Domain Profile maintains its own `GAMCFGDIR` (`gam.cfg`, `client_secrets.json`, `oauth2.txt`), `IR_GRAPH_SETUP_DIR` (`Setup.log`, `MailboxAuditorApp.json`), and `MgContext.json` snapshot while preserving cached MSAL tokens across domains so switching back and forth requires no re-authentication after initial setup.
   - **Cloud-Only Switching:** Added **Switch Cloud Only (Skip AD)** in the Domain Profile Switcher for off-VPN or cloud-only triage when an on-prem Domain Controller is unreachable.
 - **Dual-Account Admin Support & Tab 1 Account Switchers:**

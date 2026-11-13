@@ -30,5 +30,5 @@ To package the script and its embedded setup scripts into a single standalone bi
 * On first launch, if no **Primary Domain Profile** is set yet, choose whether this environment is your **Primary (Home) Domain Profile** or if you are temporarily assisting another domain (keeping your Primary slot clean until you return home).
 * Open **Tab 1 (`1. Setup`)** to verify connectivity with Active Directory, Microsoft Graph, and Google Workspace (GAM7), and run the 1-click setup scripts if modules or CLI tools need to be installed.
 * Use **Switch Graph Account**, **Switch GAM Account**, or **Switch AD Account / Domain** on Tab 1 for separate elevated admin accounts (WAM disabled for Graph).
-* Supporting multiple domains or tenants? Use **Switch Domain / Profile** (top-right) or the Tab 1 **Profile** bar to create and switch isolated Domain Profiles, or choose **Switch Cloud Only (Skip AD)** when off-VPN.
+* Supporting multiple domains or tenants? Use the Tab 1 **Profile** bar (**Switch Profile**, **+ New Profile**, **Manage / AD...**) or **Switch AD Account / Domain** to create and switch isolated Domain Profiles, or choose **Switch Cloud Only (Skip AD)** when off-VPN.
 

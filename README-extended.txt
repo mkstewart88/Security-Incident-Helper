@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.54)
+SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.57)
 ================================================================================
 
 ARCHITECTURAL SPECIFICATION & EXHAUSTIVE CONTROL-BY-CONTROL ENGINEERING REFERENCE
@@ -61,41 +61,39 @@ TOP HEADER BAR:
 - [ Light Mode ] / [ Dark Mode ] ($btnThemeToggle):
   Invokes Apply-AppTheme($Dark). Dynamically recolors all forms, headers,
   action logs, decision boxes, input controls, and data grids without reloading.
-- Switch Domain / Profile ($btnSwitchDomain) & Show-PrimaryProfilePromptSafe:
+
+TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
+- Active Profile Bar ($cmbDiagProfile, Switch Profile $btnDiagSwitchProfile,
+  + New Profile $btnDiagNewProfile, Manage / AD... $btnDiagManageProfiles) &
+  Show-PrimaryProfilePromptSafe:
   Prompts on first launch if no Primary Domain Profile is configured yet,
   allowing technicians to reserve their clean Primary slot if currently assisting
   another domain. Manages isolated Domain Profiles stored in Profiles.json and
   %LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id> (with LastDomainConnection.json
   caching last domain/DC/username hints without ever saving passwords).
-  - Profile Controls: $cmbProf, + New ($btnNewProf), Set Primary ($btnSetPrimaryProf),
-    Rename ($btnRenameProf), Delete ($btnDelProf).
-  - Auto-Detect Domain ($btnAutoDetect): Runs Get-DiscoveredLocalDomainSafe.
-  - Target AD Domain ($txtDlgServer) & Alternate Credentials ($chkUseAlt, $txtDlgUser,
-    $txtDlgPass): Held strictly in memory as System.Management.Automation.PSCredential.
-  - Connect & Switch Profile ($btnConnect): Runs LDAP RootDSE handshake & activates profile.
-  - Switch Cloud Only (Skip AD) ($btnCloudOnly): Switches Graph/GAM profile context
-    without requiring on-prem Domain Controller connectivity.
-
-TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
-- Active Profile Bar ($cmbDiagProfile, Switch Profile $btnDiagSwitchProfile,
-  + New Profile $btnDiagNewProfile, Manage / AD... $btnDiagManageProfiles):
-  Provides inline switching, creation, and management of Domain Profiles.
-- Test Active Directory ($btnTestAD): Performs live LDAP RootDSE bind.
-- Test Microsoft Graph ($btnTestM365): Restores active profile MgContext.json,
-  calls Get-MgContext, checks scopes, and probes /organization.
-- Test Google GAM7 ($btnTestGoogle): Verifies gam.exe, oauth2.txt inside active
-  profile GAMCFGDIR, and runs gam oauth verify.
-- 1. Setup Microsoft Graph ($btnRunGraphSetup): Runs Setup-MicrosoftGraph.bat
-  using active IR_GRAPH_SETUP_DIR and Set-MgGraphOption -DisableLoginByWAM $true.
-- 2. Setup Google GAM7 ($btnRunGamSetup): Runs Setup-GoogleWorkspace-GAM.bat
-  to install GAM7 and authorize Google Cloud OAuth in active GAMCFGDIR.
-- 3. Install RSAT (Optional) ($btnRunRsatSetup): Runs Setup-RSAT-ActiveDirectory.bat
-  to install RSAT Active Directory tools via Windows Capabilities (DISM).
-- Switch Graph Account ($btnSwitchGraphAcct): Runs Disconnect-MgGraph and
-  device-code authentication with WAM disabled for dual-account admins.
-- Switch GAM Account ($btnSwitchGamAcct): Runs gam oauth delete + create + verify
-  scoped to the active profile GAMCFGDIR.
-- Switch AD Account / Domain ($btnSwitchAdAcct): Opens Show-DomainSwitcher.
+  - Profile Controls in Show-DomainSwitcher: $cmbProf, + New ($btnNewProf),
+    Set Primary ($btnSetPrimaryProf), Rename ($btnRenameProf), Delete ($btnDelProf),
+    Auto-Detect Domain ($btnAutoDetect), Connect & Switch Profile ($btnConnect),
+    and Switch Cloud Only (Skip AD) ($btnCloudOnly).
+- Column 1 (Active Directory, X=15):
+  - Test Active Directory ($btnTestAD, Row 1): Performs live LDAP RootDSE bind.
+  - Install RSAT (Optional) ($btnRunRsatSetup, Row 2): Runs Setup-RSAT-ActiveDirectory.bat
+    to install RSAT Active Directory tools via Windows Capabilities (DISM).
+  - Switch AD Account / Domain ($btnSwitchAdAcct, Row 3): Opens Show-DomainSwitcher.
+- Column 2 (Microsoft Graph, X=278):
+  - Test Microsoft Graph ($btnTestM365, Row 1): Restores active profile MgContext.json,
+    calls Get-MgContext, checks scopes, and probes /organization.
+  - 1. Setup Microsoft Graph ($btnRunGraphSetup, Row 2): Runs Setup-MicrosoftGraph.bat
+    using active IR_GRAPH_SETUP_DIR and Set-MgGraphOption -DisableLoginByWAM $true.
+  - Switch Graph Account ($btnSwitchGraphAcct, Row 3): Runs Disconnect-MgGraph and
+    device-code authentication with WAM disabled for dual-account admins.
+- Column 3 (Google GAM7, X=546):
+  - Test Google GAM7 ($btnTestGoogle, Row 1): Verifies gam.exe, oauth2.txt inside active
+    profile GAMCFGDIR, and runs gam oauth verify.
+  - 2. Setup Google GAM7 ($btnRunGamSetup, Row 2): Runs Setup-GoogleWorkspace-GAM.bat
+    to install GAM7 and authorize Google Cloud OAuth in active GAMCFGDIR.
+  - Switch GAM Account ($btnSwitchGamAcct, Row 3): Runs gam oauth delete + create + verify
+    scoped to the active profile GAMCFGDIR.
 
 TAB 2: INCIDENT CONTAINMENT DECK
 - Find Users ($btnSearch): Queries AD using Ambiguous Name Resolution (ANR) filter:
@@ -120,14 +118,23 @@ TAB 3: DEEP ISOLATION & MAILBOX RULES AUDITOR
   /v1.0/users/{id} with {"accountEnabled": false}, closing the 30-minute sync gap.
 - Suspend Google User (GAM 7) ($btnSuspendGoogle): Runs gam update user <id> suspended on
   with 3-pass convergence verification via gam info user.
-- Wipe Cloud MFA Methods & Rogue Grants ($btnWipeCloudTokens): Revokes Entra refresh
-  tokens, deletes OAuth2 permission grants, deletes non-password authentication
-  methods (SMS, TOTP, FIDO), and executes gam user <id> deprovision.
-- Expire AD Account Restrict Workstations ($btnLockADWorkstations): Sets accountExpires
+- Wipe Entra 2FA Methods ($btnWipeEntraMfa, -Scope EntraMfa): Enumerates and
+  deletes non-password Entra authentication methods (SMS, Authenticator, FIDO2, OATH, TAP, Email).
+- Wipe Entra OAuth Grants ($btnWipeEntraOAuth, -Scope EntraOAuth): Revokes Entra
+  refresh tokens and deletes delegated OAuth2 permission grants.
+- Wipe Google 2FA Methods ($btnWipeGoogle2fa, -Scope GoogleTwoStep): Runs
+  gam user <id> turnoff2sv to turn off Google 2-Step Verification (2FA) enrollments,
+  security keys, and backup codes.
+- Wipe Google OAuth Grants ($btnWipeGoogleTokens, -Scope GoogleTokens): Runs
+  gam user <id> deprovision to revoke 3rd-party Google OAuth grants, App-Specific
+  Passwords (ASPs), and 2SV backup codes.
+- Wipe All (Entra + GAM7) ($btnWipeCloudMfa, -Scope All): Executes all four
+  cloud persistence wipe steps sequentially.
+- Expire AD Account & Restrict Workstations ($btnExpireAdNow): Sets accountExpires
   to past FileTime (causing Kerberos KDC error 0x12) and sets userWorkstations to INCIDENT-LOCK.
-- Audit M365 Gmail Rules ($btnAuditRules): Inspects Graph inbox messageRules and GAM7
+- Audit M365 & Gmail Rules ($btnAuditForwardingRules): Inspects Graph inbox messageRules and GAM7
   Gmail forwarding/filters, flagging external forwards and stealth deletes.
-- Disable Rule / Delete Rule / Disable Suspicious: Remediates rogue inbox rules via Graph/GAM7.
+- Disable Rule / Enable Rule / Delete Rule / Disable Suspicious: Remediates rogue inbox rules via Graph/GAM7.
 
 TAB 4: MULTI-SOURCE SECURITY EVENT TRIAGE
 - Pull Events (AD + Entra + Google) ($btnPullEvents): Queries DC security event logs

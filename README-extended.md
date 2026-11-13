@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.54](https://img.shields.io/badge/Version-1.1.54-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.57](https://img.shields.io/badge/Version-1.1.57-emerald.svg)](CHANGELOG.md)
 
 ### Exhaustive Architectural Specification & Control-by-Control Engineering Reference
 **Target Audience:** Cybersecurity Engineers, SOC Leads, Systems Architects, and Security Developers
@@ -99,7 +99,7 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 * **Underlying Functions:** `Show-UpdateCheckWindow`, `Show-ChangelogWindow`
 * **Mechanics:** Queries GitHub Releases (`releases/latest`) and `VERSION` on `main` (with SHA-busted caching and UTF-8 byte decoding). Displays colorized status text and release notes; **Update & Restart** validates `.ps1` syntax (and `Setup-*.bat` sync) or auto-recompiles `IncidentResponse.exe` locally via `PS2EXE` with `MZ` PE-header verification before hot-swapping and restarting.
 
-#### `Switch Domain / Profile` (`$btnSwitchDomain`) & Startup Prompt (`Show-PrimaryProfilePromptSafe`)
+#### Domain Profile & AD Switcher (`Show-DomainSwitcher` via Tab 1 `Manage / AD...` & `Switch AD Account / Domain`) & Startup Prompt (`Show-PrimaryProfilePromptSafe`)
 * **Underlying Functions:** `Show-DomainSwitcher`, `Show-PrimaryProfilePromptSafe`, `Switch-ActiveDomainProfileSafe`
 * **Mechanics:**
   * **First-Launch Primary Profile Prompt (`Show-PrimaryProfilePromptSafe`):** Checks `Profiles.json` (`SchemaVersion = 2`, `PrimaryConfigured` flag). If no profile is marked `IsPrimary = $true`, prompts whether the current environment is the operator's **Primary (Home) Domain Profile** or if they are temporarily assisting another domain—preserving a clean Primary slot until they return home.
@@ -116,37 +116,21 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 ### Tab 1: Integrations & Pre-Flight Setup
 
 #### Active Domain Profile Bar (`$cmbDiagProfile`, `$btnDiagSwitchProfile`, `$btnDiagNewProfile`, `$btnDiagManageProfiles`)
-* **Mechanics:** Mirrors the active **Domain Profile** selector directly onto Tab 1 for single-click profile switching (`Switch Profile`), quick creation (`+ New Profile`), or opening the full switcher (`Manage / AD...`).
+* **Mechanics:** Places **Domain Profile** switching, creation (`+ New Profile`), and full AD/profile configuration (`Manage / AD...`) directly on Tab 1.
 
-#### `Test Active Directory` (`$btnTestAD`)
-* **Underlying Function:** `Invoke-VerifyAD`
-* **Mechanics:** Initiates a live connection to `LDAP://<targetServer>/RootDSE`. Validates `defaultNamingContext` and checks Kerberos/LDAP authentication. Returns domain name, DC name, and binding response time.
-
-#### `Test Microsoft Graph` (`$btnTestM365`)
-* **Underlying Function:** `Invoke-VerifyGraph`
-* **Mechanics:** Restores the active profile's `MgContext.json` if needed, calls `Get-MgContext`, validates delegated access tokens and scopes (`User.RevokeSessions.All`, `Directory.AccessAsUser.All`), and probes `/v1.0/organization` to confirm tenant connectivity.
-
-#### `Test Google GAM7` (`$btnTestGoogle`)
-* **Underlying Function:** `Invoke-VerifyGAM`
-* **Mechanics:** Resolves `gam.exe`, scopes `GAMCFGDIR` to the active profile directory (`%USERPROFILE%\.gam` for Default/Primary or `Profiles\<id>\gam`), verifies `oauth2.txt`, and runs `gam oauth verify`.
-
-#### `1. Setup Microsoft Graph` (`$btnRunGraphSetup`)
-* **Underlying Function:** `Launch-SetupScript` targeting `Setup-MicrosoftGraph.bat`
-* **Mechanics:** Executes the embedded Base64 payload or standalone batch file with `IR_GRAPH_SETUP_DIR` set to the active profile. Installs lightweight SDK modules (`Microsoft.Graph.Authentication`, `Microsoft.Graph.Users`, `Microsoft.Graph.Users.Actions`), sets `Set-MgGraphOption -DisableLoginByWAM $true`, and triggers device-code authentication (`Connect-MgGraph -UseDeviceAuthentication`).
-
-#### `2. Setup Google GAM7` (`$btnRunGamSetup`)
-* **Underlying Function:** `Launch-SetupScript` targeting `Setup-GoogleWorkspace-GAM.bat`
-* **Mechanics:** Downloads the verified release of GAM7 from GitHub, validates SHA-256 hash, configures PATH, and initiates Google Cloud project authorization and OAuth consent inside the active profile's `GAMCFGDIR`.
-
-#### `3. Install RSAT (Optional)` (`$btnRunRsatSetup`)
-* **Underlying Function:** `Launch-SetupScript` targeting `Setup-RSAT-ActiveDirectory.bat`
-* **Mechanics:** Invokes Windows DISM / Capabilities to install the optional `Rsat.ActiveDirectory.DS-LDS.Tools` feature without requiring installation media.
-
-#### `Switch Graph Account` (`$btnSwitchGraphAcct`), `Switch GAM Account` (`$btnSwitchGamAcct`), `Switch AD Account / Domain` (`$btnSwitchAdAcct`)
-* **Mechanics:** Decouples cloud and directory admin credentials from the daily Windows login session:
-  * **Switch Graph Account:** Runs `Disconnect-MgGraph` followed by device-code authentication with `DisableLoginByWAM $true`, persisting the resulting `Setup.log` and `MgContext.json` snapshot into the active profile.
-  * **Switch GAM Account:** Runs `gam oauth delete` and `gam oauth create` + `gam oauth verify` scoped to the active profile's `GAMCFGDIR`.
-  * **Switch AD Account / Domain:** Opens `Show-DomainSwitcher` for same-domain alternate AD credentials or cross-domain switching.
+#### Service-Column Action Matrix (Columns 1–3)
+* **Column 1 — Active Directory (`X = 15`):**
+  * **`Test Active Directory` (`$btnTestAD` -> `Invoke-VerifyAD`, Row 1):** Initiates a live connection to `LDAP://<targetServer>/RootDSE`. Validates `defaultNamingContext`, checks Kerberos/LDAP auth, and returns domain name + engine (`RSAT` vs `Native .NET LDAP`).
+  * **`Install RSAT (Optional)` (`$btnRunRsatSetup` -> `Setup-RSAT-ActiveDirectory.bat`, Row 2):** Invokes Windows DISM / Capabilities to install `Rsat.ActiveDirectory.DS-LDS.Tools` without installation media.
+  * **`Switch AD Account / Domain` (`$btnSwitchAdAcct` -> `Show-DomainSwitcher`, Row 3):** Opens the Domain Profile & AD Switcher modal for alternate credentials or cross-domain/remote DC connections.
+* **Column 2 — Microsoft Graph (`X = 278`):**
+  * **`Test Microsoft Graph` (`$btnTestM365` -> `Invoke-VerifyGraph`, Row 1):** Restores the active profile's `MgContext.json` if needed, calls `Get-MgContext`, validates delegated access tokens and scopes (`User.RevokeSessions.All`, `Directory.AccessAsUser.All`), and probes `/v1.0/organization`.
+  * **`1. Setup Microsoft Graph` (`$btnRunGraphSetup` -> `Setup-MicrosoftGraph.bat`, Row 2):** Executes the embedded Base64 payload or standalone batch file with `IR_GRAPH_SETUP_DIR` set to the active profile, sets `Set-MgGraphOption -DisableLoginByWAM $true`, and runs `Connect-MgGraph -UseDeviceAuthentication`.
+  * **`Switch Graph Account` (`$btnSwitchGraphAcct`, Row 3):** Runs `Disconnect-MgGraph` followed by device-code authentication with `DisableLoginByWAM $true`, persisting `Setup.log` and `MgContext.json` inside the active profile.
+* **Column 3 — Google GAM7 (`X = 546`):**
+  * **`Test Google GAM7` (`$btnTestGoogle` -> `Invoke-VerifyGAM`, Row 1):** Resolves `gam.exe`, scopes `GAMCFGDIR` to the active profile directory (`%USERPROFILE%\.gam` for Default/Primary or `Profiles\<id>\gam`), verifies `oauth2.txt`, and runs `gam oauth verify`.
+  * **`2. Setup Google GAM7` (`$btnRunGamSetup` -> `Setup-GoogleWorkspace-GAM.bat`, Row 2):** Downloads verified GAM7 release from GitHub, validates SHA-256 hash, configures PATH, and authorizes Google Cloud OAuth inside the active profile's `GAMCFGDIR`.
+  * **`Switch GAM Account` (`$btnSwitchGamAcct`, Row 3):** Runs `gam oauth delete` + `gam oauth create` + `gam oauth verify` scoped to the active profile's `GAMCFGDIR`.
 
 ---
 
@@ -205,19 +189,18 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 * **Underlying Function:** `Set-GamUserSuspendedSafe`
 * **Mechanics:** Executes `gam update user <id> suspended on`. Performs a 3-pass convergence loop querying `gam info user <id>` with regex matching to verify suspension across Google directory clusters.
 
-#### `Wipe Cloud MFA Methods, OAuth App Grants, App Passwords Backup Codes` (`$btnWipeCloudTokens`)
-* **Underlying Function:** `Invoke-WipeCloudMfaAndTokensSafe`
-* **Mechanics:**
-  1. Revokes Entra ID refresh tokens.
-  2. Enumerates `/v1.0/users/{id}/oauth2PermissionGrants` and deletes all delegated consent entries.
-  3. Enumerates `/v1.0/users/{id}/authentication/methods` and issues DELETE requests against phone, TOTP, and FIDO methods.
-  4. Executes `gam user <id> deprovision` to revoke Google application passwords, 2SV backup codes, and authorized apps.
+#### Separated Cloud Persistence Eradication Row (`Invoke-WipeCloudMfaAndTokensSafe -Scope <Scope>`)
+* **`Wipe Entra 2FA Methods` (`$btnWipeEntraMfa`, `-Scope EntraMfa`):** Enumerates `/v1.0/users/{id}/authentication/methods` and issues DELETE requests against non-password factors (Microsoft Authenticator, SMS/phone, FIDO2 security keys, Software OATH tokens, Temporary Access Passes, Email methods).
+* **`Wipe Entra OAuth Grants` (`$btnWipeEntraOAuth`, `-Scope EntraOAuth`):** Revokes Entra ID refresh tokens (`revokeSignInSessions`) and deletes all `/v1.0/users/{id}/oauth2PermissionGrants` delegated consent entries.
+* **`Wipe Google 2FA Methods` (`$btnWipeGoogle2fa`, `-Scope GoogleTwoStep`):** Executes `gam user <id> turnoff2sv` + `gam user <id> signout` to turn off Google 2-Step Verification (2FA) enrollments, security keys, and backup verification codes.
+* **`Wipe Google OAuth Grants` (`$btnWipeGoogleTokens`, `-Scope GoogleTokens`):** Executes `gam user <id> deprovision` + `gam user <id> signout` to revoke third-party Google OAuth app grants, Application-Specific Passwords (ASPs), and 2SV backup codes.
+* **`Wipe All (Entra + GAM7)` (`$btnWipeCloudMfa`, `-Scope All`):** Runs all four cloud persistence eradication steps in a single click.
 
-#### `Expire AD Account Restrict Workstations` (`$btnLockADWorkstations`)
+#### `Expire AD Account & Restrict Workstations` (`$btnExpireAdNow`)
 * **Underlying Function:** `Set-ADExtendedLockdownSafe`
 * **Mechanics:** Sets `accountExpires` to `DateTime.UtcNow.AddMinutes(-5).ToFileTime()`, triggering Kerberos KDC error `0x12`. Writes sentinel string `INCIDENT-LOCK` to `userWorkstations` to invalidate NTLM network logons.
 
-#### `Audit M365 Gmail Rules` (`$btnAuditRules`)
+#### `Audit M365 & Gmail Rules` (`$btnAuditForwardingRules`)
 * **Underlying Function:** `Get-UserForwardingAndInboxRulesSafe`
 * **Mechanics:** Queries Microsoft Graph `/v1.0/users/{id}/mailFolders/inbox/messageRules` and executes `gam user <id> show forward` and `gam user <id> show filters`. Parses actions for external forwards, stealth deletes, and hidden folder moves, populating `$gridRules`.
 

@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.54)
+SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.57)
 ================================================================================
 
 OVERVIEW:
@@ -53,18 +53,17 @@ STEP 1: PRE-FLIGHT VERIFICATION & INTEGRATION SETUP (TAB 1)
      to switch or create isolated Domain Profiles when supporting multiple domains.
   3. Inspect the live connectivity indicators for Active Directory, Microsoft
      Graph, and Google Workspace (GAM7).
-  4. If any integration requires configuration:
-     - Click "1. Setup Microsoft Graph" to launch the interactive module installer
-       and device-code sign-in prompt (WAM disabled for dual-account admins).
-     - Click "2. Setup Google GAM7" to install GAM7 and authorize Google Cloud OAuth.
-     - Click "3. Install RSAT (Optional)" if you wish to add native AD cmdlets.
-  5. For dual-account workflows, use "Switch Graph Account", "Switch GAM Account",
-     or "Switch AD Account / Domain" on Tab 1 at any time.
-  6. Click "Test Active Directory", "Test Microsoft Graph", or "Test Google GAM7"
-     at any time to re-verify live operational readiness.
+  4. Integration actions are organized into 3 vertical service columns:
+     - Column 1 (Active Directory): "Test Active Directory" (Row 1) |
+       "Install RSAT (Optional)" (Row 2) | "Switch AD Account / Domain" (Row 3)
+     - Column 2 (Microsoft Graph): "Test Microsoft Graph" (Row 1) |
+       "1. Setup Microsoft Graph" (Row 2) | "Switch Graph Account" (Row 3)
+     - Column 3 (Google GAM7): "Test Google GAM7" (Row 1) |
+       "2. Setup Google GAM7" (Row 2) | "Switch GAM Account" (Row 3)
 
 STEP 2: DOMAIN PROFILES & SWITCHING TARGET DOMAINS
-  1. Click "Switch Domain / Profile" in the upper-right header (or "Manage / AD...").
+  1. On Tab 1 ("1. Setup"), click "Manage / AD..." in the top Profile bar (or
+     "Switch AD Account / Domain" in Row 1).
   2. Select an existing Domain Profile or click "+ New" to create an isolated
      profile (AD, Graph, and GAM7 settings), "Set Primary", "Rename", or "Delete".
   3. Click "Auto-Detect Domain" to query the local machine's primary domain, or
@@ -108,9 +107,15 @@ STEP 5: APPLYING DEEP ACCOUNT ISOLATION (TAB 3)
   2. "Block Entra Sign-In (Instant)": Directly patches accountEnabled = false on
      Microsoft Graph, blocking cloud access immediately without waiting for directory sync.
   3. "Suspend Google User": Freezes the user account in Google Admin SDK.
-  4. "Wipe Cloud MFA Methods & Rogue Grants": Purges non-password MFA registrations
-     (authenticator apps, phone numbers, FIDO keys), revokes third-party OAuth app
-     grants, and clears Google app passwords and backup codes.
+  4. Granular Cloud Persistence Wipe Buttons (5 Symmetric Red Controls):
+     - "Wipe Entra 2FA Methods": Removes non-password Entra 2FA methods
+       (Authenticator, Phone/SMS, FIDO2, Software OATH, Temporary Access Pass, Email).
+     - "Wipe Entra OAuth Grants": Revokes Entra refresh tokens & 3rd-party OAuth grants.
+     - "Wipe Google 2FA Methods": Runs "gam user <id> turnoff2sv" to turn off
+       Google 2-Step Verification (2FA) enrollments, security keys & backup codes.
+     - "Wipe Google OAuth Grants": Runs "gam user <id> deprovision" to revoke
+       3rd-party Google OAuth app grants, App-Specific Passwords & backup codes.
+     - "Wipe All (Entra + GAM7)": Executes all four cloud wipes sequentially.
   5. "Expire AD Account & Restrict Workstations": Sets accountExpires to the past
      (forcing Kerberos KDC error 0x12) and locks userWorkstations to INCIDENT-LOCK.
 

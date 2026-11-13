@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.54)
+SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.57)
 ================================================================================
 
 Security Incident Response Automator can be launched or compiled in seconds
@@ -39,7 +39,8 @@ To package the script and its embedded setup scripts into a single standalone bi
   scripts if any modules or CLI tools need to be installed.
 - Use "Switch Graph Account", "Switch GAM Account", or "Switch AD Account /
   Domain" on Tab 1 when using separate elevated admin accounts.
-- For multi-domain environments, click "Switch Domain / Profile" (top-right) or
-  use the Tab 1 Profile bar to create/switch isolated Domain Profiles or run
-  "Switch Cloud Only (Skip AD)" when off-VPN.
+- For multi-domain environments, use the Tab 1 Profile bar ("Switch Profile",
+  "+ New Profile", "Manage / AD...") or "Switch AD Account / Domain" to
+  create/switch isolated Domain Profiles or run "Switch Cloud Only (Skip AD)"
+  when off-VPN.
 ================================================================================

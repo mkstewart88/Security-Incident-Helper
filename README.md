@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.54](https://img.shields.io/badge/Version-1.1.54-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.57](https://img.shields.io/badge/Version-1.1.57-emerald.svg)](CHANGELOG.md)
 
 A high-performance, domain-agnostic administrative incident containment console and security forensics triage utility for hybrid enterprise environments spanning **Active Directory Domain Services (AD DS)**, **Microsoft Entra ID (Microsoft 365)**, and **Google Workspace**.
 
@@ -145,21 +145,19 @@ To package the entire console and its embedded setup scripts into a single stand
 ## Operator Step-by-Step User Guide
 
 ### 1. Pre-Flight Verification & Integration Setup (Tab 1)
-Upon launch, if no **Primary Domain Profile** has been configured yet, a startup prompt asks whether this workstation/environment is your **Primary (Home) Domain Profile** or if you are temporarily assisting another domain—keeping your clean Primary slot reserved until you return to your home domain. You can also mark or change your Primary Profile at any time via **Switch Domain / Profile**.
+Upon launch, if no **Primary Domain Profile** has been configured yet, a startup prompt asks whether this workstation/environment is your **Primary (Home) Domain Profile** or if you are temporarily assisting another domain—keeping your clean Primary slot reserved until you return to your home domain. You can also mark or change your Primary Profile at any time via **Manage / AD...** or **Switch AD Account / Domain** on Tab 1.
 
 1. Navigate to **Tab 1 (`1. Setup`)**.
 2. Use the top **Profile** bar (`Switch Profile`, `+ New Profile`, `Manage / AD...`) to select or create a Domain Profile if supporting multiple environments.
 3. Review the connection indicators for **Active Directory**, **Microsoft Graph**, and **Google Workspace (GAM7)**.
-4. If an integration displays unverified status:
-   * Click **1. Setup Microsoft Graph** to launch the interactive module installer and device-code sign-in flow (`DisableLoginByWAM` enabled so elevated admin accounts stay decoupled from your Windows logon).
-   * Click **2. Setup Google GAM7** to install GAM7 and authorize Google Cloud project credentials for the active profile.
-   * Click **3. Install RSAT (Optional)** if you wish to add native Active Directory cmdlets.
-5. For dual-account setups (e.g., standard daily Windows login paired with elevated cloud/AD admin accounts), click **Switch Graph Account**, **Switch GAM Account**, or **Switch AD Account / Domain** on Tab 1 at any time.
-6. Click **Test Active Directory**, **Test Microsoft Graph**, or **Test Google GAM7** to re-verify live connectivity.
+4. Actions are grouped by **service column** so each provider's **Test** (Row 1), **Setup** (Row 2), and **Switch** (Row 3) controls line up vertically:
+   * **Column 1 (Active Directory):** **Test Active Directory** | **Install RSAT (Optional)** | **Switch AD Account / Domain**
+   * **Column 2 (Microsoft Graph):** **Test Microsoft Graph** | **1. Setup Microsoft Graph** *(device-code sign-in with `DisableLoginByWAM` enabled)* | **Switch Graph Account**
+   * **Column 3 (Google GAM7):** **Test Google GAM7** | **2. Setup Google GAM7** | **Switch GAM Account**
 
 ### 2. Managing Domain Profiles & Switching Target Domains
 If operating from a non-domain-joined laptop or managing multiple corporate/client domains and cloud tenants:
-1. Click the **Switch Domain / Profile** button in the upper-right corner (or **Manage / AD...** on Tab 1).
+1. Open **Tab 1 (`1. Setup`)** and click **Manage / AD...** in the top Profile bar (or **Switch AD Account / Domain** in the Active Directory row).
 2. Select an existing **Domain Profile** or click **+ New** to create an isolated profile (`%LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>`), **Set Primary** to designate your home domain, **Rename**, or **Delete**.
 3. Click **Auto-Detect Domain** to populate the local joined domain, or enter a target Domain FQDN or Domain Controller IP/hostname (e.g. `contoso.com`).
 4. Check **Use alternate Domain Admin credentials (same domain or remote DC)** and enter administrative credentials (`DOMAIN\admin` and Password) if switching AD accounts or connecting from a workgroup PC (passwords stay in memory only).
@@ -190,7 +188,12 @@ For high-severity or suspected Business Email Compromise (BEC) incidents:
 1. Navigate to **Tab 3 (`3. Deep Isolation`)**.
 2. **Block Entra Sign-In (Instant):** Directly writes `accountEnabled = false` to Microsoft Graph, blocking cloud access immediately without waiting for directory sync.
 3. **Suspend Google User:** Freezes the user account in Google Admin SDK.
-4. **Wipe Cloud MFA Methods & Rogue Grants:** Purges non-password MFA registrations (authenticator apps, phone numbers, FIDO keys), revokes third-party OAuth app authorizations, and clears Google app passwords/backup codes.
+4. **Granular Cloud Persistence Wipe Actions (5 Symmetric Red Controls with Tooltips):** Run individually or all together:
+   * **Wipe Entra 2FA Methods:** Purges non-password Entra MFA registrations (Microsoft Authenticator, Phone/SMS, FIDO2 security keys, Software OATH tokens, Temporary Access Passes, and Email methods).
+   * **Wipe Entra OAuth Grants:** Revokes Entra refresh tokens and deletes third-party OAuth permission grants (`oauth2PermissionGrants`).
+   * **Wipe Google 2FA Methods:** Runs `gam user <id> turnoff2sv` to turn off Google 2-Step Verification (2FA) enrollments, security keys, and backup verification codes.
+   * **Wipe Google OAuth Grants:** Runs `gam user <id> deprovision` to revoke third-party Google OAuth app grants, Application-Specific Passwords (ASPs), and 2SV backup codes.
+   * **Wipe All (Entra + GAM7):** Executes all four cloud persistence wipe steps sequentially in one click.
 5. **Expire AD Account & Restrict Workstations:** Sets `accountExpires` to the past (forcing Kerberos KDC error `0x12`) and locks `userWorkstations` to `INCIDENT-LOCK`.
 
 ### 6. Auditing and Remediating Mailbox Rules (Tab 3)

@@ -25,7 +25,11 @@ if errorlevel 2 exit /b 0
 
 set "GRAPH_SOURCE=%~f0"
 set "GRAPH_PSFILE=%TEMP%\MicrosoftGraphSetup_%RANDOM%_%RANDOM%_%RANDOM%.ps1"
-set "GRAPH_LOG=%LOCALAPPDATA%\MicrosoftGraphSetup\Setup.log"
+if defined IR_GRAPH_SETUP_DIR (
+    set "GRAPH_LOG=%IR_GRAPH_SETUP_DIR%\Setup.log"
+) else (
+    set "GRAPH_LOG=%LOCALAPPDATA%\MicrosoftGraphSetup\Setup.log"
+)
 
 if not exist "%TEMP%" (
     echo ERROR: Windows temporary folder is unavailable.
@@ -86,7 +90,11 @@ $ProgressPreference = 'SilentlyContinue'
 # CONFIGURATION
 # ============================================================
 
-$LogDirectory = Join-Path $env:LOCALAPPDATA 'MicrosoftGraphSetup'
+$LogDirectory = if (-not [string]::IsNullOrWhiteSpace($env:IR_GRAPH_SETUP_DIR)) {
+    [Environment]::ExpandEnvironmentVariables($env:IR_GRAPH_SETUP_DIR)
+} else {
+    Join-Path $env:LOCALAPPDATA 'MicrosoftGraphSetup'
+}
 $LogFile = Join-Path $LogDirectory 'Setup.log'
 
 # Keep these permissions aligned with the application's Graph operations.
@@ -345,6 +353,12 @@ try {
 
     # Disconnect an existing Graph session so that the installer
     # cannot accidentally verify an older account or old scopes.
+
+    try {
+        if (Get-Command -Name 'Set-MgGraphOption' -ErrorAction SilentlyContinue) {
+            Set-MgGraphOption -DisableLoginByWAM $true -ErrorAction SilentlyContinue
+        }
+    } catch {}
 
     $ExistingContext = Get-MgContext -ErrorAction SilentlyContinue
 

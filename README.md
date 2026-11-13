@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.53](https://img.shields.io/badge/Version-1.1.53-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.54](https://img.shields.io/badge/Version-1.1.54-emerald.svg)](CHANGELOG.md)
 
 A high-performance, domain-agnostic administrative incident containment console and security forensics triage utility for hybrid enterprise environments spanning **Active Directory Domain Services (AD DS)**, **Microsoft Entra ID (Microsoft 365)**, and **Google Workspace**.
 
@@ -92,7 +92,7 @@ Filterable, searchable audit logging with CSV field sanitization, recording ever
 
 * **Single-Click Universal Containment:** Reset Active Directory password (with forced change at next logon), invalidate Microsoft 365 OAuth refresh tokens, terminate Google Workspace web/mobile sessions, and disable directory accounts in under 10 seconds.
 * **Dual Active Directory Engine:** Operates seamlessly via native .NET `System.DirectoryServices` (LDAP/ADSI over TCP/389 or LDAPS over TCP/636) without requiring Remote Server Administration Tools (RSAT), while automatically leveraging the RSAT `ActiveDirectory` module if present.
-* **Multi-Domain Auto-Detection:** Automatically discovers local domain membership, forest roots, and DNS suffix lists, allowing technicians to switch seamlessly between client environments with one click.
+* **Multi-Domain Profiles & Auto-Detection:** Automatically discovers local domain membership, forest roots, and DNS suffix lists, with isolated **Domain Profiles** (`Profiles\<id>`) for AD, Microsoft Graph, and GAM7—making single-domain use zero-step while letting multi-tenant technicians switch environments in one click.
 * **Deep Account Isolation:**
   * Immediately disables Entra ID sign-in via Microsoft Graph REST API, closing the 30-minute Entra Connect synchronization gap.
   * Suspends Google Workspace accounts via GAM7 CLI with multi-pass convergence verification.
@@ -145,22 +145,26 @@ To package the entire console and its embedded setup scripts into a single stand
 ## Operator Step-by-Step User Guide
 
 ### 1. Pre-Flight Verification & Integration Setup (Tab 1)
-Upon launch, the application runs automated pre-flight probes:
-1. Navigate to **Tab 1 (`1. Setup`)**.
-2. Review the connection indicators for **Active Directory**, **Microsoft Graph**, and **Google Workspace (GAM7)**.
-3. If an integration displays unverified status:
-   * Click **1. Setup Microsoft Graph** to launch the interactive module installer and sign-in flow.
-   * Click **2. Setup Google GAM7** to install GAM7 and authorize Google Cloud project credentials.
-   * Click **3. Install RSAT (Optional)** if you wish to add native Active Directory cmdlets.
-4. Click **Test Active Directory**, **Test Microsoft Graph**, or **Test Google GAM7** at any time to re-verify live connectivity.
+Upon launch, if no **Primary Domain Profile** has been configured yet, a startup prompt asks whether this workstation/environment is your **Primary (Home) Domain Profile** or if you are temporarily assisting another domain—keeping your clean Primary slot reserved until you return to your home domain. You can also mark or change your Primary Profile at any time via **Switch Domain / Profile**.
 
-### 2. Switching Target Domains or Domain Controllers
-If operating from a non-domain-joined laptop or managing multiple school districts/tenants:
-1. Click the **Switch Domain / DC** button in the upper-right corner.
-2. Click **[Auto-Detect Domain]** to automatically populate the primary joined domain, or type the target Domain FQDN (e.g. `contoso.com`).
-3. Optionally specify an explicit Domain Controller IP or hostname.
-4. Enter administrative credentials (`DOMAIN\Administrator` and Password) if authenticating from a workgroup workstation.
-5. Click **Verify & Connect**. The console verifies LDAP RootDSE connectivity and caches the domain profile.
+1. Navigate to **Tab 1 (`1. Setup`)**.
+2. Use the top **Profile** bar (`Switch Profile`, `+ New Profile`, `Manage / AD...`) to select or create a Domain Profile if supporting multiple environments.
+3. Review the connection indicators for **Active Directory**, **Microsoft Graph**, and **Google Workspace (GAM7)**.
+4. If an integration displays unverified status:
+   * Click **1. Setup Microsoft Graph** to launch the interactive module installer and device-code sign-in flow (`DisableLoginByWAM` enabled so elevated admin accounts stay decoupled from your Windows logon).
+   * Click **2. Setup Google GAM7** to install GAM7 and authorize Google Cloud project credentials for the active profile.
+   * Click **3. Install RSAT (Optional)** if you wish to add native Active Directory cmdlets.
+5. For dual-account setups (e.g., standard daily Windows login paired with elevated cloud/AD admin accounts), click **Switch Graph Account**, **Switch GAM Account**, or **Switch AD Account / Domain** on Tab 1 at any time.
+6. Click **Test Active Directory**, **Test Microsoft Graph**, or **Test Google GAM7** to re-verify live connectivity.
+
+### 2. Managing Domain Profiles & Switching Target Domains
+If operating from a non-domain-joined laptop or managing multiple corporate/client domains and cloud tenants:
+1. Click the **Switch Domain / Profile** button in the upper-right corner (or **Manage / AD...** on Tab 1).
+2. Select an existing **Domain Profile** or click **+ New** to create an isolated profile (`%LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>`), **Set Primary** to designate your home domain, **Rename**, or **Delete**.
+3. Click **Auto-Detect Domain** to populate the local joined domain, or enter a target Domain FQDN or Domain Controller IP/hostname (e.g. `contoso.com`).
+4. Check **Use alternate Domain Admin credentials (same domain or remote DC)** and enter administrative credentials (`DOMAIN\admin` and Password) if switching AD accounts or connecting from a workgroup PC (passwords stay in memory only).
+5. Click **Connect & Switch Profile** to verify LDAP RootDSE connectivity and switch the active profile, or click **Switch Cloud Only (Skip AD)** for off-VPN cloud triage when an on-premises Domain Controller is unreachable.
+6. Click **Check for Updates** in the upper header at any time to check GitHub releases, **View Changelog**, or run **Update & Restart** (which validates and auto-recompiles `IncidentResponse.exe` locally when running as an `.exe`).
 
 ### 3. Locating and Verifying a Compromised Identity (Tab 2)
 1. Navigate to **Tab 2 (`2. Containment`)**.

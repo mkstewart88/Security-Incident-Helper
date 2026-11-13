@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.53)
+SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.54)
 ================================================================================
 
 ARCHITECTURAL SPECIFICATION & EXHAUSTIVE CONTROL-BY-CONTROL ENGINEERING REFERENCE
@@ -53,28 +53,49 @@ When a user is selected:
 ================================================================================
 
 TOP HEADER BAR:
+- Check for Updates ($btnCheckUpdates) / View Changelog ($btnViewChangelog):
+  Queries GitHub releases/latest and VERSION (with UTF-8 decoding and commit SHA
+  cache bypass). Shows colorized status & notes; Update & Restart validates .ps1
+  syntax or locally auto-recompiles IncidentResponse.exe via PS2EXE with MZ
+  header verification before hot-swapping and restarting.
 - [ Light Mode ] / [ Dark Mode ] ($btnThemeToggle):
   Invokes Apply-AppTheme($Dark). Dynamically recolors all forms, headers,
   action logs, decision boxes, input controls, and data grids without reloading.
-- Switch Domain / DC ($btnSwitchDomain):
-  Opens modal dialog for non-domain-joined management stations.
-  - [Auto-Detect Domain]: Runs Get-DiscoveredLocalDomainSafe to query local
-    machine domain membership and DNS suffix lists.
-  - Target Domain: Domain FQDN (remembered across sessions).
-  - Domain Controller (Optional): Explicit DC hostname or IP.
-  - Operator Credentials: Validated in-memory as System.Management.Automation.PSCredential.
-  - Verify & Connect: Executes LDAP RootDSE handshake to confirm connectivity.
+- Switch Domain / Profile ($btnSwitchDomain) & Show-PrimaryProfilePromptSafe:
+  Prompts on first launch if no Primary Domain Profile is configured yet,
+  allowing technicians to reserve their clean Primary slot if currently assisting
+  another domain. Manages isolated Domain Profiles stored in Profiles.json and
+  %LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id> (with LastDomainConnection.json
+  caching last domain/DC/username hints without ever saving passwords).
+  - Profile Controls: $cmbProf, + New ($btnNewProf), Set Primary ($btnSetPrimaryProf),
+    Rename ($btnRenameProf), Delete ($btnDelProf).
+  - Auto-Detect Domain ($btnAutoDetect): Runs Get-DiscoveredLocalDomainSafe.
+  - Target AD Domain ($txtDlgServer) & Alternate Credentials ($chkUseAlt, $txtDlgUser,
+    $txtDlgPass): Held strictly in memory as System.Management.Automation.PSCredential.
+  - Connect & Switch Profile ($btnConnect): Runs LDAP RootDSE handshake & activates profile.
+  - Switch Cloud Only (Skip AD) ($btnCloudOnly): Switches Graph/GAM profile context
+    without requiring on-prem Domain Controller connectivity.
 
 TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
+- Active Profile Bar ($cmbDiagProfile, Switch Profile $btnDiagSwitchProfile,
+  + New Profile $btnDiagNewProfile, Manage / AD... $btnDiagManageProfiles):
+  Provides inline switching, creation, and management of Domain Profiles.
 - Test Active Directory ($btnTestAD): Performs live LDAP RootDSE bind.
-- Test Microsoft Graph ($btnTestM365): Calls Get-MgContext, checks scopes, probes /organization.
-- Test Google GAM7 ($btnTestGoogle): Verifies gam.exe, oauth2.txt, runs gam oauth verify.
-- 1. Setup Microsoft Graph ($btnSetupM365): Runs Setup-MicrosoftGraph.bat to install
-  lightweight Graph modules and trigger device code authentication.
-- 2. Setup Google GAM7 ($btnSetupGAM): Runs Setup-GoogleWorkspace-GAM.bat to install
-  GAM7 and authorize Google Cloud project OAuth credentials.
-- 3. Install RSAT (Optional) ($btnSetupRSAT): Runs Setup-RSAT-ActiveDirectory.bat to
-  install RSAT Active Directory tools via Windows Capabilities (DISM).
+- Test Microsoft Graph ($btnTestM365): Restores active profile MgContext.json,
+  calls Get-MgContext, checks scopes, and probes /organization.
+- Test Google GAM7 ($btnTestGoogle): Verifies gam.exe, oauth2.txt inside active
+  profile GAMCFGDIR, and runs gam oauth verify.
+- 1. Setup Microsoft Graph ($btnRunGraphSetup): Runs Setup-MicrosoftGraph.bat
+  using active IR_GRAPH_SETUP_DIR and Set-MgGraphOption -DisableLoginByWAM $true.
+- 2. Setup Google GAM7 ($btnRunGamSetup): Runs Setup-GoogleWorkspace-GAM.bat
+  to install GAM7 and authorize Google Cloud OAuth in active GAMCFGDIR.
+- 3. Install RSAT (Optional) ($btnRunRsatSetup): Runs Setup-RSAT-ActiveDirectory.bat
+  to install RSAT Active Directory tools via Windows Capabilities (DISM).
+- Switch Graph Account ($btnSwitchGraphAcct): Runs Disconnect-MgGraph and
+  device-code authentication with WAM disabled for dual-account admins.
+- Switch GAM Account ($btnSwitchGamAcct): Runs gam oauth delete + create + verify
+  scoped to the active profile GAMCFGDIR.
+- Switch AD Account / Domain ($btnSwitchAdAcct): Opens Show-DomainSwitcher.
 
 TAB 2: INCIDENT CONTAINMENT DECK
 - Find Users ($btnSearch): Queries AD using Ambiguous Name Resolution (ANR) filter:
@@ -147,11 +168,16 @@ in the Microsoft Entra Security Token Service (STS). Subsequent refresh token re
 fail with:
 AADSTS50173: The provided grant has expired or is revoked.
 Continuous Access Evaluation (CAE) clients terminate access within seconds to minutes.
+Set-MgGraphOption -DisableLoginByWAM $true keeps elevated admin tokens decoupled from
+the daily Windows session, and non-default Domain Profiles isolate IR_GRAPH_SETUP_DIR
+and MgContext.json under %LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>.
 
 GOOGLE WORKSPACE:
 Executing gam user <upn> signout terminates web session cookies and mobile sync.
 Executing gam user <upn> deprovision revokes all application-specific passwords,
 2-Step Verification backup codes, and authorized third-party OAuth app grants.
+Primary profiles use standard %USERPROFILE%\.gam; additional Domain Profiles
+automatically isolate GAMCFGDIR under %LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>\gam.
 
 ================================================================================
 6. HIGH-DPI RESPONSIVE SCALING ENGINE

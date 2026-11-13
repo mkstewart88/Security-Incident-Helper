@@ -392,19 +392,25 @@ function Get-GamClientSecretsPath {
     $defaultDirectory = Join-Path $env:USERPROFILE '.gam'
 
     # GAMCFGDIR can override the normal configuration directory.
+    $hasCustomGamCfgDir = $false
     if (-not [string]::IsNullOrWhiteSpace($env:GAMCFGDIR)) {
         $configuredDirectory = [Environment]::ExpandEnvironmentVariables(
             $env:GAMCFGDIR
         )
+        $hasCustomGamCfgDir = ($configuredDirectory.TrimEnd('\') -ine $defaultDirectory.TrimEnd('\'))
     } else {
         $configuredDirectory = $defaultDirectory
     }
 
-    # Check GAM's configured directory first, then its default.
-    $candidates = @(
-        (Join-Path $configuredDirectory 'client_secrets.json'),
-        (Join-Path $defaultDirectory 'client_secrets.json')
-    ) | Select-Object -Unique
+    # Check GAM's configured directory first; only fall back to default ~/.gam when no custom profile GAMCFGDIR is active.
+    $candidates = if ($hasCustomGamCfgDir) {
+        @( (Join-Path $configuredDirectory 'client_secrets.json') )
+    } else {
+        @(
+            (Join-Path $configuredDirectory 'client_secrets.json'),
+            (Join-Path $defaultDirectory 'client_secrets.json')
+        ) | Select-Object -Unique
+    }
 
     foreach ($candidate in $candidates) {
         if (Test-Path -LiteralPath $candidate -PathType Leaf) {
@@ -465,6 +471,7 @@ function Invoke-GamOAuthSetup {
     Write-Host 'OAuth configuration:' -ForegroundColor Cyan
     Write-Host "  Windows account: $env:USERNAME"
     Write-Host "  GAM executable: $script:FinalGamPath"
+    Write-Host "  GAM config dir: $(Split-Path -Parent $clientSecretsPath)"
     Write-Host "  Client credentials: $clientSecretsPath"
     Write-Host ''
 

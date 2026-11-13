@@ -26,7 +26,7 @@ If you are developing or customizing your own fork, the following architectural 
 
 ### 1. Dual Active Directory Engine Support
 * Active Directory operations (`Query-ADUsersSafe`, `Set-ADPasswordSafe`, `Set-ADAccountEnableSafe`, `Set-ADExtendedLockdownSafe`, `Get-ADDomainSafe`) are built to support both the optional RSAT `ActiveDirectory` PowerShell module and native .NET Framework directory services (`System.DirectoryServices.DirectoryEntry` and `DirectorySearcher`).
-* Workstations are not assumed to be domain-joined; explicit server and credential configurations (`$script:targetServer`, `$script:adCredential`) from **Switch Domain / DC** must be respected.
+* Workstations are not assumed to be domain-joined; explicit server and credential configurations (`$script:targetServer`, `$script:adCredential`) from **Switch Domain / Profile** must be respected.
 
 ### 2. Multi-Pass Verification
 * Directory writes re-query Active Directory to confirm attribute commitment.

@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.53)
+SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.54)
 ================================================================================
 
 OVERVIEW:
@@ -44,25 +44,37 @@ OPERATOR STEP-BY-STEP HOW-TO GUIDE:
 ================================================================================
 
 STEP 1: PRE-FLIGHT VERIFICATION & INTEGRATION SETUP (TAB 1)
+  0. First-Launch Primary Profile Prompt: If no Primary Domain Profile is
+     configured yet, the app asks whether this environment is your Primary
+     (Home) Domain Profile or if you are temporarily assisting another domain
+     (keeping the clean Primary slot reserved until you return home).
   1. Open Tab 1 ("1. Setup").
-  2. Inspect the live connectivity indicators for Active Directory, Microsoft
+  2. Use the top Profile bar ("Switch Profile", "+ New Profile", "Manage / AD...")
+     to switch or create isolated Domain Profiles when supporting multiple domains.
+  3. Inspect the live connectivity indicators for Active Directory, Microsoft
      Graph, and Google Workspace (GAM7).
-  3. If any integration requires configuration:
+  4. If any integration requires configuration:
      - Click "1. Setup Microsoft Graph" to launch the interactive module installer
-       and device code sign-in prompt.
+       and device-code sign-in prompt (WAM disabled for dual-account admins).
      - Click "2. Setup Google GAM7" to install GAM7 and authorize Google Cloud OAuth.
      - Click "3. Install RSAT (Optional)" if you wish to add native AD cmdlets.
-  4. Click "Test Active Directory", "Test Microsoft Graph", or "Test Google GAM7"
+  5. For dual-account workflows, use "Switch Graph Account", "Switch GAM Account",
+     or "Switch AD Account / Domain" on Tab 1 at any time.
+  6. Click "Test Active Directory", "Test Microsoft Graph", or "Test Google GAM7"
      at any time to re-verify live operational readiness.
 
-STEP 2: SWITCHING DOMAINS OR DOMAIN CONTROLLERS
-  1. Click "Switch Domain / DC" in the upper-right header.
-  2. Click "[Auto-Detect Domain]" to query the local machine's primary domain, or
-     manually enter the target domain FQDN (e.g. contoso.com).
-  3. Optionally specify an explicit Domain Controller IP or hostname.
-  4. Enter administrative credentials if running from a non-domain workstation.
-  5. Click "Verify & Connect". The console performs an LDAP RootDSE handshake
-     and updates the active operator session.
+STEP 2: DOMAIN PROFILES & SWITCHING TARGET DOMAINS
+  1. Click "Switch Domain / Profile" in the upper-right header (or "Manage / AD...").
+  2. Select an existing Domain Profile or click "+ New" to create an isolated
+     profile (AD, Graph, and GAM7 settings), "Set Primary", "Rename", or "Delete".
+  3. Click "Auto-Detect Domain" to query the local machine's primary domain, or
+     manually enter the target domain FQDN or Domain Controller IP/hostname.
+  4. Check "Use alternate Domain Admin credentials" if authenticating with
+     another AD account or from a non-domain workstation (held in memory only).
+  5. Click "Connect & Switch Profile" to run an LDAP RootDSE handshake and switch,
+     or "Switch Cloud Only (Skip AD)" for off-VPN Graph/GAM triage.
+  6. Click "Check for Updates" in the header to check GitHub releases, "View
+     Changelog", or run "Update & Restart" (auto-recompiles .exe when needed).
 
 STEP 3: SEARCHING & VERIFYING COMPROMISED IDENTITIES (TAB 2)
   1. Open Tab 2 ("2. Containment").

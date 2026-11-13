@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.53)
+SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.54)
 ================================================================================
 
 Security Incident Response Automator can be launched or compiled in seconds
@@ -29,10 +29,17 @@ To package the script and its embedded setup scripts into a single standalone bi
    into "IncidentResponse.exe" using PS2EXE.
 
 --------------------------------------------------------------------------------
-4. PRE-FLIGHT INTEGRATION SETUP
+4. PRE-FLIGHT INTEGRATION SETUP & DOMAIN PROFILES
 --------------------------------------------------------------------------------
+- On first launch, if no Primary Domain Profile is configured yet, choose
+  whether this environment is your Primary (Home) Domain Profile or if you are
+  temporarily assisting another domain.
 - Open Tab 1 ("1. Setup") to verify connectivity with Active Directory,
-  Microsoft Graph, and Google Workspace (GAM7).
-- Use the 1-click automated setup scripts if any modules or CLI tools need
-  to be installed on the jump host.
+  Microsoft Graph, and Google Workspace (GAM7), and run the 1-click setup
+  scripts if any modules or CLI tools need to be installed.
+- Use "Switch Graph Account", "Switch GAM Account", or "Switch AD Account /
+  Domain" on Tab 1 when using separate elevated admin accounts.
+- For multi-domain environments, click "Switch Domain / Profile" (top-right) or
+  use the Tab 1 Profile bar to create/switch isolated Domain Profiles or run
+  "Switch Cloud Only (Skip AD)" when off-VPN.
 ================================================================================

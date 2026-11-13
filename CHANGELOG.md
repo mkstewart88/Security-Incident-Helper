@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.54] - 2026-11-12
+
+### Added
+- **Multi-Domain Profile Manager (Zero-Friction Single-Domain + Multi-Tenant Switching):**
+  - **First-Launch Primary Profile Prompt:** If no Primary Domain Profile is configured yet, prompts on startup whether the current environment is your **Primary (Home) Domain Profile** or if you are temporarily assisting another domain—keeping the clean Primary slot untouched until you return to your home domain.
+  - **Seamless Default Mode:** Single-domain technicians stay on their Primary Domain Profile using standard `%USERPROFILE%\.gam` and `%LOCALAPPDATA%\MicrosoftGraphSetup` directories with zero extra steps or prompts.
+  - **Isolated Domain Profiles (`%LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>`):** Technicians supporting multiple corporate or client domains/tenants can create, rename, set as Primary, switch, and delete named Domain Profiles from the top header (**Switch Domain / Profile**) or the top profile bar on **Tab 1 (`1. Setup`)**.
+  - **Isolated GAM7 & Microsoft Graph Per Profile:** Each Domain Profile maintains its own `GAMCFGDIR` (`gam.cfg`, `client_secrets.json`, `oauth2.txt`), `IR_GRAPH_SETUP_DIR` (`Setup.log`, `MailboxAuditorApp.json`), and `MgContext.json` snapshot while preserving cached MSAL tokens across domains so switching back and forth requires no re-authentication after initial setup.
+  - **Cloud-Only Switching:** Added **Switch Cloud Only (Skip AD)** in the Domain Profile Switcher for off-VPN or cloud-only triage when an on-prem Domain Controller is unreachable.
+- **Dual-Account Admin Support & Tab 1 Account Switchers:**
+  - Added `Set-MgGraphOption -DisableLoginByWAM $true` to `Setup-MicrosoftGraph.bat` and **Switch Graph Account** so elevated admin accounts stay decoupled from the workstation's primary Windows user session.
+  - Added **Switch Graph Account**, **Switch GAM Account**, and **Switch AD Account / Domain** controls on Tab 1 (`1. Setup`), and automatically clears previously loaded user workspace state when switching profiles.
+
 ## [1.1.53] - 2026-11-12
 
 ### Added

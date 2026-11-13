@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.53](https://img.shields.io/badge/Version-1.1.53-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.54](https://img.shields.io/badge/Version-1.1.54-emerald.svg)](CHANGELOG.md)
 
 ### Exhaustive Architectural Specification & Control-by-Control Engineering Reference
 **Target Audience:** Cybersecurity Engineers, SOC Leads, Systems Architects, and Security Developers
@@ -22,7 +22,7 @@
    - [Tab 4: Multi-Source Security Event Triage & Decoder](#tab-4-multi-source-security-event-triage--decoder)
    - [Tab 5: Forensic Compliance Audit Trail](#tab-5-forensic-compliance-audit-trail)
 4. [Active Directory Internal Mechanics & Wire Protocols](#4-active-directory-internal-mechanics--wire-protocols)
-5. [Microsoft Graph REST Endpoints & Token Invalidation Mechanics](#5-microsoft-graph-rest-endpoints--token-invalidation-mechanics)
+5. [Microsoft Graph REST Endpoints, Profile Isolation & Token Invalidation](#5-microsoft-graph-rest-endpoints-profile-isolation--token-invalidation)
 6. [Google Workspace Admin SDK & GAM7 CLI Orchestration](#6-google-workspace-admin-sdk--gam7-cli-orchestration)
 7. [High-DPI Responsive Scaling & Pixel Font Cache Engine](#7-high-dpi-responsive-scaling--pixel-font-cache-engine)
 8. [Permissive Commercial Use, Forking & Shout-Out Terms](#8-permissive-commercial-use-forking--shout-out-terms)
@@ -95,19 +95,28 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
   * Action and decision text boxes (`$txtLog`, `$txtRuleDecision`, `$txtEventDecision`): `#020617` / `#e2e8f0` (Dark) vs `#ffffff` / `#0f172a` (Light)
   * DataGridView cells, headers, and alternating row backgrounds are restyled dynamically without losing current selection or scroll position.
 
-#### `Switch Domain / DC` (`$btnSwitchDomain`)
-* **Underlying Function:** `Show-DomainSwitcher`
-* **Mechanics:** Displays a modal dialog permitting operators on non-domain-joined management stations to target an alternate domain or specific Domain Controller.
-* **Modal Controls:**
-  * **`[Auto-Detect Domain]` (`$btnDlgDetect`):** Executes `Get-DiscoveredLocalDomainSafe`. Uses Win32 `System.DirectoryServices.ActiveDirectory.Domain::GetComputerDomain()` and IP Global Properties (`GetIPGlobalProperties().DomainName`) to determine the joined network domain and auto-populates `$txtDlgDomain`.
-  * **`Domain Name` (`$txtDlgDomain`):** FQDN of target Active Directory domain. The last connected domain is persisted to `remembered_domain.json`.
-  * **`Domain Controller (Optional)` (`$txtDlgServer`):** Explicit hostname or IP address of the target Domain Controller.
-  * **`Operator Credentials` (`$txtDlgUser`, `$txtDlgPass`):** Explicit administrative credentials held exclusively in volatile memory as a `System.Management.Automation.PSCredential` object.
-  * **`Verify & Connect` (`$btnDlgConnect`):** Executes an LDAP RootDSE query against the specified server. Upon success, updates `$script:targetDomain`, `$script:targetServer`, and `$script:adCredential`.
+#### `Check for Updates` (`$btnCheckUpdates`) & `View Changelog` (`$btnViewChangelog`)
+* **Underlying Functions:** `Show-UpdateCheckWindow`, `Show-ChangelogWindow`
+* **Mechanics:** Queries GitHub Releases (`releases/latest`) and `VERSION` on `main` (with SHA-busted caching and UTF-8 byte decoding). Displays colorized status text and release notes; **Update & Restart** validates `.ps1` syntax (and `Setup-*.bat` sync) or auto-recompiles `IncidentResponse.exe` locally via `PS2EXE` with `MZ` PE-header verification before hot-swapping and restarting.
+
+#### `Switch Domain / Profile` (`$btnSwitchDomain`) & Startup Prompt (`Show-PrimaryProfilePromptSafe`)
+* **Underlying Functions:** `Show-DomainSwitcher`, `Show-PrimaryProfilePromptSafe`, `Switch-ActiveDomainProfileSafe`
+* **Mechanics:**
+  * **First-Launch Primary Profile Prompt (`Show-PrimaryProfilePromptSafe`):** Checks `Profiles.json` (`SchemaVersion = 2`, `PrimaryConfigured` flag). If no profile is marked `IsPrimary = $true`, prompts whether the current environment is the operator's **Primary (Home) Domain Profile** or if they are temporarily assisting another domain—preserving a clean Primary slot until they return home.
+  * **Modal Controls (`Show-DomainSwitcher`):**
+    * **`Domain Profile Selector` (`$cmbProf`):** Lists configured profiles with `[Primary]` and `[Active]` badges persisted to `Profiles.json` under `%LOCALAPPDATA%\IncidentResponse-Automator` (with `%USERPROFILE%\.incident-response` backup).
+    * **`+ New` (`$btnNewProf` -> `Show-NewDomainProfileModal`), `Set Primary` (`$btnSetPrimaryProf`), `Rename` (`$btnRenameProf`), `Delete` (`$btnDelProf`):** Creates, designates Primary, renames, or deletes isolated profiles stored under `%LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>`.
+    * **`Target AD Domain` (`$txtDlgServer`) & `Auto-Detect Domain` (`$btnAutoDetect`):** Runs `Get-DiscoveredLocalDomainSafe` to query local machine domain membership/DNS suffix, or accepts an explicit Domain FQDN or Domain Controller hostname/IP. Last connected domain hints persist to `LastDomainConnection.json`.
+    * **`Alternate Credentials` (`$chkUseAlt`, `$txtDlgUser`, `$txtDlgPass`):** Explicit AD credentials held exclusively in volatile memory as a `System.Management.Automation.PSCredential` object (passwords are never written to disk).
+    * **`Connect & Switch Profile` (`$btnConnect`):** Executes an LDAP RootDSE handshake against the specified domain/DC and activates the profile's isolated AD, Graph, and GAM7 context.
+    * **`Switch Cloud Only (Skip AD)` (`$btnCloudOnly`):** Switches the active profile's cloud directories (`GAMCFGDIR`, `IR_GRAPH_SETUP_DIR`, `MgContext.json`) without requiring on-premises Domain Controller reachability.
 
 ---
 
 ### Tab 1: Integrations & Pre-Flight Setup
+
+#### Active Domain Profile Bar (`$cmbDiagProfile`, `$btnDiagSwitchProfile`, `$btnDiagNewProfile`, `$btnDiagManageProfiles`)
+* **Mechanics:** Mirrors the active **Domain Profile** selector directly onto Tab 1 for single-click profile switching (`Switch Profile`), quick creation (`+ New Profile`), or opening the full switcher (`Manage / AD...`).
 
 #### `Test Active Directory` (`$btnTestAD`)
 * **Underlying Function:** `Invoke-VerifyAD`
@@ -115,23 +124,29 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 
 #### `Test Microsoft Graph` (`$btnTestM365`)
 * **Underlying Function:** `Invoke-VerifyGraph`
-* **Mechanics:** Calls `Get-MgContext`. Validates active delegated access tokens, verifies required scopes (`User.RevokeSessions.All`, `Directory.AccessAsUser.All`), and executes a lightweight probe against `/v1.0/organization` to confirm tenant connectivity.
+* **Mechanics:** Restores the active profile's `MgContext.json` if needed, calls `Get-MgContext`, validates delegated access tokens and scopes (`User.RevokeSessions.All`, `Directory.AccessAsUser.All`), and probes `/v1.0/organization` to confirm tenant connectivity.
 
 #### `Test Google GAM7` (`$btnTestGoogle`)
 * **Underlying Function:** `Invoke-VerifyGAM`
-* **Mechanics:** Validates existence of `gam.exe` at `C:\GAM7\gam.exe` or `%LOCALAPPDATA%\Programs\GAM7\gam.exe`. Verifies presence of `oauth2.txt` and executes `gam oauth verify`.
+* **Mechanics:** Resolves `gam.exe`, scopes `GAMCFGDIR` to the active profile directory (`%USERPROFILE%\.gam` for Default/Primary or `Profiles\<id>\gam`), verifies `oauth2.txt`, and runs `gam oauth verify`.
 
-#### `1. Setup Microsoft Graph` (`$btnSetupM365`)
+#### `1. Setup Microsoft Graph` (`$btnRunGraphSetup`)
 * **Underlying Function:** `Launch-SetupScript` targeting `Setup-MicrosoftGraph.bat`
-* **Mechanics:** Executes the embedded Base64 payload or standalone batch file. Uses PowerShell Gallery to install lightweight SDK modules (`Microsoft.Graph.Authentication`, `Microsoft.Graph.Users`, `Microsoft.Graph.Users.Actions`) and triggers device code authentication (`Connect-MgGraph -UseDeviceAuthentication`).
+* **Mechanics:** Executes the embedded Base64 payload or standalone batch file with `IR_GRAPH_SETUP_DIR` set to the active profile. Installs lightweight SDK modules (`Microsoft.Graph.Authentication`, `Microsoft.Graph.Users`, `Microsoft.Graph.Users.Actions`), sets `Set-MgGraphOption -DisableLoginByWAM $true`, and triggers device-code authentication (`Connect-MgGraph -UseDeviceAuthentication`).
 
-#### `2. Setup Google GAM7` (`$btnSetupGAM`)
+#### `2. Setup Google GAM7` (`$btnRunGamSetup`)
 * **Underlying Function:** `Launch-SetupScript` targeting `Setup-GoogleWorkspace-GAM.bat`
-* **Mechanics:** Downloads the verified release of GAM7 from GitHub, validates SHA-256 hash, creates installation folders, and initiates Google Cloud project authorization and OAuth consent.
+* **Mechanics:** Downloads the verified release of GAM7 from GitHub, validates SHA-256 hash, configures PATH, and initiates Google Cloud project authorization and OAuth consent inside the active profile's `GAMCFGDIR`.
 
-#### `3. Install RSAT (Optional)` (`$btnSetupRSAT`)
+#### `3. Install RSAT (Optional)` (`$btnRunRsatSetup`)
 * **Underlying Function:** `Launch-SetupScript` targeting `Setup-RSAT-ActiveDirectory.bat`
 * **Mechanics:** Invokes Windows DISM / Capabilities to install the optional `Rsat.ActiveDirectory.DS-LDS.Tools` feature without requiring installation media.
+
+#### `Switch Graph Account` (`$btnSwitchGraphAcct`), `Switch GAM Account` (`$btnSwitchGamAcct`), `Switch AD Account / Domain` (`$btnSwitchAdAcct`)
+* **Mechanics:** Decouples cloud and directory admin credentials from the daily Windows login session:
+  * **Switch Graph Account:** Runs `Disconnect-MgGraph` followed by device-code authentication with `DisableLoginByWAM $true`, persisting the resulting `Setup.log` and `MgContext.json` snapshot into the active profile.
+  * **Switch GAM Account:** Runs `gam oauth delete` and `gam oauth create` + `gam oauth verify` scoped to the active profile's `GAMCFGDIR`.
+  * **Switch AD Account / Domain:** Opens `Show-DomainSwitcher` for same-domain alternate AD credentials or cross-domain switching.
 
 ---
 
@@ -258,12 +273,13 @@ To immediately neutralize existing TGTs without requiring a domain-wide `krbtgt`
 
 ---
 
-## 5. Microsoft Graph REST Endpoints & Token Invalidation Mechanics
+## 5. Microsoft Graph REST Endpoints, Profile Isolation & Token Invalidation
 
 ### Refresh Token Revocation
 * **HTTP Endpoint:** `POST https://graph.microsoft.com/v1.0/users/{id}/revokeSignInSessions`
 * **STS Behavior:** Microsoft Entra Security Token Service updates `signInSessionsValidFromDateTime` to the current UTC timestamp.
 * **OAuth Evaluation:** Subsequent refresh requests fail with `AADSTS50173: The provided grant has expired or is revoked`. Continuous Access Evaluation (CAE) clients terminate access within seconds.
+* **Multi-Profile & Dual-Account Isolation:** `Set-MgGraphOption -DisableLoginByWAM $true` prevents silent fallback to the primary Windows account. Non-default Domain Profiles store `IR_GRAPH_SETUP_DIR` (`Setup.log`, DPAPI-protected `MailboxAuditorApp.json`) and `MgContext.json` snapshots under `%LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>`.
 
 ---
 
@@ -272,6 +288,7 @@ To immediately neutralize existing TGTs without requiring a domain-wide `krbtgt`
 * **Session Termination:** `gam user <upn> signout` calls the Directory API to invalidate user cookies and OAuth refresh tokens.
 * **Account Suspension:** `gam update user <upn> suspended on` freezes mailbox access and API interaction.
 * **Credential Deprovisioning:** `gam user <upn> deprovision` clears application-specific passwords, 2-Step Verification backup codes, and third-party authorized scopes.
+* **Per-Profile `GAMCFGDIR` Isolation:** The Primary/Default profile uses standard `%USERPROFILE%\.gam`; additional Domain Profiles automatically target `%LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>\gam` via `$env:GAMCFGDIR` so independent client tenants never overwrite one another's `oauth2.txt` or `client_secrets.json`.
 
 ---
 

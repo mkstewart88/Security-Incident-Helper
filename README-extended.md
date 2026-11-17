@@ -136,8 +136,8 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 
 ### Tab 2: Containment & Live Telemetry Deck
 
-#### `Find Users` (`$btnSearch`)
-* **Underlying Function:** `Execute-UserSearch`
+#### `Find Users` (`$btnLookup`)
+* **Underlying Function:** `Query-ADUsersSafe`
 * **Mechanics:** Evaluates `$txtSearch.Text` (enforcing a 3-character minimum). Executes an Ambiguous Name Resolution (ANR) LDAP filter:
   ```ldap
   (|(anr={search})(sAMAccountName={search}*)(userPrincipalName={search}*)(mail={search}*)(proxyAddresses=smtp:*{search}*))
@@ -148,33 +148,33 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 * **Underlying Function:** `Get-UserActiveSessionTelemetry`
 * **Mechanics:** Re-queries Active Directory (`pwdLastSet`, `userAccountControl`), Microsoft Graph (`signInSessionsValidFromDateTime`), and GAM7 (`gam info user`) to refresh the 4 live status cards.
 
-#### `Safety Checkbox` (`$chkConfirmUser`)
+#### `Safety Checkbox` (`$chkVerified`)
 * **Mechanics:** Hardware interlock pattern. Toggling state enables/disables the Action Decks across Tab 2 and Tab 3, preventing accidental execution against unintended accounts.
 
 #### `1. Reset Password` (`$btnResetPass`)
 * **Underlying Function:** `Set-ADPasswordSafe`
-* **Mechanics:** Displays an inline reset box. Invokes `DirectoryEntry.Invoke("SetPassword", @($Password))`. Sets `pwdLastSet = 0` (forcing password change at next logon). Re-queries LDAP to verify the attribute write succeeded.
+* **Mechanics:** Opens `Show-PasswordResetCustomDialog` for custom or generated password selection. Invokes `DirectoryEntry.Invoke("SetPassword", @($Password))`. Sets `pwdLastSet = 0` (forcing password change at next logon). Re-queries LDAP to verify the attribute write succeeded.
 
 #### `2. Revoke 365 Sessions` (`$btnRevoke365`)
-* **Underlying Function:** `Invoke-GraphUserRevokeSignInSessionsSafe`
+* **Underlying Function:** `Invoke-RevokeMgUserSignInSessionSafe`
 * **Mechanics:** Sends an HTTP POST to `/v1.0/users/{id}/revokeSignInSessions`. Verifies that the returned JSON payload indicates `value = true`.
 
 #### `3. Revoke Google Sessions` (`$btnRevokeGoogle`)
 * **Underlying Function:** `Invoke-GamUserSignoutSafe`
 * **Mechanics:** Executes `gam user <id> signout`. Inspects process return code (`$LASTEXITCODE -eq 0`) and validates token revocation in Google Workspace.
 
-#### `4. Disable Account` / `Enable Account` (`$btnDisableAcct`)
+#### `4. Disable Account` / `Enable Account` (`$btnEmergencyLock`)
 * **Underlying Function:** `Set-ADAccountEnableSafe`
 * **Mechanics:** Reads `userAccountControl` bitmask. Toggles `ADS_UF_ACCOUNTDISABLE (0x0002)`. Writes the updated integer value via LDAP and performs an immediate read-back to verify state.
 
-#### `Run Full Playbook (1-Click)` (`$btnRunPlaybook`)
+#### `Run Full Playbook (1-Click)` (`$btnContainAll`)
 * **Underlying Function:** Orchestrated sequential execution of Actions 1, 2, 3, and 4 with verification gates between each step.
 
 ---
 
 ### Tab 3: Deep Isolation & Mailbox Security Rules Auditor
 
-#### `Block Entra Sign-In (Instant)` / `Unblock Entra` (`$btnBlockEntra`)
+#### `Block Entra Sign-In (Instant)` / `Unblock Entra` (`$btnBlockEntraSignIn`)
 * **Underlying Function:** `Set-MgUserSignInEnabledSafe`
 * **Mechanics:** Submits a PATCH request to Microsoft Graph:
   ```http
@@ -185,7 +185,7 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
   ```
   Immediately severs cloud authentication, eliminating the 30-minute Azure AD Connect replication window.
 
-#### `Suspend Google User (GAM 7)` / `Unsuspend Google` (`$btnSuspendGoogle`)
+#### `Suspend Google User (GAM7)` / `Unsuspend Google` (`$btnSuspendGoogle`)
 * **Underlying Function:** `Set-GamUserSuspendedSafe`
 * **Mechanics:** Executes `gam update user <id> suspended on`. Performs a 3-pass convergence loop querying `gam info user <id>` with regex matching to verify suspension across Google directory clusters.
 
@@ -212,7 +212,7 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 
 ### Tab 4: Multi-Source Security Event Triage & Decoder
 
-#### `Pull Events (AD + Entra + Google)` (`$btnPullEvents`)
+#### `Pull Events (AD + Entra + Google)` (`$btnPullSecurityEvents`)
 * **Underlying Function:** `Get-UserSecurityEventsSafe`
 * **Mechanics:**
   * Queries Active Directory Domain Controller Security Event Logs via `Get-WinEvent` with XPath filters for Event IDs 4624, 4625, 4740, 4768, 4769, 4771, 4776, 4720-4738.
@@ -277,10 +277,11 @@ To immediately neutralize existing TGTs without requiring a domain-wide `krbtgt`
 
 ## 7. High-DPI Responsive Scaling & Pixel Font Cache Engine
 
-To guarantee consistent rendering across standard 1080p, 1440p, and 4K displays:
-* The layout engine establishes a baseline client coordinate space ($874 \times 868$).
-* On form resize, child controls are recalculated via proportional scaling factors ($X$ and $Y$).
-* Font sizes are cached in `$script:pixelFontCache` using quantized half-point steps, eliminating GDI font handle leaks and preventing blurry text under Windows DPI virtualization.
+To guarantee consistent rendering across standard 1080p, 1440p, 4K, and full-screen displays:
+* The layout engine establishes a baseline client coordinate space (`874 x 868`).
+* On form resize, `Update-ResponsiveLayout` recalculates child controls via proportional scaling factors (`X` and `Y`).
+* All modal prompt dialogs invoke `Invoke-ApplyModalResponsiveScale` (`ClientSize`-based bounds, `1.0x–1.45x` proportional scaling capped cleanly to `Screen.WorkingArea`, `UseMnemonic = $false`, literal `&&` GroupBox titles, and `TextRenderer::MeasureText` dynamic height expansion so wrapped prompt text never clips in full screen or high-DPI modes).
+* Font sizes are cached in `$script:pixelFontCache` using `GraphicsUnit::Pixel` quantized half-point steps, eliminating GDI font handle leaks and preventing blurry or clipped text under Windows DPI virtualization.
 
 ---
 

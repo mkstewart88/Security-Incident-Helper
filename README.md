@@ -157,7 +157,7 @@ Upon launch, if no **Primary Domain Profile** has been configured yet, a startup
 
 ### 2. Managing Domain Profiles & Switching Target Domains
 If operating from a non-domain-joined laptop or managing multiple corporate/client domains and cloud tenants:
-1. Open **Tab 1 (`1. Setup`)** and click **Manage / AD...** in the top Profile bar (or **Switch AD Account / Domain** in the Active Directory row).
+1. Open **Tab 1 (`1. Setup`)** and click **Manage / AD...** in the top Profile bar (or **Switch AD Account / Domain** in the Active Directory column).
 2. Select an existing **Domain Profile** or click **+ New** to create an isolated profile (`%LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>`), **Set Primary** to designate your home domain, **Rename**, or **Delete**.
 3. Click **Auto-Detect Domain** to populate the local joined domain, or enter a target Domain FQDN or Domain Controller IP/hostname (e.g. `contoso.com`).
 4. Check **Use alternate Domain Admin credentials (same domain or remote DC)** and enter administrative credentials (`DOMAIN\admin` and Password) if switching AD accounts or connecting from a workgroup PC (passwords stay in memory only).
@@ -207,7 +207,7 @@ For high-severity or suspected Business Email Compromise (BEC) incidents:
 2. Click **Pull Events (AD + Entra + Google)** to query Domain Controller security logs, Entra sign-in audit logs, and Google login reports.
 3. Filter results by source or severity using the dropdown selectors.
 4. Select any event to read its plain-English explanation and recommended incident response decision.
-5. Click **View Event Code Guide** to browse the complete built-in dictionary of Windows, Entra, and Google security codes. Click **Show Pulled Events** to return to your query results without re-pulling.
+5. Click **View Event Guide** to browse the complete built-in dictionary of Windows, Entra, and Google security codes. Click **Show Pulled Events** to return to your query results without re-pulling.
 
 ### 8. Reviewing the Compliance Audit Trail (Tab 5)
 1. Navigate to **Tab 5 (`5. Audit Trail`)**.

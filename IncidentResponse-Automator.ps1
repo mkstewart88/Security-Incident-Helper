@@ -5,19 +5,19 @@
 # Native .NET System.DirectoryServices Fallback (Runs with or without RSAT!)
 #
 # DEVELOPER ARCHITECTURAL NAVIGATION INDEX:
-#   [01] Single-Threaded Apartment (-STA) Auto-Enforcement   (Line ~30)
-#   [02] Embedded Setup Batch Scripts (Base64 UTF-8)        (Line ~85)
-#   [03] Domain Auto-Discovery & Domain Profiles             (Line ~1410)
-#   [04] Active Directory Dual-Engine & User Search          (Line ~1700 & ~2950)
-#   [05] Microsoft Graph Identity & Session Revocation       (Line ~1900 & ~2200)
-#   [06] Google Workspace (GAM7) Orchestration & Signout     (Line ~2300 & ~2650)
-#   [07] Deep Isolation, Cloud MFA Wipe & KDC Hard-Lock      (Line ~3350 & ~4350)
-#   [08] Mailbox Forwarding & Inbox Rule Remediation         (Line ~4050 & ~4250)
-#   [09] Security Event Triage & Plain-English Decoder       (Line ~4650 & ~5050)
-#   [10] Windows Forms 5-Tab GUI Architecture & Controls     (Line ~5500+)
-#   [11] Domain Profile Switcher, Changelog & Self-Updater   (Line ~6150+)
-#   [12] Dynamic Theme Engine (Light / Dark Mode)            (Line ~9000+)
-#   [13] High-DPI Responsive Scaling & Pixel Font Cache      (Line ~9500+)
+#   [01] Single-Threaded Apartment (-STA) Auto-Enforcement   (Line ~25)
+#   [02] Embedded Setup Batch Scripts (Base64 UTF-8)        (Line ~70)
+#   [03] Domain Auto-Discovery & Domain Profiles             (Line ~1390)
+#   [04] Microsoft Graph Identity & Session Revocation       (Line ~2120)
+#   [05] Google Workspace (GAM7) Orchestration & Signout     (Line ~2860)
+#   [06] Active Directory Dual-Engine & User Search          (Line ~3280)
+#   [07] Deep Isolation, Cloud MFA Wipe & KDC Hard-Lock      (Line ~3770)
+#   [08] Mailbox Forwarding & Inbox Rule Remediation         (Line ~4170)
+#   [09] Security Event Triage & Plain-English Decoder       (Line ~5170)
+#   [10] Windows Forms 5-Tab GUI Architecture & Controls     (Line ~5955)
+#   [11] Domain Profile Switcher, Changelog & Self-Updater   (Line ~6590)
+#   [12] Dynamic Theme Engine (Light / Dark Mode)            (Line ~10925)
+#   [13] High-DPI Responsive Scaling & Pixel Font Cache      (Line ~11055)
 # ==============================================================================
 
 #Requires -Version 5.1
@@ -61,16 +61,6 @@ function Hide-ConsoleWindowSafe {
         $consoleHwnd = [IncidentAutomator.Win32ConsoleFix]::GetConsoleWindow()
         if ($consoleHwnd -ne [IntPtr]::Zero) {
             [void][IncidentAutomator.Win32ConsoleFix]::ShowWindow($consoleHwnd, 0)
-        }
-    } catch {}
-}
-
-function Show-ConsoleWindowSafe {
-    try {
-        Ensure-Win32ConsoleType
-        $consoleHwnd = [IncidentAutomator.Win32ConsoleFix]::GetConsoleWindow()
-        if ($consoleHwnd -ne [IntPtr]::Zero) {
-            [void][IncidentAutomator.Win32ConsoleFix]::ShowWindow($consoleHwnd, 5)
         }
     } catch {}
 }
@@ -5963,7 +5953,7 @@ function Get-UserSecurityEventsSafe {
 
 
 # -----------------------------------------------------------------------------
-# STEP 3: CREATE PRIMARY GUI WINDOW (890 x 910) WITH SHARED GLOBAL LOG VIEWER
+# STEP 3: CREATE PRIMARY GUI WINDOW (ClientSize 874 x 868) WITH SHARED LOG
 # -----------------------------------------------------------------------------
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Security Incident Automator"
@@ -6075,7 +6065,7 @@ $tabControl.TabPages.Add($tabAudit)
 
 # SECTION 1: SEARCH & RESULTS LISTBOX (Expanded to fill available space)
 $grpSearch = New-Object System.Windows.Forms.GroupBox
-$grpSearch.Text = " 1. Target User Lookup & Selection (Active Directory) "
+$grpSearch.Text = " 1. Target User Lookup && Selection (Active Directory) "
 $grpSearch.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $grpSearch.Location = New-Object System.Drawing.Point(10, 6)
 $grpSearch.Size = New-Object System.Drawing.Size(820, 174)
@@ -6124,7 +6114,7 @@ $grpSearch.Controls.Add($lstResults)
 
 # SECTION 2: VERIFIED DIRECTORY IDENTITY & SECURITY INTELLIGENCE (Expanded)
 $grpIdentity = New-Object System.Windows.Forms.GroupBox
-$grpIdentity.Text = " 2. Verified Target User Identity & Security Status "
+$grpIdentity.Text = " 2. Verified Target User Identity && Security Status "
 $grpIdentity.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $grpIdentity.Location = New-Object System.Drawing.Point(10, 186)
 $grpIdentity.Size = New-Object System.Drawing.Size(820, 196)
@@ -6132,6 +6122,8 @@ $tabIncident.Controls.Add($grpIdentity)
 
 $lblIdName = New-Object System.Windows.Forms.Label
 $lblIdName.Text = "Name: (No user selected. Search above and click a user in the list)"
+$lblIdName.UseMnemonic = $false
+$lblIdName.AutoEllipsis = $true
 $lblIdName.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $lblIdName.ForeColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
 $lblIdName.Location = New-Object System.Drawing.Point(15, 17)
@@ -6151,10 +6143,12 @@ $grpIdentity.Controls.Add($btnRefreshUserSessions)
 
 $lblIdDept = New-Object System.Windows.Forms.Label
 $lblIdDept.Text = "UPN: --  |  Mail: --  |  sAMAccountName: --  |  Department: --"
+$lblIdDept.UseMnemonic = $false
+$lblIdDept.AutoEllipsis = $true
 $lblIdDept.Font = New-Object System.Drawing.Font("Segoe UI", 8)
 $lblIdDept.ForeColor = [System.Drawing.Color]::FromArgb(51, 65, 85)
 $lblIdDept.Location = New-Object System.Drawing.Point(15, 39)
-$lblIdDept.Size = New-Object System.Drawing.Size(790, 19)
+$lblIdDept.Size = New-Object System.Drawing.Size(790, 20)
 $grpIdentity.Controls.Add($lblIdDept)
 
 # 4 Security Intelligence Metric Panels
@@ -6271,17 +6265,20 @@ $pnlCardAcct.Controls.Add($lblCardAcctSub)
 
 # Red Security Alert Strip
 $pnlAlert = New-Object System.Windows.Forms.Panel
-$pnlAlert.Location = New-Object System.Drawing.Point(15, 129)
-$pnlAlert.Size = New-Object System.Drawing.Size(790, 29)
+$pnlAlert.Location = New-Object System.Drawing.Point(15, 128)
+$pnlAlert.Size = New-Object System.Drawing.Size(790, 31)
 $pnlAlert.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 $grpIdentity.Controls.Add($pnlAlert)
 
 $lblAlertText = New-Object System.Windows.Forms.Label
 $lblAlertText.Text = "ACTIVE SECURITY INCIDENT: Verify target user details above and check the confirmation box to unlock containment actions."
+$lblAlertText.UseMnemonic = $false
+$lblAlertText.AutoEllipsis = $true
 $lblAlertText.Font = New-Object System.Drawing.Font("Segoe UI", 7.5, [System.Drawing.FontStyle]::Bold)
 $lblAlertText.ForeColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
-$lblAlertText.Location = New-Object System.Drawing.Point(6, 5)
-$lblAlertText.Size = New-Object System.Drawing.Size(776, 19)
+$lblAlertText.Location = New-Object System.Drawing.Point(6, 4)
+$lblAlertText.Size = New-Object System.Drawing.Size(776, 22)
+$lblAlertText.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
 $pnlAlert.Controls.Add($lblAlertText)
 
 $chkVerified = New-Object System.Windows.Forms.CheckBox
@@ -6377,7 +6374,7 @@ $pnlResetPass.Controls.Add($txtCustomPass)
 
 # SHARED GLOBAL REAL-TIME ACTION LOG & DIAGNOSTICS (Docked on Main Form - Visible From All 5 Tabs)
 $grpLog = New-Object System.Windows.Forms.GroupBox
-$grpLog.Text = " Real-Time Action Log & Diagnostics (Shared Live Feed Across All Tabs) "
+$grpLog.Text = " Real-Time Action Log && Diagnostics (Shared Live Feed Across All Tabs) "
 $grpLog.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $grpLog.Location = New-Object System.Drawing.Point(12, 634)
 $grpLog.Size = New-Object System.Drawing.Size(850, 224)
@@ -6774,6 +6771,105 @@ function Switch-ActiveDomainProfileSafe {
     Write-AppLog "Switched active Domain Profile to '$($TargetProfile.Name)' (GAM: $($env:GAMCFGDIR) | Graph: $($env:IR_GRAPH_SETUP_DIR))." "SUCCESS"
 }
 
+function Invoke-ApplyModalResponsiveScale {
+    param(
+        [System.Windows.Forms.Form]$ModalForm,
+        [int]$BaseWidth,
+        [int]$BaseHeight,
+        [System.Windows.Forms.Form]$Owner = $form
+    )
+    if ($null -eq $ModalForm) { return }
+    $ModalForm.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::None
+
+    $scale = 1.0
+    $workArea = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    try {
+        $refCtrl = $(if ($Owner -and (-not $Owner.IsDisposed)) { $Owner } else { $ModalForm })
+        $workArea = [System.Windows.Forms.Screen]::FromControl($refCtrl).WorkingArea
+        if ($Owner -and (-not $Owner.IsDisposed) -and $Owner.ClientSize.Width -gt 200) {
+            $ownerScale = [Math]::Min(
+                ([double]$Owner.ClientSize.Width / 874.0),
+                ([double]$Owner.ClientSize.Height / 868.0)
+            )
+            if ($ownerScale -gt 1.0) {
+                $scale = [Math]::Min(1.45, $ownerScale)
+            }
+        }
+    } catch {}
+
+    $maxScaleW = ([double]$workArea.Width * 0.88) / [double]$BaseWidth
+    $maxScaleH = ([double]$workArea.Height * 0.88) / [double]$BaseHeight
+    $scale = [Math]::Max(1.0, [Math]::Min($scale, [Math]::Min($maxScaleW, $maxScaleH)))
+
+    $targetW = [int][Math]::Round($BaseWidth * $scale)
+    $targetH = [int][Math]::Round($BaseHeight * $scale)
+    $ModalForm.ClientSize = New-Object System.Drawing.Size($targetW, $targetH)
+
+    $scaleChildren = {
+        param([System.Windows.Forms.Control]$ParentCtrl)
+        foreach ($c in $ParentCtrl.Controls) {
+            if ($null -eq $c) { continue }
+            $nx = [int][Math]::Round($c.Location.X * $scale)
+            $ny = [int][Math]::Round($c.Location.Y * $scale)
+            $nw = [int][Math]::Max(16, [Math]::Round($c.Size.Width * $scale))
+            $nh = [int][Math]::Max(16, [Math]::Round($c.Size.Height * $scale))
+            $c.Bounds = New-Object System.Drawing.Rectangle($nx, $ny, $nw, $nh)
+
+            if ($c.Font) {
+                $fFam = $(if ($c.Font.FontFamily) { [string]$c.Font.FontFamily.Name } else { "Segoe UI" })
+                $fPt  = [double]$c.Font.SizeInPoints
+                $fSty = $c.Font.Style
+                $pxSz = $fPt * 1.24 * $scale
+                if (Get-Command Get-CachedPixelFont -ErrorAction SilentlyContinue) {
+                    $c.Font = Get-CachedPixelFont -FamilyName $fFam -PixelSize $pxSz -Style $fSty
+                } else {
+                    $c.Font = New-Object System.Drawing.Font($fFam, [single][Math]::Max(9.0, $pxSz), $fSty, [System.Drawing.GraphicsUnit]::Pixel)
+                }
+            }
+
+            if ($c -is [System.Windows.Forms.Label]) {
+                $c.UseMnemonic = $false
+                if (-not $c.AutoSize -and (-not [string]::IsNullOrEmpty($c.Text))) {
+                    try {
+                        $availW = [int][Math]::Max(20, $c.Width - 4)
+                        $measured = [System.Windows.Forms.TextRenderer]::MeasureText(
+                            $c.Text,
+                            $c.Font,
+                            (New-Object System.Drawing.Size($availW, 2000)),
+                            ([System.Windows.Forms.TextFormatFlags]::WordBreak -bor [System.Windows.Forms.TextFormatFlags]::NoPadding)
+                        )
+                        if ($measured.Height + 4 -gt $c.Height) {
+                            $c.Height = $measured.Height + 6
+                        }
+                    } catch {}
+                }
+            }
+
+            if ($c.Controls -and $c.Controls.Count -gt 0) {
+                & $scaleChildren $c
+            }
+        }
+    }
+
+    $ModalForm.SuspendLayout()
+    try {
+        & $scaleChildren $ModalForm
+    } finally {
+        $ModalForm.ResumeLayout($true)
+    }
+
+    try {
+        if ($Owner -and (-not $Owner.IsDisposed) -and $Owner.Visible) {
+            $ModalForm.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+            $cx = [int]($Owner.Left + ($Owner.Width - $ModalForm.Width) / 2)
+            $cy = [int]($Owner.Top + ($Owner.Height - $ModalForm.Height) / 2)
+            $cx = [int][Math]::Max($workArea.Left, [Math]::Min($cx, $workArea.Right - $ModalForm.Width))
+            $cy = [int][Math]::Max($workArea.Top, [Math]::Min($cy, $workArea.Bottom - $ModalForm.Height))
+            $ModalForm.Location = New-Object System.Drawing.Point($cx, $cy)
+        }
+    } catch {}
+}
+
 function Show-PrimaryProfilePromptSafe {
     param([System.Windows.Forms.Form]$OwnerForm = $form)
 
@@ -6781,12 +6877,11 @@ function Show-PrimaryProfilePromptSafe {
     if ([bool]$script:domainProfilesData.PrimaryConfigured -or ($null -ne (Get-PrimaryDomainProfileSafe))) { return }
 
     $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
-    $hasClientProfiles = (@($script:domainProfilesData.Profiles | Where-Object { -not [bool]$_.IsDefault }).Count -gt 0)
     $isOnClientProfile = ($script:activeProfile -and (-not [bool]$script:activeProfile.IsDefault))
 
     $dlgPrim = New-Object System.Windows.Forms.Form
     $dlgPrim.Text = "Primary Domain Profile Setup"
-    $dlgPrim.Size = New-Object System.Drawing.Size(540, 365)
+    $dlgPrim.ClientSize = New-Object System.Drawing.Size(600, 344)
     $dlgPrim.StartPosition = "CenterParent"
     $dlgPrim.FormBorderStyle = "FixedDialog"
     $dlgPrim.MaximizeBox = $false
@@ -6795,7 +6890,8 @@ function Show-PrimaryProfilePromptSafe {
     $dlgPrim.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
 
     $hdr = New-Object System.Windows.Forms.Panel
-    $hdr.Size = New-Object System.Drawing.Size(540, 48)
+    $hdr.Location = New-Object System.Drawing.Point(0, 0)
+    $hdr.Size = New-Object System.Drawing.Size(600, 48)
     $hdr.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $dlgPrim.Controls.Add($hdr)
 
@@ -6803,43 +6899,43 @@ function Show-PrimaryProfilePromptSafe {
     $lblHdr.Text = "No Primary Domain Profile Is Configured Yet"
     $lblHdr.Font = New-Object System.Drawing.Font("Segoe UI", 10.5, [System.Drawing.FontStyle]::Bold)
     $lblHdr.ForeColor = [System.Drawing.Color]::White
-    $lblHdr.Location = New-Object System.Drawing.Point(16, 13)
-    $lblHdr.AutoSize = $true
+    $lblHdr.Location = New-Object System.Drawing.Point(18, 13)
+    $lblHdr.Size = New-Object System.Drawing.Size(564, 24)
     $hdr.Controls.Add($lblHdr)
 
     $envLabel = $(if ($script:isDomainJoined) { "Joined Domain: $($script:detectedDomain)" } else { "Workgroup / Remote Workstation" })
     $lblQuestion = New-Object System.Windows.Forms.Label
     $lblQuestion.Location = New-Object System.Drawing.Point(18, 60)
-    $lblQuestion.Size = New-Object System.Drawing.Size(492, 66)
-    $lblQuestion.Font = New-Object System.Drawing.Font("Segoe UI", 8.75)
+    $lblQuestion.Size = New-Object System.Drawing.Size(564, 96)
+    $lblQuestion.Font = New-Object System.Drawing.Font("Segoe UI", 9.0)
     $lblQuestion.Text = "Detected Environment: $envLabel`r`n`r`nWill this current environment be your Primary (Home) Domain Profile?`r`nIf you are installing or running this tool while assisting another domain, keep Primary unset so your home domain profile stays clean for when you return."
     $dlgPrim.Controls.Add($lblQuestion)
 
     $lblPrimName = New-Object System.Windows.Forms.Label
     $lblPrimName.Text = "Primary Profile Name (if setting this as Primary):"
-    $lblPrimName.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
-    $lblPrimName.Location = New-Object System.Drawing.Point(18, 134)
-    $lblPrimName.Size = New-Object System.Drawing.Size(492, 18)
+    $lblPrimName.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $lblPrimName.Location = New-Object System.Drawing.Point(18, 162)
+    $lblPrimName.Size = New-Object System.Drawing.Size(564, 22)
     $dlgPrim.Controls.Add($lblPrimName)
 
     $txtPrimName = New-Object System.Windows.Forms.TextBox
-    $txtPrimName.Location = New-Object System.Drawing.Point(18, 155)
-    $txtPrimName.Size = New-Object System.Drawing.Size(490, 24)
+    $txtPrimName.Location = New-Object System.Drawing.Point(18, 186)
+    $txtPrimName.Size = New-Object System.Drawing.Size(564, 25)
     $txtPrimName.Font = New-Object System.Drawing.Font("Segoe UI", 9.25)
     $txtPrimName.Text = $(if ($script:isDomainJoined -and (-not [string]::IsNullOrWhiteSpace($script:detectedDomain))) { "$($script:detectedDomain) (Primary)" } else { "Primary Domain" })
     $dlgPrim.Controls.Add($txtPrimName)
 
     $lblOtherName = New-Object System.Windows.Forms.Label
     $lblOtherName.Text = $(if ($isOnClientProfile) { "Or keep assisting another domain (leave Primary unset for home):" } else { "If assisting another domain instead, name that temporary/client profile:" })
-    $lblOtherName.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
-    $lblOtherName.Location = New-Object System.Drawing.Point(18, 190)
-    $lblOtherName.Size = New-Object System.Drawing.Size(492, 18)
+    $lblOtherName.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $lblOtherName.Location = New-Object System.Drawing.Point(18, 220)
+    $lblOtherName.Size = New-Object System.Drawing.Size(564, 22)
     $dlgPrim.Controls.Add($lblOtherName)
 
     $nextClientNum = (@($script:domainProfilesData.Profiles | Where-Object { -not [bool]$_.IsDefault }).Count) + 1
     $txtClientName = New-Object System.Windows.Forms.TextBox
-    $txtClientName.Location = New-Object System.Drawing.Point(18, 211)
-    $txtClientName.Size = New-Object System.Drawing.Size(490, 24)
+    $txtClientName.Location = New-Object System.Drawing.Point(18, 244)
+    $txtClientName.Size = New-Object System.Drawing.Size(564, 25)
     $txtClientName.Font = New-Object System.Drawing.Font("Segoe UI", 9.25)
     $txtClientName.Text = $(if ($isOnClientProfile) { [string]$script:activeProfile.Name } else { "Assisting Domain $nextClientNum" })
     if ($isOnClientProfile) { $txtClientName.ReadOnly = $true }
@@ -6848,8 +6944,8 @@ function Show-PrimaryProfilePromptSafe {
     $btnYesPrimary = New-Object System.Windows.Forms.Button
     $btnYesPrimary.Text = "Yes - Set as My Primary Profile"
     $btnYesPrimary.UseMnemonic = $false
-    $btnYesPrimary.Location = New-Object System.Drawing.Point(18, 252)
-    $btnYesPrimary.Size = New-Object System.Drawing.Size(214, 34)
+    $btnYesPrimary.Location = New-Object System.Drawing.Point(18, 286)
+    $btnYesPrimary.Size = New-Object System.Drawing.Size(236, 38)
     $btnYesPrimary.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnYesPrimary.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
     $btnYesPrimary.ForeColor = [System.Drawing.Color]::White
@@ -6859,9 +6955,9 @@ function Show-PrimaryProfilePromptSafe {
     $btnNoAssisting = New-Object System.Windows.Forms.Button
     $btnNoAssisting.Text = $(if ($isOnClientProfile) { "No - Stay on Current Profile" } else { "No - Assisting Another Domain" })
     $btnNoAssisting.UseMnemonic = $false
-    $btnNoAssisting.Location = New-Object System.Drawing.Point(240, 252)
-    $btnNoAssisting.Size = New-Object System.Drawing.Size(184, 34)
-    $btnNoAssisting.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
+    $btnNoAssisting.Location = New-Object System.Drawing.Point(262, 286)
+    $btnNoAssisting.Size = New-Object System.Drawing.Size(222, 38)
+    $btnNoAssisting.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnNoAssisting.BackColor = [System.Drawing.Color]::FromArgb(5, 150, 105)
     $btnNoAssisting.ForeColor = [System.Drawing.Color]::White
     $btnNoAssisting.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -6869,8 +6965,9 @@ function Show-PrimaryProfilePromptSafe {
 
     $btnLater = New-Object System.Windows.Forms.Button
     $btnLater.Text = "Later"
-    $btnLater.Location = New-Object System.Drawing.Point(432, 252)
-    $btnLater.Size = New-Object System.Drawing.Size(76, 34)
+    $btnLater.UseMnemonic = $false
+    $btnLater.Location = New-Object System.Drawing.Point(492, 286)
+    $btnLater.Size = New-Object System.Drawing.Size(90, 38)
     $btnLater.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
     $btnLater.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btnLater.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
@@ -6917,6 +7014,7 @@ function Show-PrimaryProfilePromptSafe {
 
     $dlgPrim.AcceptButton = $btnYesPrimary
     $dlgPrim.CancelButton = $btnLater
+    Invoke-ApplyModalResponsiveScale -ModalForm $dlgPrim -BaseWidth 600 -BaseHeight 344 -Owner $OwnerForm
     [void]$dlgPrim.ShowDialog($OwnerForm)
 }
 
@@ -6926,7 +7024,7 @@ function Show-NewDomainProfileModal {
     $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
     $dlgNew = New-Object System.Windows.Forms.Form
     $dlgNew.Text = "Add Domain Profile"
-    $dlgNew.Size = New-Object System.Drawing.Size(470, 235)
+    $dlgNew.ClientSize = New-Object System.Drawing.Size(520, 224)
     $dlgNew.StartPosition = "CenterParent"
     $dlgNew.FormBorderStyle = "FixedDialog"
     $dlgNew.MaximizeBox = $false
@@ -6938,20 +7036,20 @@ function Show-NewDomainProfileModal {
     $lblPrompt.Text = "Domain Profile Name (e.g. 'Home Domain', 'Contoso Corp', 'Client A'):"
     $lblPrompt.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $lblPrompt.Location = New-Object System.Drawing.Point(18, 16)
-    $lblPrompt.Size = New-Object System.Drawing.Size(420, 20)
+    $lblPrompt.Size = New-Object System.Drawing.Size(484, 22)
     $dlgNew.Controls.Add($lblPrompt)
 
     $txtName = New-Object System.Windows.Forms.TextBox
-    $txtName.Location = New-Object System.Drawing.Point(18, 40)
-    $txtName.Size = New-Object System.Drawing.Size(418, 24)
+    $txtName.Location = New-Object System.Drawing.Point(18, 42)
+    $txtName.Size = New-Object System.Drawing.Size(484, 24)
     $txtName.Font = New-Object System.Drawing.Font("Segoe UI", 9.5)
     $dlgNew.Controls.Add($txtName)
 
     $chkCopyGamSecrets = New-Object System.Windows.Forms.CheckBox
     $chkCopyGamSecrets.Text = "Copy current GAM client_secrets.json (use if profiles share 1 Google Cloud project)"
-    $chkCopyGamSecrets.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+    $chkCopyGamSecrets.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
     $chkCopyGamSecrets.Location = New-Object System.Drawing.Point(18, 76)
-    $chkCopyGamSecrets.Size = New-Object System.Drawing.Size(422, 34)
+    $chkCopyGamSecrets.Size = New-Object System.Drawing.Size(484, 38)
     $chkCopyGamSecrets.Checked = $false
     $srcGamDir = Get-ActiveGamConfigDir
     $hasCurrSec = $srcGamDir -and (Test-Path -LiteralPath (Join-Path $srcGamDir 'client_secrets.json') -PathType Leaf)
@@ -6960,16 +7058,17 @@ function Show-NewDomainProfileModal {
 
     $lblNote = New-Object System.Windows.Forms.Label
     $lblNote.Text = "Each Domain Profile stores its own isolated AD domain, Graph tenant/app, and GAM7 config."
-    $lblNote.Font = New-Object System.Drawing.Font("Segoe UI", 8)
-    $lblNote.ForeColor = [System.Drawing.Color]::FromArgb(148, 163, 184)
-    $lblNote.Location = New-Object System.Drawing.Point(18, 114)
-    $lblNote.Size = New-Object System.Drawing.Size(420, 20)
+    $lblNote.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
+    $lblNote.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
+    $lblNote.Location = New-Object System.Drawing.Point(18, 120)
+    $lblNote.Size = New-Object System.Drawing.Size(484, 38)
     $dlgNew.Controls.Add($lblNote)
 
     $btnCreate = New-Object System.Windows.Forms.Button
     $btnCreate.Text = "Create Profile"
-    $btnCreate.Location = New-Object System.Drawing.Point(216, 146)
-    $btnCreate.Size = New-Object System.Drawing.Size(118, 32)
+    $btnCreate.UseMnemonic = $false
+    $btnCreate.Location = New-Object System.Drawing.Point(270, 170)
+    $btnCreate.Size = New-Object System.Drawing.Size(130, 36)
     $btnCreate.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnCreate.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
     $btnCreate.ForeColor = [System.Drawing.Color]::White
@@ -6978,8 +7077,9 @@ function Show-NewDomainProfileModal {
 
     $btnCancelNew = New-Object System.Windows.Forms.Button
     $btnCancelNew.Text = "Cancel"
-    $btnCancelNew.Location = New-Object System.Drawing.Point(344, 146)
-    $btnCancelNew.Size = New-Object System.Drawing.Size(92, 32)
+    $btnCancelNew.UseMnemonic = $false
+    $btnCancelNew.Location = New-Object System.Drawing.Point(408, 170)
+    $btnCancelNew.Size = New-Object System.Drawing.Size(94, 36)
     $btnCancelNew.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
     $btnCancelNew.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btnCancelNew.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
@@ -6998,6 +7098,7 @@ function Show-NewDomainProfileModal {
     $dlgNew.AcceptButton = $btnCreate
     $dlgNew.CancelButton = $btnCancelNew
     $dlgNew.Add_Shown({ $txtName.Focus() })
+    Invoke-ApplyModalResponsiveScale -ModalForm $dlgNew -BaseWidth 520 -BaseHeight 224 -Owner $OwnerForm
 
     if ($dlgNew.ShowDialog($OwnerForm) -eq [System.Windows.Forms.DialogResult]::OK) {
         $createdProfile = New-DomainProfileSafe -ProfileName $txtName.Text -CopyCurrentGamSecrets:($chkCopyGamSecrets.Checked)
@@ -7008,112 +7109,132 @@ function Show-NewDomainProfileModal {
 function Show-DomainSwitcher {
     param([string]$PreselectProfileId = "")
 
+    $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    $bgDlg   = $(if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
+    $bgCard  = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
+    $bgInput = $(if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
+    $fgMain  = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $fgMuted = $(if ($isDark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
+
     $dlg = New-Object System.Windows.Forms.Form
     $dlg.Text = "Domain Profile & Active Directory Switcher"
-    $dlg.Size = New-Object System.Drawing.Size(570, 565)
+    $dlg.ClientSize = New-Object System.Drawing.Size(600, 540)
     $dlg.StartPosition = "CenterParent"
     $dlg.FormBorderStyle = "FixedDialog"
     $dlg.MaximizeBox = $false
     $dlg.MinimizeBox = $false
-    $dlg.BackColor = [System.Drawing.Color]::FromArgb(248, 250, 252)
+    $dlg.BackColor = $bgDlg
+    $dlg.ForeColor = $fgMain
 
     $dlgHeader = New-Object System.Windows.Forms.Panel
-    $dlgHeader.Size = New-Object System.Drawing.Size(570, 52)
-    $dlgHeader.BackColor = [System.Drawing.Color]::FromArgb(15, 23, 42)
+    $dlgHeader.Location = New-Object System.Drawing.Point(0, 0)
+    $dlgHeader.Size = New-Object System.Drawing.Size(600, 52)
+    $dlgHeader.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $dlg.Controls.Add($dlgHeader)
 
     $dlgTitle = New-Object System.Windows.Forms.Label
     $dlgTitle.Text = "Domain Profile & Tenant Configuration (AD + Graph + GAM7)"
     $dlgTitle.Font = New-Object System.Drawing.Font("Segoe UI", 10.5, [System.Drawing.FontStyle]::Bold)
     $dlgTitle.ForeColor = [System.Drawing.Color]::White
-    $dlgTitle.Location = New-Object System.Drawing.Point(15, 14)
-    $dlgTitle.AutoSize = $true
+    $dlgTitle.Location = New-Object System.Drawing.Point(18, 14)
+    $dlgTitle.Size = New-Object System.Drawing.Size(564, 24)
     $dlgHeader.Controls.Add($dlgTitle)
 
     # SECTION 1: DOMAIN PROFILE SELECTOR
     $grpProf = New-Object System.Windows.Forms.GroupBox
-    $grpProf.Text = " Domain Profile (Isolates AD, Microsoft Graph & Google GAM7) "
+    $grpProf.Text = " Domain Profile (Isolates AD, Microsoft Graph && Google GAM7) "
     $grpProf.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $grpProf.Location = New-Object System.Drawing.Point(18, 60)
-    $grpProf.Size = New-Object System.Drawing.Size(518, 96)
+    $grpProf.Size = New-Object System.Drawing.Size(564, 108)
+    $grpProf.BackColor = $bgCard
+    $grpProf.ForeColor = $fgMain
     $dlg.Controls.Add($grpProf)
 
     $cmbProf = New-Object System.Windows.Forms.ComboBox
     $cmbProf.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
     $cmbProf.Location = New-Object System.Drawing.Point(12, 24)
-    $cmbProf.Size = New-Object System.Drawing.Size(222, 24)
+    $cmbProf.Size = New-Object System.Drawing.Size(250, 24)
     $cmbProf.Font = New-Object System.Drawing.Font("Segoe UI", 8.75)
+    $cmbProf.BackColor = $bgInput
+    $cmbProf.ForeColor = $fgMain
     $grpProf.Controls.Add($cmbProf)
 
     $btnNewProf = New-Object System.Windows.Forms.Button
     $btnNewProf.Text = "+ New"
-    $btnNewProf.Location = New-Object System.Drawing.Point(240, 23)
-    $btnNewProf.Size = New-Object System.Drawing.Size(60, 26)
+    $btnNewProf.UseMnemonic = $false
+    $btnNewProf.Location = New-Object System.Drawing.Point(268, 23)
+    $btnNewProf.Size = New-Object System.Drawing.Size(64, 28)
     $btnNewProf.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
-    $btnNewProf.FlatStyle = [System.Windows.Forms.FlatStyle]::Standard
+    $btnNewProf.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $grpProf.Controls.Add($btnNewProf)
 
     $btnSetPrimaryProf = New-Object System.Windows.Forms.Button
     $btnSetPrimaryProf.Text = "Set Primary"
-    $btnSetPrimaryProf.Location = New-Object System.Drawing.Point(304, 23)
-    $btnSetPrimaryProf.Size = New-Object System.Drawing.Size(82, 26)
+    $btnSetPrimaryProf.UseMnemonic = $false
+    $btnSetPrimaryProf.Location = New-Object System.Drawing.Point(336, 23)
+    $btnSetPrimaryProf.Size = New-Object System.Drawing.Size(88, 28)
     $btnSetPrimaryProf.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
-    $btnSetPrimaryProf.FlatStyle = [System.Windows.Forms.FlatStyle]::Standard
+    $btnSetPrimaryProf.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $grpProf.Controls.Add($btnSetPrimaryProf)
 
     $btnRenameProf = New-Object System.Windows.Forms.Button
     $btnRenameProf.Text = "Rename"
-    $btnRenameProf.Location = New-Object System.Drawing.Point(390, 23)
-    $btnRenameProf.Size = New-Object System.Drawing.Size(60, 26)
+    $btnRenameProf.UseMnemonic = $false
+    $btnRenameProf.Location = New-Object System.Drawing.Point(428, 23)
+    $btnRenameProf.Size = New-Object System.Drawing.Size(64, 28)
     $btnRenameProf.Font = New-Object System.Drawing.Font("Segoe UI", 8)
-    $btnRenameProf.FlatStyle = [System.Windows.Forms.FlatStyle]::Standard
+    $btnRenameProf.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $grpProf.Controls.Add($btnRenameProf)
 
     $btnDelProf = New-Object System.Windows.Forms.Button
     $btnDelProf.Text = "Delete"
-    $btnDelProf.Location = New-Object System.Drawing.Point(454, 23)
-    $btnDelProf.Size = New-Object System.Drawing.Size(54, 26)
+    $btnDelProf.UseMnemonic = $false
+    $btnDelProf.Location = New-Object System.Drawing.Point(496, 23)
+    $btnDelProf.Size = New-Object System.Drawing.Size(58, 28)
     $btnDelProf.Font = New-Object System.Drawing.Font("Segoe UI", 8)
-    $btnDelProf.FlatStyle = [System.Windows.Forms.FlatStyle]::Standard
+    $btnDelProf.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $grpProf.Controls.Add($btnDelProf)
 
     $lblProfCloud = New-Object System.Windows.Forms.Label
     $lblProfCloud.Text = "Graph: --  |  GAM7: --"
-    $lblProfCloud.Font = New-Object System.Drawing.Font("Segoe UI", 8)
-    $lblProfCloud.ForeColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
-    $lblProfCloud.Location = New-Object System.Drawing.Point(12, 54)
-    $lblProfCloud.Size = New-Object System.Drawing.Size(494, 34)
+    $lblProfCloud.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
+    $lblProfCloud.ForeColor = $fgMuted
+    $lblProfCloud.Location = New-Object System.Drawing.Point(12, 56)
+    $lblProfCloud.Size = New-Object System.Drawing.Size(540, 44)
     $grpProf.Controls.Add($lblProfCloud)
 
     # SECTION 2: ACTIVE DIRECTORY DOMAIN & CREDENTIALS
     $lblDlgServer = New-Object System.Windows.Forms.Label
     $lblDlgServer.Text = "Target AD Domain (FQDN or Domain Controller - optional if switching Cloud only):"
     $lblDlgServer.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $lblDlgServer.Location = New-Object System.Drawing.Point(20, 166)
-    $lblDlgServer.AutoSize = $true
+    $lblDlgServer.Location = New-Object System.Drawing.Point(18, 178)
+    $lblDlgServer.Size = New-Object System.Drawing.Size(564, 22)
     $dlg.Controls.Add($lblDlgServer)
 
     $txtDlgServer = New-Object System.Windows.Forms.TextBox
-    $txtDlgServer.Location = New-Object System.Drawing.Point(20, 188)
-    $txtDlgServer.Size = New-Object System.Drawing.Size(366, 24)
+    $txtDlgServer.Location = New-Object System.Drawing.Point(18, 202)
+    $txtDlgServer.Size = New-Object System.Drawing.Size(400, 25)
     $txtDlgServer.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+    $txtDlgServer.BackColor = $bgInput
+    $txtDlgServer.ForeColor = $fgMain
     $dlg.Controls.Add($txtDlgServer)
 
     $btnAutoDetect = New-Object System.Windows.Forms.Button
     $btnAutoDetect.Text = "Auto-Detect Domain"
+    $btnAutoDetect.UseMnemonic = $false
     $btnAutoDetect.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
-    $btnAutoDetect.Location = New-Object System.Drawing.Point(392, 187)
-    $btnAutoDetect.Size = New-Object System.Drawing.Size(144, 26)
-    $btnAutoDetect.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
-    $btnAutoDetect.ForeColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
-    $btnAutoDetect.FlatStyle = [System.Windows.Forms.FlatStyle]::Standard
+    $btnAutoDetect.Location = New-Object System.Drawing.Point(424, 200)
+    $btnAutoDetect.Size = New-Object System.Drawing.Size(158, 28)
+    $btnAutoDetect.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
+    $btnAutoDetect.ForeColor = $fgMain
+    $btnAutoDetect.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btnAutoDetect.Add_Click({
         $detected = Get-DiscoveredLocalDomainSafe
         if (-not [string]::IsNullOrWhiteSpace($detected)) {
             $txtDlgServer.Text = $detected
             $chkUseAlt.Checked = $false
             $lblDlgStatus.Text = "Auto-detected laptop domain '$detected'. Using current Windows login credentials."
-            $lblDlgStatus.ForeColor = [System.Drawing.Color]::FromArgb(21, 128, 61)
+            $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(74, 222, 128) } else { [System.Drawing.Color]::FromArgb(21, 128, 61) })
         } else {
             $lblDlgStatus.Text = "No local joined domain detected on this PC."
             $lblDlgStatus.ForeColor = [System.Drawing.Color]::FromArgb(217, 119, 6)
@@ -7124,9 +7245,9 @@ function Show-DomainSwitcher {
     $chkUseAlt = New-Object System.Windows.Forms.CheckBox
     $chkUseAlt.Text = "Use alternate Domain Admin credentials (same domain or remote DC)"
     $chkUseAlt.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $chkUseAlt.ForeColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
-    $chkUseAlt.Location = New-Object System.Drawing.Point(20, 220)
-    $chkUseAlt.Size = New-Object System.Drawing.Size(516, 30)
+    $chkUseAlt.ForeColor = $fgMain
+    $chkUseAlt.Location = New-Object System.Drawing.Point(18, 236)
+    $chkUseAlt.Size = New-Object System.Drawing.Size(564, 30)
     $chkUseAlt.AutoSize = $false
     $chkUseAlt.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $chkUseAlt.CheckAlign = [System.Drawing.ContentAlignment]::MiddleLeft
@@ -7135,31 +7256,37 @@ function Show-DomainSwitcher {
     $grpCreds = New-Object System.Windows.Forms.GroupBox
     $grpCreds.Text = " Domain Administrator Credentials (Password is never written to disk) "
     $grpCreds.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
-    $grpCreds.Location = New-Object System.Drawing.Point(20, 256)
-    $grpCreds.Size = New-Object System.Drawing.Size(516, 138)
+    $grpCreds.Location = New-Object System.Drawing.Point(18, 272)
+    $grpCreds.Size = New-Object System.Drawing.Size(564, 140)
+    $grpCreds.BackColor = $bgCard
+    $grpCreds.ForeColor = $fgMain
     $dlg.Controls.Add($grpCreds)
 
     $lblDlgUser = New-Object System.Windows.Forms.Label
     $lblDlgUser.Text = "Username (DOMAIN\admin or admin@domain.com):"
     $lblDlgUser.Location = New-Object System.Drawing.Point(15, 22)
-    $lblDlgUser.AutoSize = $true
+    $lblDlgUser.Size = New-Object System.Drawing.Size(534, 20)
     $grpCreds.Controls.Add($lblDlgUser)
 
     $txtDlgUser = New-Object System.Windows.Forms.TextBox
-    $txtDlgUser.Location = New-Object System.Drawing.Point(15, 42)
-    $txtDlgUser.Size = New-Object System.Drawing.Size(486, 23)
+    $txtDlgUser.Location = New-Object System.Drawing.Point(15, 44)
+    $txtDlgUser.Size = New-Object System.Drawing.Size(534, 24)
+    $txtDlgUser.BackColor = $bgInput
+    $txtDlgUser.ForeColor = $fgMain
     $grpCreds.Controls.Add($txtDlgUser)
 
     $lblDlgPass = New-Object System.Windows.Forms.Label
     $lblDlgPass.Text = "Password:"
-    $lblDlgPass.Location = New-Object System.Drawing.Point(15, 74)
-    $lblDlgPass.AutoSize = $true
+    $lblDlgPass.Location = New-Object System.Drawing.Point(15, 76)
+    $lblDlgPass.Size = New-Object System.Drawing.Size(534, 20)
     $grpCreds.Controls.Add($lblDlgPass)
 
     $txtDlgPass = New-Object System.Windows.Forms.TextBox
     $txtDlgPass.PasswordChar = '*'
-    $txtDlgPass.Location = New-Object System.Drawing.Point(15, 94)
-    $txtDlgPass.Size = New-Object System.Drawing.Size(486, 23)
+    $txtDlgPass.Location = New-Object System.Drawing.Point(15, 98)
+    $txtDlgPass.Size = New-Object System.Drawing.Size(534, 24)
+    $txtDlgPass.BackColor = $bgInput
+    $txtDlgPass.ForeColor = $fgMain
     $grpCreds.Controls.Add($txtDlgPass)
 
     $chkUseAlt.Add_CheckedChanged({
@@ -7168,17 +7295,17 @@ function Show-DomainSwitcher {
 
     $lblDlgStatus = New-Object System.Windows.Forms.Label
     $lblDlgStatus.Text = ""
-    $lblDlgStatus.Font = New-Object System.Drawing.Font("Segoe UI", 8)
-    $lblDlgStatus.ForeColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
-    $lblDlgStatus.Location = New-Object System.Drawing.Point(20, 402)
-    $lblDlgStatus.Size = New-Object System.Drawing.Size(516, 38)
+    $lblDlgStatus.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
+    $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
+    $lblDlgStatus.Location = New-Object System.Drawing.Point(18, 420)
+    $lblDlgStatus.Size = New-Object System.Drawing.Size(564, 52)
     $dlg.Controls.Add($lblDlgStatus)
 
     $btnConnect = New-Object System.Windows.Forms.Button
     $btnConnect.Text = "Connect & Switch Profile"
     $btnConnect.UseMnemonic = $false
-    $btnConnect.Location = New-Object System.Drawing.Point(116, 466)
-    $btnConnect.Size = New-Object System.Drawing.Size(172, 34)
+    $btnConnect.Location = New-Object System.Drawing.Point(110, 484)
+    $btnConnect.Size = New-Object System.Drawing.Size(192, 38)
     $btnConnect.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnConnect.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
     $btnConnect.ForeColor = [System.Drawing.Color]::White
@@ -7188,9 +7315,9 @@ function Show-DomainSwitcher {
     $btnCloudOnly = New-Object System.Windows.Forms.Button
     $btnCloudOnly.Text = "Switch Cloud Only (Skip AD)"
     $btnCloudOnly.UseMnemonic = $false
-    $btnCloudOnly.Location = New-Object System.Drawing.Point(296, 466)
-    $btnCloudOnly.Size = New-Object System.Drawing.Size(156, 34)
-    $btnCloudOnly.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
+    $btnCloudOnly.Location = New-Object System.Drawing.Point(310, 484)
+    $btnCloudOnly.Size = New-Object System.Drawing.Size(184, 38)
+    $btnCloudOnly.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
     $btnCloudOnly.BackColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
     $btnCloudOnly.ForeColor = [System.Drawing.Color]::White
     $btnCloudOnly.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -7198,10 +7325,12 @@ function Show-DomainSwitcher {
 
     $btnCancelDlg = New-Object System.Windows.Forms.Button
     $btnCancelDlg.Text = "Cancel"
-    $btnCancelDlg.Location = New-Object System.Drawing.Point(460, 466)
-    $btnCancelDlg.Size = New-Object System.Drawing.Size(76, 34)
+    $btnCancelDlg.UseMnemonic = $false
+    $btnCancelDlg.Location = New-Object System.Drawing.Point(502, 484)
+    $btnCancelDlg.Size = New-Object System.Drawing.Size(80, 38)
     $btnCancelDlg.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
-    $btnCancelDlg.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
+    $btnCancelDlg.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
+    $btnCancelDlg.ForeColor = $fgMain
     $btnCancelDlg.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $dlg.Controls.Add($btnCancelDlg)
 
@@ -7266,7 +7395,11 @@ function Show-DomainSwitcher {
         $gStat = $(if ($summary.GraphReady) { "Verified ($($summary.GraphLabel))" } else { "Not linked yet" })
         $gamStat = $summary.GamLabel
         $lblProfCloud.Text = "Microsoft Graph: $gStat`r`nGoogle GAM7: $gamStat"
-        $lblProfCloud.ForeColor = $(if ($summary.GraphReady -and $summary.GamReady) { [System.Drawing.Color]::FromArgb(21, 128, 61) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
+        $lblProfCloud.ForeColor = $(if ($summary.GraphReady -and $summary.GamReady) {
+            if ($isDark) { [System.Drawing.Color]::FromArgb(74, 222, 128) } else { [System.Drawing.Color]::FromArgb(21, 128, 61) }
+        } else {
+            $fgMuted
+        })
         $lblDlgStatus.Text = ""
     }
 
@@ -7279,7 +7412,7 @@ function Show-DomainSwitcher {
             & $loadSelectedProfileFields
             Sync-DiagProfileControls
             $lblDlgStatus.Text = "Created '$($newPr.Name)'. Enter AD domain/creds below or click 'Switch Cloud Only (Skip AD)' then link Graph/GAM on Tab 1."
-            $lblDlgStatus.ForeColor = [System.Drawing.Color]::FromArgb(2, 132, 199)
+            $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) })
         }
     })
 
@@ -7292,7 +7425,7 @@ function Show-DomainSwitcher {
         Sync-DiagProfileControls
         Update-HeaderSubLabelSafe
         $lblDlgStatus.Text = "Marked '$($pr.Name)' as your Primary Domain Profile."
-        $lblDlgStatus.ForeColor = [System.Drawing.Color]::FromArgb(21, 128, 61)
+        $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(74, 222, 128) } else { [System.Drawing.Color]::FromArgb(21, 128, 61) })
     })
 
     $btnRenameProf.Add_Click({
@@ -7300,30 +7433,39 @@ function Show-DomainSwitcher {
         if (-not $pr) { return }
         $renDlg = New-Object System.Windows.Forms.Form
         $renDlg.Text = "Rename Domain Profile"
-        $renDlg.Size = New-Object System.Drawing.Size(380, 145)
+        $renDlg.ClientSize = New-Object System.Drawing.Size(400, 122)
         $renDlg.StartPosition = "CenterParent"
         $renDlg.FormBorderStyle = "FixedDialog"
         $renDlg.MaximizeBox = $false
         $renDlg.MinimizeBox = $false
+        $renDlg.BackColor = $bgDlg
+        $renDlg.ForeColor = $fgMain
         $txtRen = New-Object System.Windows.Forms.TextBox
         $txtRen.Text = $pr.Name
-        $txtRen.Location = New-Object System.Drawing.Point(15, 18)
-        $txtRen.Size = New-Object System.Drawing.Size(334, 24)
+        $txtRen.Location = New-Object System.Drawing.Point(16, 20)
+        $txtRen.Size = New-Object System.Drawing.Size(368, 25)
+        $txtRen.BackColor = $bgInput
+        $txtRen.ForeColor = $fgMain
         $renDlg.Controls.Add($txtRen)
         $btnOkRen = New-Object System.Windows.Forms.Button
         $btnOkRen.Text = "Save"
-        $btnOkRen.Location = New-Object System.Drawing.Point(175, 58)
-        $btnOkRen.Size = New-Object System.Drawing.Size(82, 30)
+        $btnOkRen.Location = New-Object System.Drawing.Point(202, 64)
+        $btnOkRen.Size = New-Object System.Drawing.Size(86, 34)
+        $btnOkRen.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+        $btnOkRen.ForeColor = [System.Drawing.Color]::White
+        $btnOkRen.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
         $btnOkRen.DialogResult = [System.Windows.Forms.DialogResult]::OK
         $renDlg.Controls.Add($btnOkRen)
         $btnCanRen = New-Object System.Windows.Forms.Button
         $btnCanRen.Text = "Cancel"
-        $btnCanRen.Location = New-Object System.Drawing.Point(267, 58)
-        $btnCanRen.Size = New-Object System.Drawing.Size(82, 30)
+        $btnCanRen.Location = New-Object System.Drawing.Point(298, 64)
+        $btnCanRen.Size = New-Object System.Drawing.Size(86, 34)
+        $btnCanRen.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
         $btnCanRen.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
         $renDlg.Controls.Add($btnCanRen)
         $renDlg.AcceptButton = $btnOkRen
         $renDlg.CancelButton = $btnCanRen
+        Invoke-ApplyModalResponsiveScale -ModalForm $renDlg -BaseWidth 400 -BaseHeight 122 -Owner $dlg
         if ($renDlg.ShowDialog($dlg) -eq [System.Windows.Forms.DialogResult]::OK -and (-not [string]::IsNullOrWhiteSpace($txtRen.Text))) {
             $pr.Name = $txtRen.Text.Trim()
             Save-DomainProfilesSafe
@@ -7395,12 +7537,12 @@ function Show-DomainSwitcher {
         $target = $txtDlgServer.Text.Trim()
         if ([string]::IsNullOrEmpty($target)) {
             $lblDlgStatus.Text = "Enter a target domain/DC, or click 'Switch Cloud Only (Skip AD)' if you only need Graph/GAM."
-            $lblDlgStatus.ForeColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
+            $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
             return
         }
 
         $lblDlgStatus.Text = "Performing live LDAP RootDSE verification against '$target'..."
-        $lblDlgStatus.ForeColor = [System.Drawing.Color]::FromArgb(2, 132, 199)
+        $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) })
         $dlg.Refresh()
 
         try {
@@ -7408,7 +7550,7 @@ function Show-DomainSwitcher {
             $testCred = $(if ($chkUseAlt.Checked) {
                 if ([string]::IsNullOrEmpty($txtDlgUser.Text) -or [string]::IsNullOrEmpty($txtDlgPass.Text)) {
                     $lblDlgStatus.Text = "Username and password are required when using alternate AD credentials."
-                    $lblDlgStatus.ForeColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
+                    $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
                     return
                 }
                 $sec = ConvertTo-SecureString $txtDlgPass.Text -AsPlainText -Force
@@ -7438,11 +7580,12 @@ function Show-DomainSwitcher {
             $rawMsg = $_.Exception.Message
             $cleanMsg = $(if ($rawMsg -match 'member\s+"Dispose":\s*"([^"]+)"') { $matches[1] } else { $rawMsg })
             $lblDlgStatus.Text = "Verification failed: $cleanMsg"
-            $lblDlgStatus.ForeColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
+            $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
             Write-AppLog "Domain connection verification failed: $cleanMsg" "ERROR"
         }
     })
 
+    Invoke-ApplyModalResponsiveScale -ModalForm $dlg -BaseWidth 600 -BaseHeight 540 -Owner $form
     [void]$dlg.ShowDialog($form)
 }
 
@@ -7461,7 +7604,7 @@ function Show-ChangelogWindow {
 
     $dlgNotes = New-Object System.Windows.Forms.Form
     $dlgNotes.Text = "Security Incident Automator - Release Notes ($VersionTag)"
-    $dlgNotes.Size = New-Object System.Drawing.Size(640, 500)
+    $dlgNotes.ClientSize = New-Object System.Drawing.Size(660, 480)
     $dlgNotes.StartPosition = "CenterParent"
     $dlgNotes.FormBorderStyle = "FixedDialog"
     $dlgNotes.MaximizeBox = $false
@@ -7469,7 +7612,8 @@ function Show-ChangelogWindow {
     $dlgNotes.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
 
     $dlgHeader = New-Object System.Windows.Forms.Panel
-    $dlgHeader.Size = New-Object System.Drawing.Size(640, 50)
+    $dlgHeader.Location = New-Object System.Drawing.Point(0, 0)
+    $dlgHeader.Size = New-Object System.Drawing.Size(660, 50)
     $dlgHeader.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $dlgNotes.Controls.Add($dlgHeader)
 
@@ -7477,8 +7621,8 @@ function Show-ChangelogWindow {
     $dlgTitle.Text = "Version Changelog & Release Notes ($VersionTag)"
     $dlgTitle.Font = New-Object System.Drawing.Font("Segoe UI", 10.5, [System.Drawing.FontStyle]::Bold)
     $dlgTitle.ForeColor = [System.Drawing.Color]::White
-    $dlgTitle.Location = New-Object System.Drawing.Point(15, 13)
-    $dlgTitle.AutoSize = $true
+    $dlgTitle.Location = New-Object System.Drawing.Point(16, 13)
+    $dlgTitle.Size = New-Object System.Drawing.Size(628, 24)
     $dlgHeader.Controls.Add($dlgTitle)
 
     $resolvedNotes = $ChangelogText
@@ -7505,6 +7649,7 @@ function Show-ChangelogWindow {
             "  * Unified Tab 3 ('3. Deep Isolation') red cloud persistence eradication buttons with parallel naming across Microsoft 365 (Entra ID) and Google Workspace (GAM7):`r`n" +
             "    - Wipe Entra 2FA Methods | Wipe Entra OAuth Grants | Wipe Google 2FA Methods | Wipe Google OAuth Grants | Wipe All (Entra + GAM7).`r`n" +
             "  * Added Temporary Access Pass (temporaryAccessPassMethods) deletion to 'Wipe Entra 2FA Methods' and descriptive hover tooltips on Tab 3 controls.`r`n" +
+            "  * Fixed wrapped diagnostic/status label clipping in full-screen/high-DPI views, escaped GroupBox ampersands ('&&'), and added high-DPI pixel font scaling across all modal prompts.`r`n" +
             "  * Refined UI wording, dialog titles, event triage recommendations, and documentation across all 5 tabs.`r`n`r`n" +
             "## [1.1.56] - 2026-11-12`r`n" +
             "### Changed & Fixed`r`n" +
@@ -7527,8 +7672,8 @@ function Show-ChangelogWindow {
     $txtNotes.Multiline = $true
     $txtNotes.ReadOnly = $true
     $txtNotes.ScrollBars = "Vertical"
-    $txtNotes.Location = New-Object System.Drawing.Point(15, 62)
-    $txtNotes.Size = New-Object System.Drawing.Size(595, 340)
+    $txtNotes.Location = New-Object System.Drawing.Point(16, 62)
+    $txtNotes.Size = New-Object System.Drawing.Size(628, 356)
     $txtNotes.Font = New-Object System.Drawing.Font("Consolas", 9)
     $txtNotes.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
     $txtNotes.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
@@ -7540,8 +7685,8 @@ function Show-ChangelogWindow {
     $btnCloseNotes = New-Object System.Windows.Forms.Button
     $btnCloseNotes.Text = "Close"
     $btnCloseNotes.UseMnemonic = $false
-    $btnCloseNotes.Location = New-Object System.Drawing.Point(490, 412)
-    $btnCloseNotes.Size = New-Object System.Drawing.Size(120, 32)
+    $btnCloseNotes.Location = New-Object System.Drawing.Point(524, 428)
+    $btnCloseNotes.Size = New-Object System.Drawing.Size(120, 36)
     $btnCloseNotes.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnCloseNotes.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
     $btnCloseNotes.ForeColor = $(if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
@@ -7550,6 +7695,7 @@ function Show-ChangelogWindow {
     $dlgNotes.Controls.Add($btnCloseNotes)
     $dlgNotes.CancelButton = $btnCloseNotes
 
+    Invoke-ApplyModalResponsiveScale -ModalForm $dlgNotes -BaseWidth 660 -BaseHeight 480 -Owner $form
     [void]$dlgNotes.ShowDialog($form)
 }
 
@@ -7566,7 +7712,7 @@ function Show-UpdateCheckWindow {
 
     $dlgUpd = New-Object System.Windows.Forms.Form
     $dlgUpd.Text = "Security Incident Automator - Check for Updates"
-    $dlgUpd.Size = New-Object System.Drawing.Size(660, 504)
+    $dlgUpd.ClientSize = New-Object System.Drawing.Size(660, 466)
     $dlgUpd.StartPosition = "CenterParent"
     $dlgUpd.FormBorderStyle = "FixedDialog"
     $dlgUpd.MaximizeBox = $false
@@ -7576,7 +7722,7 @@ function Show-UpdateCheckWindow {
     # Top Section GroupBox Container
     $grpTop = New-Object System.Windows.Forms.GroupBox
     $grpTop.Location = New-Object System.Drawing.Point(15, 10)
-    $grpTop.Size = New-Object System.Drawing.Size(615, 122)
+    $grpTop.Size = New-Object System.Drawing.Size(630, 128)
     $grpTop.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
     $grpTop.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $dlgUpd.Controls.Add($grpTop)
@@ -7585,29 +7731,29 @@ function Show-UpdateCheckWindow {
     $lblAppVer.Text = "Application Version: v$($script:AppVersion) (Installed)"
     $lblAppVer.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
     $lblAppVer.Location = New-Object System.Drawing.Point(15, 14)
-    $lblAppVer.Size = New-Object System.Drawing.Size(585, 24)
+    $lblAppVer.Size = New-Object System.Drawing.Size(600, 24)
     $lblAppVer.ForeColor = $(if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $grpTop.Controls.Add($lblAppVer)
 
     $lblSubDesc = New-Object System.Windows.Forms.Label
     $lblSubDesc.Text = "Checks GitHub for newer releases. When an update is confirmed, it downloads the latest release, hot-swaps the running script or executable, and restarts automatically."
     $lblSubDesc.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
-    $lblSubDesc.Location = New-Object System.Drawing.Point(15, 38)
-    $lblSubDesc.Size = New-Object System.Drawing.Size(585, 34)
+    $lblSubDesc.Location = New-Object System.Drawing.Point(15, 40)
+    $lblSubDesc.Size = New-Object System.Drawing.Size(600, 38)
     $lblSubDesc.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(100, 116, 139) })
     $grpTop.Controls.Add($lblSubDesc)
 
     $lblRepo = New-Object System.Windows.Forms.Label
     $lblRepo.Text = "GitHub Repository (owner/repo):"
     $lblRepo.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $lblRepo.Location = New-Object System.Drawing.Point(15, 80)
+    $lblRepo.Location = New-Object System.Drawing.Point(15, 86)
     $lblRepo.Size = New-Object System.Drawing.Size(202, 22)
     $lblRepo.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(51, 65, 85) })
     $grpTop.Controls.Add($lblRepo)
 
     $txtRepo = New-Object System.Windows.Forms.TextBox
-    $txtRepo.Location = New-Object System.Drawing.Point(218, 78)
-    $txtRepo.Size = New-Object System.Drawing.Size(246, 24)
+    $txtRepo.Location = New-Object System.Drawing.Point(218, 84)
+    $txtRepo.Size = New-Object System.Drawing.Size(258, 24)
     $txtRepo.Font = New-Object System.Drawing.Font("Segoe UI", 8.75)
     $txtRepo.Text = "mkstewart88/Security-Incident-Helper"
     $txtRepo.BackColor = $bgLog
@@ -7618,8 +7764,8 @@ function Show-UpdateCheckWindow {
     $btnCheckNow.Text = "Check for Updates"
     $btnCheckNow.UseMnemonic = $false
     $btnCheckNow.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $btnCheckNow.Location = New-Object System.Drawing.Point(472, 76)
-    $btnCheckNow.Size = New-Object System.Drawing.Size(128, 28)
+    $btnCheckNow.Location = New-Object System.Drawing.Point(484, 82)
+    $btnCheckNow.Size = New-Object System.Drawing.Size(132, 28)
     $btnCheckNow.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
     $btnCheckNow.ForeColor = $(if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $btnCheckNow.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -7631,8 +7777,8 @@ function Show-UpdateCheckWindow {
     $txtLogUpd.ScrollBars = [System.Windows.Forms.RichTextBoxScrollBars]::Vertical
     $txtLogUpd.DetectUrls = $true
     $txtLogUpd.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
-    $txtLogUpd.Location = New-Object System.Drawing.Point(15, 140)
-    $txtLogUpd.Size = New-Object System.Drawing.Size(615, 218)
+    $txtLogUpd.Location = New-Object System.Drawing.Point(15, 146)
+    $txtLogUpd.Size = New-Object System.Drawing.Size(630, 224)
     $txtLogUpd.Font = New-Object System.Drawing.Font("Consolas", 8.75)
     $txtLogUpd.BackColor = $bgLog
     $txtLogUpd.ForeColor = $fgLog
@@ -7646,8 +7792,8 @@ function Show-UpdateCheckWindow {
 
     # Bottom Progress Bar
     $prgUpd = New-Object System.Windows.Forms.ProgressBar
-    $prgUpd.Location = New-Object System.Drawing.Point(15, 366)
-    $prgUpd.Size = New-Object System.Drawing.Size(615, 16)
+    $prgUpd.Location = New-Object System.Drawing.Point(15, 378)
+    $prgUpd.Size = New-Object System.Drawing.Size(630, 16)
     $prgUpd.Minimum = 0
     $prgUpd.Maximum = 100
     $prgUpd.Value = 0
@@ -7658,8 +7804,8 @@ function Show-UpdateCheckWindow {
     $btnViewChangelog.Text = "View Changelog"
     $btnViewChangelog.UseMnemonic = $false
     $btnViewChangelog.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $btnViewChangelog.Location = New-Object System.Drawing.Point(15, 398)
-    $btnViewChangelog.Size = New-Object System.Drawing.Size(145, 36)
+    $btnViewChangelog.Location = New-Object System.Drawing.Point(15, 408)
+    $btnViewChangelog.Size = New-Object System.Drawing.Size(150, 38)
     $btnViewChangelog.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
     $btnViewChangelog.ForeColor = $(if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $btnViewChangelog.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -7669,8 +7815,8 @@ function Show-UpdateCheckWindow {
     $btnUpdateRestart.UseMnemonic = $false
     $btnUpdateRestart.Text = "Update & Restart"
     $btnUpdateRestart.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $btnUpdateRestart.Location = New-Object System.Drawing.Point(325, 398)
-    $btnUpdateRestart.Size = New-Object System.Drawing.Size(160, 36)
+    $btnUpdateRestart.Location = New-Object System.Drawing.Point(345, 408)
+    $btnUpdateRestart.Size = New-Object System.Drawing.Size(162, 38)
     $btnUpdateRestart.Enabled = $false
     $btnUpdateRestart.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(203, 213, 225) })
     $btnUpdateRestart.ForeColor = [System.Drawing.Color]::White
@@ -7681,8 +7827,8 @@ function Show-UpdateCheckWindow {
     $btnCloseUpd.Text = "Close"
     $btnCloseUpd.UseMnemonic = $false
     $btnCloseUpd.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
-    $btnCloseUpd.Location = New-Object System.Drawing.Point(500, 398)
-    $btnCloseUpd.Size = New-Object System.Drawing.Size(130, 36)
+    $btnCloseUpd.Location = New-Object System.Drawing.Point(515, 408)
+    $btnCloseUpd.Size = New-Object System.Drawing.Size(130, 38)
     $btnCloseUpd.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
     $btnCloseUpd.ForeColor = $(if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $btnCloseUpd.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -8158,6 +8304,7 @@ if (Test-Path -LiteralPath '__SWAP_PS1__') { Remove-Item -LiteralPath '__SWAP_PS
         & $runCheckLogic
     })
 
+    Invoke-ApplyModalResponsiveScale -ModalForm $dlgUpd -BaseWidth 660 -BaseHeight 466 -Owner $form
     [void]$dlgUpd.ShowDialog($form)
 }
 
@@ -8470,46 +8617,52 @@ function Prompt-CheckDiagnosticsTab {
 function Show-PasswordResetCustomDialog {
     if ($null -eq $script:currentUser) { return }
     $u = $script:currentUser
+    $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    $bgInput = $(if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
+    $fgMain  = $(if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
 
     $dlg = New-Object System.Windows.Forms.Form
     $dlg.Text = "Reset Active Directory Password - $($u.DisplayName)"
-    $dlg.Size = New-Object System.Drawing.Size(520, 270)
+    $dlg.ClientSize = New-Object System.Drawing.Size(540, 236)
     $dlg.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterParent
     $dlg.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
     $dlg.MaximizeBox = $false
     $dlg.MinimizeBox = $false
-    $dlg.BackColor = [System.Drawing.Color]::FromArgb(15, 23, 42)
-    $dlg.ForeColor = [System.Drawing.Color]::White
+    $dlg.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
+    $dlg.ForeColor = $fgMain
 
     $lblInfo = New-Object System.Windows.Forms.Label
-    $lblInfo.Text = "Target Account: $($u.DisplayName)`nsAMAccountName: $($u.SamAccountName)  |  UPN: $($u.UserPrincipalName)"
+    $lblInfo.Text = "Target Account: $($u.DisplayName)`r`nsAMAccountName: $($u.SamAccountName)  |  UPN: $($u.UserPrincipalName)"
     $lblInfo.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-    $lblInfo.ForeColor = [System.Drawing.Color]::FromArgb(56, 189, 248)
-    $lblInfo.Location = New-Object System.Drawing.Point(20, 15)
-    $lblInfo.Size = New-Object System.Drawing.Size(460, 40)
+    $lblInfo.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) })
+    $lblInfo.Location = New-Object System.Drawing.Point(20, 14)
+    $lblInfo.Size = New-Object System.Drawing.Size(500, 48)
     $dlg.Controls.Add($lblInfo)
 
     $lblPrompt = New-Object System.Windows.Forms.Label
     $lblPrompt.Text = "Choose or Type New Temporary Password:"
     $lblPrompt.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
-    $lblPrompt.Location = New-Object System.Drawing.Point(20, 60)
-    $lblPrompt.Size = New-Object System.Drawing.Size(460, 20)
+    $lblPrompt.Location = New-Object System.Drawing.Point(20, 68)
+    $lblPrompt.Size = New-Object System.Drawing.Size(500, 22)
     $dlg.Controls.Add($lblPrompt)
 
     $txtPass = New-Object System.Windows.Forms.TextBox
-    $txtPass.Location = New-Object System.Drawing.Point(20, 83)
-    $txtPass.Size = New-Object System.Drawing.Size(320, 26)
+    $txtPass.Location = New-Object System.Drawing.Point(20, 92)
+    $txtPass.Size = New-Object System.Drawing.Size(344, 26)
     $txtPass.Font = New-Object System.Drawing.Font("Consolas", 10, [System.Drawing.FontStyle]::Bold)
+    $txtPass.BackColor = $bgInput
+    $txtPass.ForeColor = $fgMain
     $txtPass.Text = "Secure#" + (Get-Random -Minimum 1000 -Maximum 9999) + "!Safe"
     $dlg.Controls.Add($txtPass)
 
     $btnGen = New-Object System.Windows.Forms.Button
     $btnGen.Text = "Generate"
-    $btnGen.Location = New-Object System.Drawing.Point(348, 82)
-    $btnGen.Size = New-Object System.Drawing.Size(75, 28)
+    $btnGen.UseMnemonic = $false
+    $btnGen.Location = New-Object System.Drawing.Point(372, 91)
+    $btnGen.Size = New-Object System.Drawing.Size(80, 28)
     $btnGen.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $btnGen.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
-    $btnGen.ForeColor = [System.Drawing.Color]::White
+    $btnGen.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+    $btnGen.ForeColor = $fgMain
     $btnGen.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btnGen.Add_Click({
         $chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*"
@@ -8521,11 +8674,12 @@ function Show-PasswordResetCustomDialog {
 
     $btnCopy = New-Object System.Windows.Forms.Button
     $btnCopy.Text = "Copy"
-    $btnCopy.Location = New-Object System.Drawing.Point(428, 82)
-    $btnCopy.Size = New-Object System.Drawing.Size(55, 28)
+    $btnCopy.UseMnemonic = $false
+    $btnCopy.Location = New-Object System.Drawing.Point(458, 91)
+    $btnCopy.Size = New-Object System.Drawing.Size(62, 28)
     $btnCopy.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
-    $btnCopy.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
-    $btnCopy.ForeColor = [System.Drawing.Color]::White
+    $btnCopy.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+    $btnCopy.ForeColor = $fgMain
     $btnCopy.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btnCopy.Add_Click({
         if (-not [string]::IsNullOrEmpty($txtPass.Text)) {
@@ -8538,15 +8692,16 @@ function Show-PasswordResetCustomDialog {
     $chkMustChange = New-Object System.Windows.Forms.CheckBox
     $chkMustChange.Text = "Require user to change password at next logon (pwdLastSet = 0)"
     $chkMustChange.Checked = $true
-    $chkMustChange.Location = New-Object System.Drawing.Point(22, 118)
-    $chkMustChange.Size = New-Object System.Drawing.Size(460, 24)
+    $chkMustChange.Location = New-Object System.Drawing.Point(20, 128)
+    $chkMustChange.Size = New-Object System.Drawing.Size(500, 26)
     $chkMustChange.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
     $dlg.Controls.Add($chkMustChange)
 
     $btnSubmit = New-Object System.Windows.Forms.Button
     $btnSubmit.Text = "Reset Password Now"
-    $btnSubmit.Location = New-Object System.Drawing.Point(180, 165)
-    $btnSubmit.Size = New-Object System.Drawing.Size(180, 36)
+    $btnSubmit.UseMnemonic = $false
+    $btnSubmit.Location = New-Object System.Drawing.Point(216, 174)
+    $btnSubmit.Size = New-Object System.Drawing.Size(184, 38)
     $btnSubmit.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
     $btnSubmit.BackColor = [System.Drawing.Color]::FromArgb(217, 119, 6)
     $btnSubmit.ForeColor = [System.Drawing.Color]::White
@@ -8556,17 +8711,19 @@ function Show-PasswordResetCustomDialog {
 
     $btnCancel = New-Object System.Windows.Forms.Button
     $btnCancel.Text = "Cancel"
-    $btnCancel.Location = New-Object System.Drawing.Point(370, 165)
-    $btnCancel.Size = New-Object System.Drawing.Size(110, 36)
+    $btnCancel.UseMnemonic = $false
+    $btnCancel.Location = New-Object System.Drawing.Point(408, 174)
+    $btnCancel.Size = New-Object System.Drawing.Size(112, 38)
     $btnCancel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-    $btnCancel.BackColor = [System.Drawing.Color]::FromArgb(51, 65, 85)
-    $btnCancel.ForeColor = [System.Drawing.Color]::White
+    $btnCancel.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+    $btnCancel.ForeColor = $fgMain
     $btnCancel.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btnCancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $dlg.Controls.Add($btnCancel)
 
     $dlg.AcceptButton = $btnSubmit
     $dlg.CancelButton = $btnCancel
+    Invoke-ApplyModalResponsiveScale -ModalForm $dlg -BaseWidth 540 -BaseHeight 236 -Owner $form
 
     $diagResult = $dlg.ShowDialog($form)
     if ($diagResult -eq [System.Windows.Forms.DialogResult]::OK) {
@@ -8875,50 +9032,50 @@ $grpDiagProfile.Controls.Add($btnDiagManageProfiles)
 Sync-DiagProfileControls
 
 $grpDiagStatus = New-Object System.Windows.Forms.GroupBox
-$grpDiagStatus.Text = " Directory & Cloud Integration Status "
+$grpDiagStatus.Text = " Directory && Cloud Integration Status "
 $grpDiagStatus.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $grpDiagStatus.Location = New-Object System.Drawing.Point(10, 62)
-$grpDiagStatus.Size = New-Object System.Drawing.Size(820, 108)
+$grpDiagStatus.Size = New-Object System.Drawing.Size(820, 138)
 $tabDiag.Controls.Add($grpDiagStatus)
 
 $lblStatusAD = New-Object System.Windows.Forms.Label
 $lblStatusAD.Text = "Active Directory: Checking connection mode..."
 $lblStatusAD.UseMnemonic = $false
 $lblStatusAD.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-$lblStatusAD.Location = New-Object System.Drawing.Point(15, 22)
-$lblStatusAD.Size = New-Object System.Drawing.Size(790, 22)
+$lblStatusAD.Location = New-Object System.Drawing.Point(15, 20)
+$lblStatusAD.Size = New-Object System.Drawing.Size(790, 34)
 $grpDiagStatus.Controls.Add($lblStatusAD)
 
 $lblStatusGraph = New-Object System.Windows.Forms.Label
 $lblStatusGraph.Text = "Microsoft Graph SDK & Auth: Checking..."
 $lblStatusGraph.UseMnemonic = $false
 $lblStatusGraph.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-$lblStatusGraph.Location = New-Object System.Drawing.Point(15, 49)
-$lblStatusGraph.Size = New-Object System.Drawing.Size(790, 22)
+$lblStatusGraph.Location = New-Object System.Drawing.Point(15, 56)
+$lblStatusGraph.Size = New-Object System.Drawing.Size(790, 34)
 $grpDiagStatus.Controls.Add($lblStatusGraph)
 
 $lblStatusGAM = New-Object System.Windows.Forms.Label
 $lblStatusGAM.Text = "Google Apps Manager (GAM7): Checking..."
 $lblStatusGAM.UseMnemonic = $false
 $lblStatusGAM.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-$lblStatusGAM.Location = New-Object System.Drawing.Point(15, 76)
-$lblStatusGAM.Size = New-Object System.Drawing.Size(790, 22)
+$lblStatusGAM.Location = New-Object System.Drawing.Point(15, 92)
+$lblStatusGAM.Size = New-Object System.Drawing.Size(790, 42)
 $grpDiagStatus.Controls.Add($lblStatusGAM)
 
 # Diagnostic Action Buttons (Aligned by Service Column: Col 1 = Active Directory, Col 2 = Microsoft Graph, Col 3 = Google GAM7)
 $grpDiagActions = New-Object System.Windows.Forms.GroupBox
-$grpDiagActions.Text = " Live Integration Verification & Account Setup / Switching (Active Profile) "
+$grpDiagActions.Text = " Live Integration Verification && Account Setup / Switching (Active Profile) "
 $grpDiagActions.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-$grpDiagActions.Location = New-Object System.Drawing.Point(10, 176)
-$grpDiagActions.Size = New-Object System.Drawing.Size(820, 166)
+$grpDiagActions.Location = New-Object System.Drawing.Point(10, 204)
+$grpDiagActions.Size = New-Object System.Drawing.Size(820, 158)
 $tabDiag.Controls.Add($grpDiagActions)
 
 # Row 1: Test Buttons (Col 1 = AD | Col 2 = Graph | Col 3 = GAM7)
 $btnTestAD = New-Object System.Windows.Forms.Button
 $btnTestAD.Text = "Test Active Directory"
 $btnTestAD.UseMnemonic = $false
-$btnTestAD.Location = New-Object System.Drawing.Point(15, 22)
-$btnTestAD.Size = New-Object System.Drawing.Size(250, 35)
+$btnTestAD.Location = New-Object System.Drawing.Point(15, 20)
+$btnTestAD.Size = New-Object System.Drawing.Size(250, 34)
 $btnTestAD.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnTestAD.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnTestAD.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -8927,8 +9084,8 @@ $grpDiagActions.Controls.Add($btnTestAD)
 $btnTestM365 = New-Object System.Windows.Forms.Button
 $btnTestM365.Text = "Test Microsoft Graph"
 $btnTestM365.UseMnemonic = $false
-$btnTestM365.Location = New-Object System.Drawing.Point(278, 22)
-$btnTestM365.Size = New-Object System.Drawing.Size(255, 35)
+$btnTestM365.Location = New-Object System.Drawing.Point(278, 20)
+$btnTestM365.Size = New-Object System.Drawing.Size(255, 34)
 $btnTestM365.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnTestM365.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnTestM365.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -8937,8 +9094,8 @@ $grpDiagActions.Controls.Add($btnTestM365)
 $btnTestGoogle = New-Object System.Windows.Forms.Button
 $btnTestGoogle.Text = "Test Google GAM7"
 $btnTestGoogle.UseMnemonic = $false
-$btnTestGoogle.Location = New-Object System.Drawing.Point(546, 22)
-$btnTestGoogle.Size = New-Object System.Drawing.Size(258, 35)
+$btnTestGoogle.Location = New-Object System.Drawing.Point(546, 20)
+$btnTestGoogle.Size = New-Object System.Drawing.Size(258, 34)
 $btnTestGoogle.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnTestGoogle.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnTestGoogle.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -8948,8 +9105,8 @@ $grpDiagActions.Controls.Add($btnTestGoogle)
 $btnRunRsatSetup = New-Object System.Windows.Forms.Button
 $btnRunRsatSetup.Text = "Install RSAT (Optional)"
 $btnRunRsatSetup.UseMnemonic = $false
-$btnRunRsatSetup.Location = New-Object System.Drawing.Point(15, 67)
-$btnRunRsatSetup.Size = New-Object System.Drawing.Size(250, 35)
+$btnRunRsatSetup.Location = New-Object System.Drawing.Point(15, 62)
+$btnRunRsatSetup.Size = New-Object System.Drawing.Size(250, 34)
 $btnRunRsatSetup.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnRunRsatSetup.BackColor = [System.Drawing.Color]::FromArgb(124, 58, 237)
 $btnRunRsatSetup.ForeColor = [System.Drawing.Color]::White
@@ -8959,8 +9116,8 @@ $grpDiagActions.Controls.Add($btnRunRsatSetup)
 $btnRunGraphSetup = New-Object System.Windows.Forms.Button
 $btnRunGraphSetup.Text = "1. Setup Microsoft Graph"
 $btnRunGraphSetup.UseMnemonic = $false
-$btnRunGraphSetup.Location = New-Object System.Drawing.Point(278, 67)
-$btnRunGraphSetup.Size = New-Object System.Drawing.Size(255, 35)
+$btnRunGraphSetup.Location = New-Object System.Drawing.Point(278, 62)
+$btnRunGraphSetup.Size = New-Object System.Drawing.Size(255, 34)
 $btnRunGraphSetup.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnRunGraphSetup.BackColor = [System.Drawing.Color]::FromArgb(2, 132, 199)
 $btnRunGraphSetup.ForeColor = [System.Drawing.Color]::White
@@ -8970,8 +9127,8 @@ $grpDiagActions.Controls.Add($btnRunGraphSetup)
 $btnRunGamSetup = New-Object System.Windows.Forms.Button
 $btnRunGamSetup.Text = "2. Setup Google GAM7"
 $btnRunGamSetup.UseMnemonic = $false
-$btnRunGamSetup.Location = New-Object System.Drawing.Point(546, 67)
-$btnRunGamSetup.Size = New-Object System.Drawing.Size(258, 35)
+$btnRunGamSetup.Location = New-Object System.Drawing.Point(546, 62)
+$btnRunGamSetup.Size = New-Object System.Drawing.Size(258, 34)
 $btnRunGamSetup.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnRunGamSetup.BackColor = [System.Drawing.Color]::FromArgb(5, 150, 105)
 $btnRunGamSetup.ForeColor = [System.Drawing.Color]::White
@@ -8982,8 +9139,8 @@ $grpDiagActions.Controls.Add($btnRunGamSetup)
 $btnSwitchAdAcct = New-Object System.Windows.Forms.Button
 $btnSwitchAdAcct.Text = "Switch AD Account / Domain"
 $btnSwitchAdAcct.UseMnemonic = $false
-$btnSwitchAdAcct.Location = New-Object System.Drawing.Point(15, 112)
-$btnSwitchAdAcct.Size = New-Object System.Drawing.Size(250, 35)
+$btnSwitchAdAcct.Location = New-Object System.Drawing.Point(15, 104)
+$btnSwitchAdAcct.Size = New-Object System.Drawing.Size(250, 34)
 $btnSwitchAdAcct.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnSwitchAdAcct.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnSwitchAdAcct.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -8992,8 +9149,8 @@ $grpDiagActions.Controls.Add($btnSwitchAdAcct)
 $btnSwitchGraphAcct = New-Object System.Windows.Forms.Button
 $btnSwitchGraphAcct.Text = "Switch Graph Account"
 $btnSwitchGraphAcct.UseMnemonic = $false
-$btnSwitchGraphAcct.Location = New-Object System.Drawing.Point(278, 112)
-$btnSwitchGraphAcct.Size = New-Object System.Drawing.Size(255, 35)
+$btnSwitchGraphAcct.Location = New-Object System.Drawing.Point(278, 104)
+$btnSwitchGraphAcct.Size = New-Object System.Drawing.Size(255, 34)
 $btnSwitchGraphAcct.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnSwitchGraphAcct.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnSwitchGraphAcct.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -9002,8 +9159,8 @@ $grpDiagActions.Controls.Add($btnSwitchGraphAcct)
 $btnSwitchGamAcct = New-Object System.Windows.Forms.Button
 $btnSwitchGamAcct.Text = "Switch GAM Account"
 $btnSwitchGamAcct.UseMnemonic = $false
-$btnSwitchGamAcct.Location = New-Object System.Drawing.Point(546, 112)
-$btnSwitchGamAcct.Size = New-Object System.Drawing.Size(258, 35)
+$btnSwitchGamAcct.Location = New-Object System.Drawing.Point(546, 104)
+$btnSwitchGamAcct.Size = New-Object System.Drawing.Size(258, 34)
 $btnSwitchGamAcct.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnSwitchGamAcct.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnSwitchGamAcct.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -9011,16 +9168,16 @@ $grpDiagActions.Controls.Add($btnSwitchGamAcct)
 
 # Setup Readiness & Architecture Reference Card (Fits cleanly above the shared global log)
 $grpDiagGuide = New-Object System.Windows.Forms.GroupBox
-$grpDiagGuide.Text = " Integration Setup & Multi-Domain Switching Reference "
+$grpDiagGuide.Text = " Integration Setup && Multi-Domain Switching Reference "
 $grpDiagGuide.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-$grpDiagGuide.Location = New-Object System.Drawing.Point(10, 348)
-$grpDiagGuide.Size = New-Object System.Drawing.Size(820, 170)
+$grpDiagGuide.Location = New-Object System.Drawing.Point(10, 366)
+$grpDiagGuide.Size = New-Object System.Drawing.Size(820, 152)
 $tabDiag.Controls.Add($grpDiagGuide)
 
 $lblDiagGuide = New-Object System.Windows.Forms.Label
 $lblDiagGuide.UseMnemonic = $false
-$lblDiagGuide.Location = New-Object System.Drawing.Point(16, 20)
-$lblDiagGuide.Size = New-Object System.Drawing.Size(788, 144)
+$lblDiagGuide.Location = New-Object System.Drawing.Point(16, 18)
+$lblDiagGuide.Size = New-Object System.Drawing.Size(788, 128)
 $lblDiagGuide.Font = New-Object System.Drawing.Font("Segoe UI", 8.0)
 $lblDiagGuide.Text = "1. ACTIVE DIRECTORY: Uses native .NET LDAP/ADSI (or RSAT). Use 'Switch AD Account / Domain' (or 'Manage / AD...') to connect to another domain or enter separate Admin credentials.`r`n" +
                      "2. MICROSOFT GRAPH: Click '1. Setup Microsoft Graph' (or 'Switch Graph Account') and complete device-code sign-in in an Admin/InPrivate browser.`r`n" +
@@ -9427,32 +9584,36 @@ $btnSwitchAdAcct.Add_Click({
 # TAB 3: DEEP ISOLATION & EMAIL FORWARDING RULES AUDITOR
 # =============================================================================
 $grpLockHeader = New-Object System.Windows.Forms.GroupBox
-$grpLockHeader.Text = " Active Target Identity & Extended Lockdown Status "
+$grpLockHeader.Text = " Active Target Identity && Extended Lockdown Status "
 $grpLockHeader.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $grpLockHeader.Location = New-Object System.Drawing.Point(10, 6)
-$grpLockHeader.Size = New-Object System.Drawing.Size(820, 62)
+$grpLockHeader.Size = New-Object System.Drawing.Size(820, 64)
 $tabLockdown.Controls.Add($grpLockHeader)
 
 $lblLockdownTarget = New-Object System.Windows.Forms.Label
 $lblLockdownTarget.Text = "Target User: (No user selected - select and verify a user on Tab 2 '2. Containment')"
+$lblLockdownTarget.UseMnemonic = $false
+$lblLockdownTarget.AutoEllipsis = $true
 $lblLockdownTarget.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $lblLockdownTarget.Location = New-Object System.Drawing.Point(15, 18)
-$lblLockdownTarget.Size = New-Object System.Drawing.Size(790, 18)
+$lblLockdownTarget.Size = New-Object System.Drawing.Size(790, 20)
 $grpLockHeader.Controls.Add($lblLockdownTarget)
 
 $lblLockdownADMeta = New-Object System.Windows.Forms.Label
 $lblLockdownADMeta.Text = "AD Account Expires: --  |  Allowed Logon Workstations: --  |  Safety Lock: LOCKED (Check box on Tab 2)"
+$lblLockdownADMeta.UseMnemonic = $false
+$lblLockdownADMeta.AutoEllipsis = $true
 $lblLockdownADMeta.Font = New-Object System.Drawing.Font("Segoe UI", 8)
-$lblLockdownADMeta.Location = New-Object System.Drawing.Point(15, 38)
-$lblLockdownADMeta.Size = New-Object System.Drawing.Size(790, 18)
+$lblLockdownADMeta.Location = New-Object System.Drawing.Point(15, 40)
+$lblLockdownADMeta.Size = New-Object System.Drawing.Size(790, 20)
 $grpLockHeader.Controls.Add($lblLockdownADMeta)
 
 # SECTION A: CLOUD & DIRECTORY EXTENDED LOCKDOWN CONTROLS
 $grpExtControls = New-Object System.Windows.Forms.GroupBox
-$grpExtControls.Text = " 1. Deep Account Isolation & Persistent Token / Workstation Lockdown "
+$grpExtControls.Text = " 1. Deep Account Isolation && Persistent Token / Workstation Lockdown "
 $grpExtControls.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-$grpExtControls.Location = New-Object System.Drawing.Point(10, 72)
-$grpExtControls.Size = New-Object System.Drawing.Size(820, 142)
+$grpExtControls.Location = New-Object System.Drawing.Point(10, 74)
+$grpExtControls.Size = New-Object System.Drawing.Size(820, 140)
 $tabLockdown.Controls.Add($grpExtControls)
 
 # Row 1: Entra Sign-In Block/Unblock + Google Suspend/Unsuspend
@@ -9614,7 +9775,7 @@ $grpExtControls.Controls.Add($btnRestoreAdRestrictions)
 
 # SECTION B: EMAIL FORWARDING & INBOX RULES AUDITOR (Expanded to fill freed space)
 $grpRulesAudit = New-Object System.Windows.Forms.GroupBox
-$grpRulesAudit.Text = " 2. Email Forwarding, Auto-Redirect & Hide-Hole Inbox Rules Auditor (M365 Graph + Gmail GAM7) "
+$grpRulesAudit.Text = " 2. Email Forwarding, Auto-Redirect && Hide-Hole Inbox Rules Auditor (M365 Graph + Gmail GAM7) "
 $grpRulesAudit.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $grpRulesAudit.Location = New-Object System.Drawing.Point(10, 218)
 $grpRulesAudit.Size = New-Object System.Drawing.Size(820, 300)
@@ -10139,21 +10300,24 @@ $btnDisableAllSuspiciousRules.Add_Click({
 # TAB 4: SECURITY EVENT TRIAGE & PLAIN-ENGLISH DECODER (AD + Entra ID + Google)
 # =============================================================================
 $grpEventHeader = New-Object System.Windows.Forms.GroupBox
-$grpEventHeader.Text = " Multi-Source Security Event Triage (<15s Fast Query: AD, Entra ID & Google Workspace) "
+$grpEventHeader.Text = " Multi-Source Security Event Triage (<15s Fast Query: AD, Entra ID && Google Workspace) "
 $grpEventHeader.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $grpEventHeader.Location = New-Object System.Drawing.Point(10, 6)
-$grpEventHeader.Size = New-Object System.Drawing.Size(820, 102)
+$grpEventHeader.Size = New-Object System.Drawing.Size(820, 114)
 $tabEvents.Controls.Add($grpEventHeader)
 
 $lblEventsTarget = New-Object System.Windows.Forms.Label
 $lblEventsTarget.Text = "Target User: (No user selected - select a user on Tab 2 '2. Containment' to pull events)"
+$lblEventsTarget.UseMnemonic = $false
+$lblEventsTarget.AutoEllipsis = $true
 $lblEventsTarget.Font = New-Object System.Drawing.Font("Segoe UI", 8.75, [System.Drawing.FontStyle]::Bold)
 $lblEventsTarget.Location = New-Object System.Drawing.Point(14, 18)
-$lblEventsTarget.Size = New-Object System.Drawing.Size(792, 18)
+$lblEventsTarget.Size = New-Object System.Drawing.Size(792, 20)
 $grpEventHeader.Controls.Add($lblEventsTarget)
 
 $btnPullSecurityEvents = New-Object System.Windows.Forms.Button
 $btnPullSecurityEvents.Text = "Pull Events (AD + Entra + Google)"
+$btnPullSecurityEvents.UseMnemonic = $false
 $btnPullSecurityEvents.Location = New-Object System.Drawing.Point(14, 42)
 $btnPullSecurityEvents.Size = New-Object System.Drawing.Size(195, 30)
 $btnPullSecurityEvents.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
@@ -10183,6 +10347,7 @@ $grpEventHeader.Controls.Add($cmbEventSeverityFilter)
 
 $btnLoadReferenceCatalog = New-Object System.Windows.Forms.Button
 $btnLoadReferenceCatalog.Text = "View Event Guide"
+$btnLoadReferenceCatalog.UseMnemonic = $false
 $btnLoadReferenceCatalog.Location = New-Object System.Drawing.Point(455, 42)
 $btnLoadReferenceCatalog.Size = New-Object System.Drawing.Size(118, 30)
 $btnLoadReferenceCatalog.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
@@ -10191,6 +10356,7 @@ $grpEventHeader.Controls.Add($btnLoadReferenceCatalog)
 
 $btnRestorePulledEvents = New-Object System.Windows.Forms.Button
 $btnRestorePulledEvents.Text = "Show Pulled Events"
+$btnRestorePulledEvents.UseMnemonic = $false
 $btnRestorePulledEvents.Location = New-Object System.Drawing.Point(579, 42)
 $btnRestorePulledEvents.Size = New-Object System.Drawing.Size(135, 30)
 $btnRestorePulledEvents.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
@@ -10200,6 +10366,7 @@ $grpEventHeader.Controls.Add($btnRestorePulledEvents)
 
 $btnClearEvents = New-Object System.Windows.Forms.Button
 $btnClearEvents.Text = "Clear"
+$btnClearEvents.UseMnemonic = $false
 $btnClearEvents.Location = New-Object System.Drawing.Point(720, 42)
 $btnClearEvents.Size = New-Object System.Drawing.Size(86, 30)
 $btnClearEvents.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
@@ -10208,14 +10375,15 @@ $grpEventHeader.Controls.Add($btnClearEvents)
 
 $lblEventStats = New-Object System.Windows.Forms.Label
 $lblEventStats.Text = "Deciphers AD (4624/4625/4740/4768/4769/4771/4776/4720-4738/4778), Entra (50173/50057/50126/50053/53003/MFA/OAuth/Risk), & Google GAM7."
+$lblEventStats.UseMnemonic = $false
 $lblEventStats.Font = New-Object System.Drawing.Font("Segoe UI", 7.75)
-$lblEventStats.Location = New-Object System.Drawing.Point(14, 78)
-$lblEventStats.Size = New-Object System.Drawing.Size(790, 18)
+$lblEventStats.Location = New-Object System.Drawing.Point(14, 76)
+$lblEventStats.Size = New-Object System.Drawing.Size(792, 32)
 $grpEventHeader.Controls.Add($lblEventStats)
 
 $gridEvents = New-Object System.Windows.Forms.DataGridView
-$gridEvents.Location = New-Object System.Drawing.Point(10, 112)
-$gridEvents.Size = New-Object System.Drawing.Size(820, 265)
+$gridEvents.Location = New-Object System.Drawing.Point(10, 124)
+$gridEvents.Size = New-Object System.Drawing.Size(820, 253)
 $gridEvents.ReadOnly = $true
 $gridEvents.AllowUserToAddRows = $false
 $gridEvents.AllowUserToDeleteRows = $false
@@ -10241,7 +10409,7 @@ $gridEvents.Columns["colEvHost"].FillWeight = 38
 $gridEvents.Columns["colEvMeaning"].FillWeight = 95
 
 $grpEventDecision = New-Object System.Windows.Forms.GroupBox
-$grpEventDecision.Text = " Deciphered Event Intelligence & Recommended Incident Response Decision "
+$grpEventDecision.Text = " Deciphered Event Intelligence && Recommended Incident Response Decision "
 $grpEventDecision.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $grpEventDecision.Location = New-Object System.Drawing.Point(10, 382)
 $grpEventDecision.Size = New-Object System.Drawing.Size(820, 136)
@@ -10396,7 +10564,7 @@ $btnPullSecurityEvents.Add_Click({
 
 $btnLoadReferenceCatalog.Add_Click({
     try {
-        Write-AppLog "Loading Security Event Code Reference Guide (AD + Entra ID + Google Workspace)..." "INFO"
+        Write-AppLog "Loading Security Event Guide (AD + Entra ID + Google Workspace)..." "INFO"
         $refCodes = @(
             @{ Source = "Active Directory"; Code = "4624" },
             @{ Source = "Active Directory"; Code = "4625" },
@@ -10456,8 +10624,8 @@ $btnLoadReferenceCatalog.Add_Click({
         }
         Write-AppLog "Loaded $($catalogList.Count) reference security event codes into the Event Triage table. Click 'Show Pulled Events' to return to user query results." "SUCCESS"
     } catch {
-        Write-AppLog "Error rendering Event Code Guide: $($_.Exception.Message)" "ERROR"
-        Show-ActionPopup -ActionTitle "View Event Code Guide" -Succeeded $false -Details $_.Exception.Message
+        Write-AppLog "Error rendering Event Guide: $($_.Exception.Message)" "ERROR"
+        Show-ActionPopup -ActionTitle "View Event Guide" -Succeeded $false -Details $_.Exception.Message
     }
 })
 

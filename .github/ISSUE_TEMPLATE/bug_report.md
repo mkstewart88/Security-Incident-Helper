@@ -14,7 +14,7 @@ assignees: ''
 - **Windows Version:** (e.g., Windows 11 23H2 / Windows Server 2022)
 - **PowerShell Version (`$PSVersionTable.PSVersion`):** (e.g., 5.1.22621.2506)
 - **Execution Mode:** (e.g., `Launch-IncidentAutomator.bat` / `IncidentResponse-Automator.ps1` / Compiled `IncidentResponse.exe`)
-- **Active Directory Mode:** (e.g., Domain-Joined / Non-Domain via Switch Domain / RSAT vs. Native .NET LDAP)
+- **Active Directory Mode:** (e.g., Domain-Joined / Non-Domain via Switch AD Account / Domain / RSAT vs. Native .NET LDAP)
 
 ## Steps to Reproduce
 1. 
@@ -26,5 +26,5 @@ assignees: ''
 
 ## Actual Behavior / Error Output
 ```text
-Paste sanitized output from the Session Execution Log or Tab 2 Diagnostics Output here
+Paste sanitized output from the Real-Time Action Log & Diagnostics panel or Tab 1 Setup Status here
 ```

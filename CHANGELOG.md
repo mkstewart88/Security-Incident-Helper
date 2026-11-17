@@ -17,7 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
     4. **Wipe Google OAuth Grants** (`-Scope GoogleTokens`): Runs `gam user <id> deprovision` + `gam user <id> signout` to revoke all third-party Google OAuth application grants, 16-character Application-Specific Passwords (ASPs), and active session cookies.
     5. **Wipe All (Entra + GAM7)** (`-Scope All`): Sequentially executes all 4 cloud persistence wipe actions above in a single click.
 - **Entra Temporary Access Pass Eradication:** Added `temporaryAccessPassAuthenticationMethod` (`temporaryAccessPassMethods`) to `Invoke-WipeCloudMfaAndTokensSafe` so **Wipe Entra 2FA Methods** also purges active Temporary Access Passes.
-- **Consistent UI & Documentation Wording:** Standardized all tab references, event triage recommendations, and documentation guides across all 5 tabs.
+- **Full-Screen & High-DPI Prompt Scaling and Wrapped Label Layout Fixes (`Invoke-ApplyModalResponsiveScale`):**
+  - Added unified `Invoke-ApplyModalResponsiveScale` across all modal prompts (`Show-PrimaryProfilePromptSafe`, `Show-NewDomainProfileModal`, `Show-DomainSwitcher`, Profile Rename dialog, `Show-ChangelogWindow`, `Show-UpdateCheckWindow`, and `Show-PasswordResetCustomDialog`) using `ClientSize`-based bounds, proportional `GraphicsUnit::Pixel` font caching, and `TextRenderer::MeasureText` dynamic height expansion so wrapped text never clips in full-screen or high-DPI views.
+  - Expanded wrapped integration status and header label bounds on **Tab 1 (`1. Setup`)**, **Tab 2 (`2. Containment`)**, **Tab 3 (`3. Deep Isolation`)**, and **Tab 4 (`4. Event Triage`)**, escaped literal `&&` ampersands in `GroupBox` titles (`Directory & Cloud Integration Status`, `Live Integration Verification & Account Setup / Switching`, `Real-Time Action Log & Diagnostics`, etc.), removed unused `Show-ConsoleWindowSafe` dead code, and aligned the Developer Navigation Index line numbers.
+- **Consistent UI & Documentation Wording:** Standardized all tab references, event triage recommendations, control identifiers, and GitHub companion documentation across all 5 tabs.
 
 ## [1.1.56] - 2026-11-12
 

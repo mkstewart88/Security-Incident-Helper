@@ -63,7 +63,7 @@ STEP 1: PRE-FLIGHT VERIFICATION & INTEGRATION SETUP (TAB 1)
 
 STEP 2: DOMAIN PROFILES & SWITCHING TARGET DOMAINS
   1. On Tab 1 ("1. Setup"), click "Manage / AD..." in the top Profile bar (or
-     "Switch AD Account / Domain" in Row 1).
+     "Switch AD Account / Domain" in Column 1).
   2. Select an existing Domain Profile or click "+ New" to create an isolated
      profile (AD, Graph, and GAM7 settings), "Set Primary", "Rename", or "Delete".
   3. Click "Auto-Detect Domain" to query the local machine's primary domain, or
@@ -133,7 +133,7 @@ STEP 7: TRIAGING MULTI-SOURCE SECURITY EVENTS (TAB 4)
      logs, Entra sign-in audit logs, and Google login reports.
   3. Filter results by source or severity using the dropdown selectors.
   4. Select any event to read its plain-English explanation and recommended decision.
-  5. Click "View Event Code Guide" to browse the complete built-in dictionary of
+  5. Click "View Event Guide" to browse the complete built-in dictionary of
      security event codes. Click "Show Pulled Events" to return to your query results.
 
 STEP 8: COMPLIANCE AUDIT TRAIL (TAB 5)

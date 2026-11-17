@@ -96,27 +96,27 @@ TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
     scoped to the active profile GAMCFGDIR.
 
 TAB 2: INCIDENT CONTAINMENT DECK
-- Find Users ($btnSearch): Queries AD using Ambiguous Name Resolution (ANR) filter:
+- Find Users ($btnLookup): Queries AD (Query-ADUsersSafe) using Ambiguous Name Resolution (ANR) filter:
   (|(anr={search})(sAMAccountName={search}*)(userPrincipalName={search}*)(mail={search}*)(proxyAddresses=smtp:*{search}*))
 - Refresh Sessions ($btnRefreshUserSessions): Re-queries AD, Graph, and GAM7 to
   refresh Password Age, 365/Entra Status, Google Status, and AD Account Status.
-- Safety Checkbox ($chkConfirmUser): Hardware interlock preventing containment actions
+- Safety Checkbox ($chkVerified): Hardware interlock preventing containment actions
   until the operator explicitly verifies the target identity.
-- 1. Reset Password ($btnResetPass): Sets password via LDAP DirectoryEntry.Invoke("SetPassword"),
-  sets pwdLastSet = 0 (forcing change at next logon), and verifies via LDAP read-back.
-- 2. Revoke 365 Sessions ($btnRevoke365): Sends HTTP POST to Microsoft Graph
-  /v1.0/users/{id}/revokeSignInSessions, invalidating refresh tokens.
+- 1. Reset Password ($btnResetPass): Opens Show-PasswordResetCustomDialog, sets password via
+  LDAP DirectoryEntry.Invoke("SetPassword"), sets pwdLastSet = 0, and verifies via LDAP read-back.
+- 2. Revoke 365 Sessions ($btnRevoke365): Calls Invoke-RevokeMgUserSignInSessionSafe
+  (POST /v1.0/users/{id}/revokeSignInSessions) to invalidate refresh tokens.
 - 3. Revoke Google Sessions ($btnRevokeGoogle): Executes gam user <id> signout,
   terminating active web cookies and mobile device sessions.
-- 4. Disable Account / Enable Account ($btnDisableAcct): Modifies userAccountControl
+- 4. Disable Account / Enable Account ($btnEmergencyLock): Modifies userAccountControl
   bitmask (ADS_UF_ACCOUNTDISABLE = 0x0002) with immediate LDAP read-back verification.
-- Run Full Playbook (1-Click) ($btnRunPlaybook): Executes Actions 1, 2, 3, and 4
+- Run Full Playbook (1-Click) ($btnContainAll): Executes Actions 1, 2, 3, and 4
   sequentially with verification gates between each step.
 
 TAB 3: DEEP ISOLATION & MAILBOX RULES AUDITOR
-- Block Entra Sign-In (Instant) ($btnBlockEntra): Issues HTTP PATCH to Microsoft Graph
+- Block Entra Sign-In (Instant) ($btnBlockEntraSignIn): Issues HTTP PATCH to Microsoft Graph
   /v1.0/users/{id} with {"accountEnabled": false}, closing the 30-minute sync gap.
-- Suspend Google User (GAM 7) ($btnSuspendGoogle): Runs gam update user <id> suspended on
+- Suspend Google User (GAM7) ($btnSuspendGoogle): Runs gam update user <id> suspended on
   with 3-pass convergence verification via gam info user.
 - Wipe Entra 2FA Methods ($btnWipeEntraMfa, -Scope EntraMfa): Enumerates and
   deletes non-password Entra authentication methods (SMS, Authenticator, FIDO2, OATH, TAP, Email).
@@ -137,7 +137,7 @@ TAB 3: DEEP ISOLATION & MAILBOX RULES AUDITOR
 - Disable Rule / Enable Rule / Delete Rule / Disable Suspicious: Remediates rogue inbox rules via Graph/GAM7.
 
 TAB 4: MULTI-SOURCE SECURITY EVENT TRIAGE
-- Pull Events (AD + Entra + Google) ($btnPullEvents): Queries DC security event logs
+- Pull Events (AD + Entra + Google) ($btnPullSecurityEvents): Queries DC security event logs
   (4624, 4625, 4740, 4768, 4769, 4771, 4776, 4720-4738), Entra sign-in logs, and GAM reports.
 - View Event Guide ($btnLoadReferenceCatalog): Loads the complete built-in security
   dictionary for offline event lookup.
@@ -190,9 +190,11 @@ automatically isolate GAMCFGDIR under %LOCALAPPDATA%\IncidentResponse-Automator\
 6. HIGH-DPI RESPONSIVE SCALING ENGINE
 ================================================================================
 - Baseline coordinate grid: 874 x 868.
-- Dynamic proportional scaling on form resize calculates X and Y scalar ratios.
-- Pixel-safe font caching quantizes half-point steps in $script:pixelFontCache,
-  preventing GDI handle exhaustion and blurry virtualization on 1080p, 1440p, and 4K displays.
+- Dynamic proportional scaling (Update-ResponsiveLayout) calculates X and Y scalar ratios on form resize.
+- All modal prompts invoke Invoke-ApplyModalResponsiveScale (ClientSize bounds, 1.0x-1.45x scaling,
+  UseMnemonic = $false, literal GroupBox && labels, and TextRenderer::MeasureText wrapped-label expansion).
+- Pixel-safe font caching quantizes half-point steps in $script:pixelFontCache using GraphicsUnit::Pixel,
+  preventing GDI handle exhaustion and clipped text under 1080p, 1440p, 4K, and full-screen DPI modes.
 
 ================================================================================
 7. PERMISSIVE COMMERCIAL USE, FORKING & SHOUT-OUT TERMS

@@ -61,6 +61,10 @@ TOP HEADER BAR:
 - [ Light Mode ] / [ Dark Mode ] ($btnThemeToggle):
   Invokes Apply-AppTheme($Dark). Dynamically recolors all forms, headers,
   action logs, decision boxes, input controls, and data grids without reloading.
+- GitHub Repository Icon ($btnGitHub):
+  Positioned immediately to the right of [ Light Mode ] / [ Dark Mode ].
+  Renders a DPI-aware vector GitHub mark and launches
+  https://github.com/mkstewart88/Security-Incident-Helper in the default browser.
 
 TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
 - Active Profile Bar ($cmbDiagProfile, Switch Profile $btnDiagSwitchProfile,

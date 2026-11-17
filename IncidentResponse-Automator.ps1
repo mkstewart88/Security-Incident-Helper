@@ -6001,12 +6001,12 @@ $lblSub.AutoSize = $false
 $lblSub.UseMnemonic = $false
 $headerPanel.Controls.Add($lblSub)
 
-# Clickable Check Updates and Theme Toggle buttons on the top right
+# Clickable Check Updates, Theme Toggle, and GitHub Repository buttons on the top right
 $btnCheckUpdates = New-Object System.Windows.Forms.Button
 $btnCheckUpdates.Text = "Check for Updates"
 $btnCheckUpdates.UseMnemonic = $false
-$btnCheckUpdates.Location = New-Object System.Drawing.Point(550, 15)
-$btnCheckUpdates.Size = New-Object System.Drawing.Size(150, 32)
+$btnCheckUpdates.Location = New-Object System.Drawing.Point(538, 15)
+$btnCheckUpdates.Size = New-Object System.Drawing.Size(140, 32)
 $btnCheckUpdates.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnCheckUpdates.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
 $btnCheckUpdates.ForeColor = [System.Drawing.Color]::FromArgb(56, 189, 248)
@@ -6017,13 +6017,101 @@ $headerPanel.Controls.Add($btnCheckUpdates)
 $btnThemeToggle = New-Object System.Windows.Forms.Button
 $btnThemeToggle.Text = "[ Light Mode ]"
 $btnThemeToggle.UseMnemonic = $false
-$btnThemeToggle.Location = New-Object System.Drawing.Point(710, 15)
-$btnThemeToggle.Size = New-Object System.Drawing.Size(145, 32)
+$btnThemeToggle.Location = New-Object System.Drawing.Point(686, 15)
+$btnThemeToggle.Size = New-Object System.Drawing.Size(130, 32)
 $btnThemeToggle.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnThemeToggle.BackColor = [System.Drawing.Color]::FromArgb(51, 65, 85)
 $btnThemeToggle.ForeColor = [System.Drawing.Color]::FromArgb(250, 204, 21)
 $btnThemeToggle.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $headerPanel.Controls.Add($btnThemeToggle)
+
+$btnGitHub = New-Object System.Windows.Forms.Button
+$btnGitHub.Text = ""
+$btnGitHub.AccessibleName = "Open GitHub Repository"
+$btnGitHub.UseMnemonic = $false
+$btnGitHub.Location = New-Object System.Drawing.Point(824, 15)
+$btnGitHub.Size = New-Object System.Drawing.Size(36, 32)
+$btnGitHub.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
+$btnGitHub.ForeColor = [System.Drawing.Color]::FromArgb(226, 232, 240)
+$btnGitHub.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$btnGitHub.FlatAppearance.BorderSize = 1
+$btnGitHub.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
+$btnGitHub.Cursor = [System.Windows.Forms.Cursors]::Hand
+$btnGitHub.Add_Paint({
+    param($sender, $e)
+    try {
+        $g = $e.Graphics
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $w = [float]$sender.ClientSize.Width
+        $h = [float]$sender.ClientSize.Height
+        $iconSz = [Math]::Max(14.0, [Math]::Min($w, $h) * 0.62)
+        $ox = ($w - $iconSz) / 2.0
+        $oy = ($h - $iconSz) / 2.0
+        $k  = $iconSz / 24.0
+
+        $path = New-Object System.Drawing.Drawing2D.GraphicsPath([System.Drawing.Drawing2D.FillMode]::Alternate)
+        try {
+            $path.AddEllipse($ox + 0.5 * $k, $oy + 0.5 * $k, 23.0 * $k, 23.0 * $k)
+
+            # Inner Octocat head, ears, torso & curved tail cutout (FillMode Alternate renders crisp GitHub mark)
+            $cat = New-Object System.Drawing.Drawing2D.GraphicsPath
+            try {
+                $cat.StartFigure()
+                # Right torso up from bottom rim
+                $cat.AddLine($ox + 14.3 * $k, $oy + 23.3 * $k, $ox + 14.3 * $k, $oy + 19.6 * $k)
+                $cat.AddBezier($ox + 14.3 * $k, $oy + 19.6 * $k, $ox + 14.3 * $k, $oy + 18.2 * $k, $ox + 13.7 * $k, $oy + 17.5 * $k, $ox + 13.5 * $k, $oy + 17.2 * $k)
+                # Right cheek & ear
+                $cat.AddBezier($ox + 13.5 * $k, $oy + 17.2 * $k, $ox + 16.7 * $k, $oy + 16.8 * $k, $ox + 19.3 * $k, $oy + 15.6 * $k, $ox + 19.3 * $k, $oy + 11.4 * $k)
+                $cat.AddBezier($ox + 19.3 * $k, $oy + 11.4 * $k, $ox + 19.3 * $k, $oy + 10.1 * $k, $ox + 18.8 * $k, $oy + 9.0 * $k, $ox + 18.1 * $k, $oy + 8.2 * $k)
+                $cat.AddBezier($ox + 18.1 * $k, $oy + 8.2 * $k, $ox + 18.2 * $k, $oy + 7.9 * $k, $ox + 18.6 * $k, $oy + 6.6 * $k, $ox + 18.0 * $k, $oy + 5.0 * $k)
+                $cat.AddBezier($ox + 18.0 * $k, $oy + 5.0 * $k, $ox + 18.0 * $k, $oy + 5.0 * $k, $ox + 17.0 * $k, $oy + 4.7 * $k, $ox + 14.7 * $k, $oy + 6.2 * $k)
+                # Top crown
+                $cat.AddBezier($ox + 14.7 * $k, $oy + 6.2 * $k, $ox + 13.8 * $k, $oy + 5.95 * $k, $ox + 12.9 * $k, $oy + 5.83 * $k, $ox + 12.0 * $k, $oy + 5.83 * $k)
+                $cat.AddBezier($ox + 12.0 * $k, $oy + 5.83 * $k, $ox + 11.1 * $k, $oy + 5.83 * $k, $ox + 10.2 * $k, $oy + 5.95 * $k, $ox + 9.3 * $k, $oy + 6.2 * $k)
+                # Left ear & cheek
+                $cat.AddBezier($ox + 9.3 * $k, $oy + 6.2 * $k, $ox + 7.0 * $k, $oy + 4.7 * $k, $ox + 6.0 * $k, $oy + 5.0 * $k, $ox + 6.0 * $k, $oy + 5.0 * $k)
+                $cat.AddBezier($ox + 6.0 * $k, $oy + 5.0 * $k, $ox + 5.4 * $k, $oy + 6.6 * $k, $ox + 5.8 * $k, $oy + 7.9 * $k, $ox + 5.9 * $k, $oy + 8.2 * $k)
+                $cat.AddBezier($ox + 5.9 * $k, $oy + 8.2 * $k, $ox + 5.2 * $k, $oy + 9.0 * $k, $ox + 4.7 * $k, $oy + 10.1 * $k, $ox + 4.7 * $k, $oy + 11.4 * $k)
+                $cat.AddBezier($ox + 4.7 * $k, $oy + 11.4 * $k, $ox + 4.7 * $k, $oy + 15.6 * $k, $ox + 7.3 * $k, $oy + 16.8 * $k, $ox + 10.5 * $k, $oy + 17.2 * $k)
+                # Tail & left torso back to bottom rim
+                $cat.AddBezier($ox + 10.5 * $k, $oy + 17.2 * $k, $ox + 10.2 * $k, $oy + 17.45 * $k, $ox + 9.95 * $k, $oy + 17.9 * $k, $ox + 9.85 * $k, $oy + 18.6 * $k)
+                $cat.AddBezier($ox + 9.85 * $k, $oy + 18.6 * $k, $ox + 8.6 * $k, $oy + 19.15 * $k, $ox + 7.1 * $k, $oy + 18.7 * $k, $ox + 6.45 * $k, $oy + 17.5 * $k)
+                $cat.AddBezier($ox + 6.45 * $k, $oy + 17.5 * $k, $ox + 6.1 * $k, $oy + 16.95 * $k, $ox + 5.3 * $k, $oy + 16.7 * $k, $ox + 4.95 * $k, $oy + 16.75 * $k)
+                $cat.AddBezier($ox + 4.95 * $k, $oy + 16.75 * $k, $ox + 4.75 * $k, $oy + 16.85 * $k, $ox + 5.2 * $k, $oy + 17.25 * $k, $ox + 5.5 * $k, $oy + 17.5 * $k)
+                $cat.AddBezier($ox + 5.5 * $k, $oy + 17.5 * $k, $ox + 6.1 * $k, $oy + 18.0 * $k, $ox + 6.45 * $k, $oy + 18.95 * $k, $ox + 7.3 * $k, $oy + 19.55 * $k)
+                $cat.AddBezier($ox + 7.3 * $k, $oy + 19.55 * $k, $ox + 8.2 * $k, $oy + 20.15 * $k, $ox + 9.2 * $k, $oy + 20.0 * $k, $ox + 9.7 * $k, $oy + 19.85 * $k)
+                $cat.AddLine($ox + 9.7 * $k, $oy + 19.85 * $k, $ox + 9.7 * $k, $oy + 23.3 * $k)
+                $cat.CloseFigure()
+                $path.AddPath($cat, $false)
+            } finally {
+                $cat.Dispose()
+            }
+
+            $fillBrush = New-Object System.Drawing.SolidBrush($sender.ForeColor)
+            try {
+                $g.FillPath($fillBrush, $path)
+            } finally {
+                $fillBrush.Dispose()
+            }
+        } finally {
+            $path.Dispose()
+        }
+    } catch {}
+})
+$btnGitHub.Add_Click({
+    $repoUrl = "https://github.com/mkstewart88/Security-Incident-Helper"
+    try {
+        Start-Process $repoUrl
+        Write-AppLog "Opened GitHub repository in default browser: $repoUrl" "INFO"
+    } catch {
+        Write-AppLog "Failed to open browser for ${repoUrl}: $($_.Exception.Message)" "WARN"
+    }
+})
+$headerPanel.Controls.Add($btnGitHub)
+$headerToolTip = New-Object System.Windows.Forms.ToolTip
+$headerToolTip.AutoPopDelay = 8000
+$headerToolTip.InitialDelay = 250
+$headerToolTip.SetToolTip($btnGitHub, "Open GitHub Repository (mkstewart88/Security-Incident-Helper)")
 
 # TabControl for 5 tabs: All 5 fit side-by-side without horizontal scrolling
 $tabControl = New-Object System.Windows.Forms.TabControl
@@ -11046,6 +11134,12 @@ function Apply-AppTheme {
         $btnThemeToggle.Text = $(if ($Dark) { "[ Light Mode ]" } else { "[ Dark Mode ]" })
         $btnThemeToggle.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(30, 41, 59) })
         $btnThemeToggle.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(250, 204, 21) } else { [System.Drawing.Color]::FromArgb(148, 163, 184) })
+    }
+    if ($btnGitHub) {
+        $btnGitHub.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+        $btnGitHub.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+        $btnGitHub.FlatAppearance.BorderColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(71, 85, 105) } else { [System.Drawing.Color]::FromArgb(148, 163, 184) })
+        $btnGitHub.Invalidate()
     }
 }
 

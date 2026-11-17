@@ -99,6 +99,10 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 * **Underlying Functions:** `Show-UpdateCheckWindow`, `Show-ChangelogWindow`
 * **Mechanics:** Queries GitHub Releases (`releases/latest`) and `VERSION` on `main` (with SHA-busted caching and UTF-8 byte decoding). Displays colorized status text and release notes; **Update & Restart** validates `.ps1` syntax (and `Setup-*.bat` sync) or auto-recompiles `IncidentResponse.exe` locally via `PS2EXE` with `MZ` PE-header verification before hot-swapping and restarting.
 
+#### `GitHub Repository Shortcut` (`$btnGitHub`)
+* **Location:** Top-right header bar immediately to the right of `[ Light Mode ]` / `[ Dark Mode ]`.
+* **Mechanics:** Anti-aliased vector GitHub Octocat icon button (`Add_Paint`) that adapts to Dark and Light themes in `Apply-AppTheme` and opens `https://github.com/mkstewart88/Security-Incident-Helper` in the system browser on click.
+
 #### Domain Profile & AD Switcher (`Show-DomainSwitcher` via Tab 1 `Manage / AD...` & `Switch AD Account / Domain`) & Startup Prompt (`Show-PrimaryProfilePromptSafe`)
 * **Underlying Functions:** `Show-DomainSwitcher`, `Show-PrimaryProfilePromptSafe`, `Switch-ActiveDomainProfileSafe`
 * **Mechanics:**

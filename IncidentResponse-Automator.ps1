@@ -1,5 +1,5 @@
 # ==============================================================================
-# Security Incident Response Automator (v1.1.57)
+# Security Incident Response Automator (v1.1.58)
 # Standalone Native Windows Form Application (Tabbed UI, Real Verification, Audit Trail)
 # Domain Agnostic | Auto-Detect Domain | Multi-Domain Profiles (AD + Graph + GAM7)
 # Native .NET System.DirectoryServices Fallback (Runs with or without RSAT!)
@@ -16,8 +16,8 @@
 #   [09] Security Event Triage & Plain-English Decoder       (Line ~5170)
 #   [10] Windows Forms 5-Tab GUI Architecture & Controls     (Line ~5955)
 #   [11] Domain Profile Switcher, Changelog & Self-Updater   (Line ~6590)
-#   [12] Dynamic Theme Engine (Light / Dark Mode)            (Line ~10925)
-#   [13] High-DPI Responsive Scaling & Pixel Font Cache      (Line ~11055)
+#   [12] Dynamic Theme Engine (Light / Dark Mode)            (Line ~11150)
+#   [13] High-DPI Responsive Scaling & Pixel Font Cache      (Line ~11370)
 # ==============================================================================
 
 #Requires -Version 5.1
@@ -33,7 +33,9 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
-$script:AppVersion = "1.1.57"
+$script:AppVersion = "1.1.58"
+$script:updateAvailable = $false
+$script:latestKnownVersionTag = "v$($script:AppVersion)"
 $script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -6001,9 +6003,10 @@ $lblSub.AutoSize = $false
 $lblSub.UseMnemonic = $false
 $headerPanel.Controls.Add($lblSub)
 
-# Clickable Check Updates, Theme Toggle, and GitHub Repository buttons on the top right
+# Clickable Update Status ("v<version>" / "Update Available"), Theme Toggle, and GitHub Repository buttons on the top right
 $btnCheckUpdates = New-Object System.Windows.Forms.Button
-$btnCheckUpdates.Text = "Check for Updates"
+$btnCheckUpdates.Text = "v$($script:AppVersion)"
+$btnCheckUpdates.AccessibleName = "Check for Updates (Installed v$($script:AppVersion))"
 $btnCheckUpdates.UseMnemonic = $false
 $btnCheckUpdates.Location = New-Object System.Drawing.Point(538, 15)
 $btnCheckUpdates.Size = New-Object System.Drawing.Size(140, 32)
@@ -6011,6 +6014,7 @@ $btnCheckUpdates.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.
 $btnCheckUpdates.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
 $btnCheckUpdates.ForeColor = [System.Drawing.Color]::FromArgb(56, 189, 248)
 $btnCheckUpdates.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$btnCheckUpdates.Cursor = [System.Windows.Forms.Cursors]::Hand
 $btnCheckUpdates.Add_Click({ Show-UpdateCheckWindow })
 $headerPanel.Controls.Add($btnCheckUpdates)
 
@@ -6111,6 +6115,7 @@ $headerPanel.Controls.Add($btnGitHub)
 $headerToolTip = New-Object System.Windows.Forms.ToolTip
 $headerToolTip.AutoPopDelay = 8000
 $headerToolTip.InitialDelay = 250
+$headerToolTip.SetToolTip($btnCheckUpdates, "Installed: v$($script:AppVersion) - Checking GitHub for updates... Click to open updater & changelog.")
 $headerToolTip.SetToolTip($btnGitHub, "Open GitHub Repository (mkstewart88/Security-Incident-Helper)")
 
 # TabControl for 5 tabs: All 5 fit side-by-side without horizontal scrolling
@@ -7732,6 +7737,10 @@ function Show-ChangelogWindow {
             "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
             "===========================================================`r`n" +
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+            "## [1.1.58] - 2026-11-17`r`n" +
+            "### Changed & Improved`r`n" +
+            "  * Added automatic background GitHub update check on application load.`r`n" +
+            "  * Top-right updater button now dynamically shows 'v<version>' when up to date (or offline) and 'Update Available' with highlight styling when a newer release exists on GitHub, while keeping full updater & changelog functionality unchanged.`r`n`r`n" +
             "## [1.1.57] - 2026-11-12`r`n" +
             "### Changed & Improved`r`n" +
             "  * Unified Tab 3 ('3. Deep Isolation') red cloud persistence eradication buttons with parallel naming across Microsoft 365 (Entra ID) and Google Workspace (GAM7):`r`n" +
@@ -7785,6 +7794,295 @@ function Show-ChangelogWindow {
 
     Invoke-ApplyModalResponsiveScale -ModalForm $dlgNotes -BaseWidth 660 -BaseHeight 480 -Owner $form
     [void]$dlgNotes.ShowDialog($form)
+}
+
+# -----------------------------------------------------------------------------
+# GITHUB UPDATE STATUS ENGINE, STARTUP AUTO-CHECK, & HEADER BUTTON STATE
+# -----------------------------------------------------------------------------
+function Update-HeaderUpdateButtonState {
+    param(
+        [bool]$UpdateAvailable = $false,
+        [string]$LatestTag = "",
+        [string]$StatusDetail = ""
+    )
+    $script:updateAvailable = $UpdateAvailable
+    if (-not [string]::IsNullOrWhiteSpace($LatestTag)) {
+        $script:latestKnownVersionTag = $LatestTag
+    }
+    if (-not $btnCheckUpdates -or $btnCheckUpdates.IsDisposed) { return }
+
+    $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    if ($UpdateAvailable) {
+        $btnCheckUpdates.Text = "Update Available"
+        $btnCheckUpdates.AccessibleName = "Update Available ($LatestTag)"
+        $btnCheckUpdates.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(69, 26, 3) } else { [System.Drawing.Color]::FromArgb(254, 243, 199) })
+        $btnCheckUpdates.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(251, 191, 36) } else { [System.Drawing.Color]::FromArgb(180, 83, 9) })
+        if ($headerToolTip) {
+            $verNote = $(if (-not [string]::IsNullOrWhiteSpace($LatestTag)) { $LatestTag } else { "Newer release" })
+            $headerToolTip.SetToolTip($btnCheckUpdates, "Update Available: $verNote (Installed: v$($script:AppVersion)) - Click to update & view changelog.")
+        }
+    } else {
+        $btnCheckUpdates.Text = "v$($script:AppVersion)"
+        $btnCheckUpdates.AccessibleName = "Installed Version v$($script:AppVersion) - Check for Updates"
+        $btnCheckUpdates.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+        $btnCheckUpdates.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) })
+        if ($headerToolTip) {
+            $tip = $(if (-not [string]::IsNullOrWhiteSpace($StatusDetail)) {
+                $StatusDetail
+            } else {
+                "Up to date (v$($script:AppVersion)) - Click to check GitHub for updates & changelog."
+            })
+            $headerToolTip.SetToolTip($btnCheckUpdates, $tip)
+        }
+    }
+}
+
+$script:GitHubUpdateWorkerScript = {
+    param(
+        [string]$InstalledVersion,
+        [string]$RepoTarget,
+        [int]$TimeoutSec = 10,
+        [bool]$IncludeChangelog = $false
+    )
+
+    $decodeWebContent = {
+        param($Resp)
+        if ($null -eq $Resp -or $null -eq $Resp.Content) { return "" }
+        $txt = $(if ($Resp.Content -is [byte[]]) {
+            [System.Text.Encoding]::UTF8.GetString($Resp.Content)
+        } else {
+            [string]$Resp.Content
+        })
+        return $txt.TrimStart([char]0xFEFF)
+    }
+
+    $normalizedRepo = ([string]$RepoTarget).Trim()
+    if ($normalizedRepo -match '^(?:https?://)?(?:www\.)?github\.com/([^/\s]+/[^/\s]+?)(?:\.git)?/?$') {
+        $normalizedRepo = $Matches[1]
+    }
+
+    $res = [PSCustomObject]@{
+        Success            = $false
+        RepoTarget         = $normalizedRepo
+        InstalledVersion   = [string]$InstalledVersion
+        LatestTag          = "v$InstalledVersion"
+        UpdateAvailable    = $false
+        ReleaseData        = $null
+        RawFallbackNotes   = ""
+        UseRawMainFallback = $false
+        FallbackRef        = "main"
+        Error              = ""
+    }
+
+    if ([string]::IsNullOrWhiteSpace($normalizedRepo) -or (-not ($normalizedRepo -match '^[^/\s]+/[^/\s]+$'))) {
+        $res.Error = "Please enter a valid GitHub repository in owner/repo format."
+        return $res
+    }
+
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $apiUrl = "https://api.github.com/repos/$normalizedRepo/releases/latest"
+        $headers = @{
+            'User-Agent'    = 'SecurityIncidentAutomator-App'
+            'Accept'        = 'application/vnd.github+json'
+            'Cache-Control' = 'no-cache'
+        }
+
+        $latestTag = ""
+        try {
+            $relObj = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec $TimeoutSec -ErrorAction Stop
+            $res.ReleaseData = $relObj
+            $latestTag = $(if ($relObj.tag_name) { [string]$relObj.tag_name } else { "v$InstalledVersion" })
+        } catch {
+            $isNotFound = $false
+            try {
+                if ($_.Exception.Response -and ([int]$_.Exception.Response.StatusCode -eq 404)) {
+                    $isNotFound = $true
+                }
+            } catch {}
+            if (-not $isNotFound -and ($_.Exception.Message -match '404')) { $isNotFound = $true }
+            if (-not $isNotFound) { throw }
+
+            $fallbackRef = "main"
+            try {
+                $commitObj = Invoke-RestMethod -Uri "https://api.github.com/repos/$normalizedRepo/commits/main" -Headers $headers -TimeoutSec $TimeoutSec -ErrorAction Stop
+                if ($commitObj -and $commitObj.sha) {
+                    $fallbackRef = [string]$commitObj.sha
+                }
+            } catch {}
+            $res.FallbackRef = $fallbackRef
+
+            $rawApiHeaders = @{
+                'User-Agent'    = 'SecurityIncidentAutomator-App'
+                'Accept'        = 'application/vnd.github.raw+json'
+                'Cache-Control' = 'no-cache'
+            }
+
+            $cleanRaw = ""
+            try {
+                $apiVerResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$normalizedRepo/contents/VERSION?ref=$fallbackRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec $TimeoutSec -ErrorAction Stop
+                $cleanRaw = (& $decodeWebContent $apiVerResp).Trim()
+            } catch {
+                $rawVerUrl = "https://raw.githubusercontent.com/$normalizedRepo/$fallbackRef/VERSION"
+                $rawVerResp = Invoke-WebRequest -Uri $rawVerUrl -Headers $headers -UseBasicParsing -TimeoutSec $TimeoutSec -ErrorAction Stop
+                $cleanRaw = (& $decodeWebContent $rawVerResp).Trim()
+            }
+
+            if ([string]::IsNullOrWhiteSpace($cleanRaw)) { throw "Empty VERSION response from GitHub." }
+            $latestTag = $(if ($cleanRaw.StartsWith('v', [StringComparison]::OrdinalIgnoreCase)) { $cleanRaw } else { "v$cleanRaw" })
+            $res.UseRawMainFallback = $true
+
+            if ($IncludeChangelog) {
+                try {
+                    $rawChgResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$normalizedRepo/contents/CHANGELOG.md?ref=$fallbackRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec ([Math]::Min($TimeoutSec, 8)) -ErrorAction Stop
+                    if ($rawChgResp -and $rawChgResp.Content) {
+                        $res.RawFallbackNotes = ((& $decodeWebContent $rawChgResp) -replace "`r?`n", "`r`n")
+                    }
+                } catch {
+                    try {
+                        $rawChgResp = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$normalizedRepo/$fallbackRef/CHANGELOG.md" -Headers $headers -UseBasicParsing -TimeoutSec ([Math]::Min($TimeoutSec, 8)) -ErrorAction SilentlyContinue
+                        if ($rawChgResp -and $rawChgResp.Content) {
+                            $res.RawFallbackNotes = ((& $decodeWebContent $rawChgResp) -replace "`r?`n", "`r`n")
+                        }
+                    } catch {}
+                }
+            }
+        }
+
+        $res.LatestTag = $latestTag
+        $cleanLat = ($latestTag -replace '[^0-9\.]', '').Trim('.')
+        $cleanInst = ($InstalledVersion -replace '[^0-9\.]', '').Trim('.')
+
+        $isNewer = $false
+        try {
+            $vI = [version]$cleanInst
+            $vL = [version]$cleanLat
+            if ($vL -gt $vI) { $isNewer = $true }
+        } catch {
+            if (-not [string]::Equals($cleanInst, $cleanLat, [StringComparison]::OrdinalIgnoreCase)) {
+                $isNewer = $true
+            }
+        }
+
+        $res.UpdateAvailable = $isNewer
+        $res.Success = $true
+    } catch {
+        $res.Error = [string]$_.Exception.Message
+    }
+
+    return $res
+}
+
+function Get-GitHubUpdateStatusSafe {
+    param(
+        [string]$RepoTarget = "mkstewart88/Security-Incident-Helper",
+        [string]$InstalledVersion = $script:AppVersion,
+        [int]$TimeoutSec = 10,
+        [switch]$IncludeChangelog
+    )
+    return (& $script:GitHubUpdateWorkerScript $InstalledVersion $RepoTarget $TimeoutSec ([bool]$IncludeChangelog.IsPresent))
+}
+
+$script:startupUpdatePs = $null
+$script:startupUpdateHandle = $null
+$script:startupUpdateTimer = $null
+$script:startupUpdateStartedAt = $null
+
+function Stop-StartupUpdateCheckAsync {
+    try {
+        if ($script:startupUpdateTimer) {
+            $script:startupUpdateTimer.Stop()
+            $script:startupUpdateTimer.Dispose()
+            $script:startupUpdateTimer = $null
+        }
+    } catch {}
+    try {
+        if ($script:startupUpdatePs) {
+            try { $script:startupUpdatePs.Stop() } catch {}
+            $script:startupUpdatePs.Dispose()
+            $script:startupUpdatePs = $null
+        }
+    } catch {}
+    $script:startupUpdateHandle = $null
+}
+
+function Start-StartupUpdateCheckAsync {
+    Stop-StartupUpdateCheckAsync
+    $defaultRepo = "mkstewart88/Security-Incident-Helper"
+
+    $applyResult = {
+        param($chkRes)
+        if ($chkRes -and $chkRes.Success) {
+            if ($chkRes.UpdateAvailable) {
+                Update-HeaderUpdateButtonState -UpdateAvailable $true -LatestTag $chkRes.LatestTag
+                Write-AppLog "Update check: Newer release $($chkRes.LatestTag) is available (Installed: v$($script:AppVersion)). Click 'Update Available' in the header to update." "WARN"
+            } else {
+                Update-HeaderUpdateButtonState -UpdateAvailable $false -LatestTag $chkRes.LatestTag -StatusDetail "Up to date (v$($script:AppVersion)) - Click to check GitHub for updates & changelog."
+                Write-AppLog "Update check: Running latest version (v$($script:AppVersion))." "INFO"
+            }
+        } else {
+            $errReason = $(if ($chkRes -and (-not [string]::IsNullOrWhiteSpace($chkRes.Error))) { $chkRes.Error } else { "GitHub unreachable or timed out" })
+            Update-HeaderUpdateButtonState -UpdateAvailable $false -StatusDetail "Installed: v$($script:AppVersion) (Startup update check unavailable) - Click to check GitHub manually."
+            Write-AppLog "Update check skipped: $errReason" "INFO"
+        }
+    }
+
+    try {
+        $ps = [System.Management.Automation.PowerShell]::Create()
+        [void]$ps.AddScript($script:GitHubUpdateWorkerScript.ToString()).AddArgument([string]$script:AppVersion).AddArgument($defaultRepo).AddArgument(6).AddArgument($false)
+        $script:startupUpdatePs = $ps
+        $script:startupUpdateHandle = $ps.BeginInvoke()
+        $script:startupUpdateStartedAt = [DateTime]::UtcNow
+
+        $script:startupUpdateTimer = New-Object System.Windows.Forms.Timer
+        $script:startupUpdateTimer.Interval = 250
+        $script:startupUpdateTimer.Add_Tick({
+            try {
+                if ($null -eq $form -or $form.IsDisposed) {
+                    Stop-StartupUpdateCheckAsync
+                    return
+                }
+                if ($null -eq $script:startupUpdateHandle -or $null -eq $script:startupUpdatePs) {
+                    Stop-StartupUpdateCheckAsync
+                    return
+                }
+                $timedOut = $false
+                if ($script:startupUpdateStartedAt) {
+                    if (([DateTime]::UtcNow - $script:startupUpdateStartedAt).TotalSeconds -ge 15) {
+                        $timedOut = $true
+                    }
+                }
+                if ($script:startupUpdateHandle.IsCompleted -or $timedOut) {
+                    $chkRes = $null
+                    if ($script:startupUpdateHandle.IsCompleted -and (-not $timedOut)) {
+                        try {
+                            $rawOut = $script:startupUpdatePs.EndInvoke($script:startupUpdateHandle)
+                            if ($rawOut -and $rawOut.Count -gt 0) {
+                                $chkRes = $rawOut[$rawOut.Count - 1]
+                            }
+                        } catch {
+                            $chkRes = [PSCustomObject]@{ Success = $false; Error = $_.Exception.Message }
+                        }
+                    } else {
+                        $chkRes = [PSCustomObject]@{ Success = $false; Error = "GitHub update check timed out after 15s" }
+                    }
+                    Stop-StartupUpdateCheckAsync
+                    & $applyResult $chkRes
+                }
+            } catch {
+                Stop-StartupUpdateCheckAsync
+            }
+        })
+        $script:startupUpdateTimer.Start()
+    } catch {
+        Stop-StartupUpdateCheckAsync
+        try {
+            $syncRes = Get-GitHubUpdateStatusSafe -RepoTarget $defaultRepo -InstalledVersion $script:AppVersion -TimeoutSec 4
+            & $applyResult $syncRes
+        } catch {
+            & $applyResult ([PSCustomObject]@{ Success = $false; Error = $_.Exception.Message })
+        }
+    }
 }
 
 # -----------------------------------------------------------------------------
@@ -7947,17 +8245,6 @@ function Show-UpdateCheckWindow {
         $txtLogUpd.SelectionColor = $fgLog
     }
 
-    $decodeWebContent = {
-        param($Resp)
-        if ($null -eq $Resp -or $null -eq $Resp.Content) { return "" }
-        $txt = $(if ($Resp.Content -is [byte[]]) {
-            [System.Text.Encoding]::UTF8.GetString($Resp.Content)
-        } else {
-            [string]$Resp.Content
-        })
-        return $txt.TrimStart([char]0xFEFF)
-    }
-
     $runCheckLogic = {
         $repoTarget = $txtRepo.Text.Trim()
         if ($repoTarget -match '^(?:https?://)?(?:www\.)?github\.com/([^/\s]+/[^/\s]+?)(?:\.git)?/?$') {
@@ -7986,98 +8273,24 @@ function Show-UpdateCheckWindow {
         & $appendUpdLine "[STATUS] Installed Version: v$instVer" $fgLog
         $dlgUpd.Refresh()
 
-        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-        $apiUrl = "https://api.github.com/repos/$repoTarget/releases/latest"
-        $updState.FallbackRef = "main"
-        $headers = @{
-            'User-Agent'    = 'SecurityIncidentAutomator-App'
-            'Accept'        = 'application/vnd.github+json'
-            'Cache-Control' = 'no-cache'
-        }
+        $prgUpd.Value = 45
+        $chkRes = Get-GitHubUpdateStatusSafe -RepoTarget $repoTarget -InstalledVersion $instVer -TimeoutSec 10 -IncludeChangelog
 
-        try {
-            $prgUpd.Value = 45
-            $latestTag = ""
-            try {
-                $relObj = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 10 -ErrorAction Stop
-                $updState.ReleaseData = $relObj
-                $latestTag = $(if ($relObj.tag_name) { [string]$relObj.tag_name } else { "v$instVer" })
-            } catch {
-                # If no formal GitHub Release has been published yet (HTTP 404), resolve latest commit on main
-                # and query GitHub API Contents (raw) first to bypass raw.githubusercontent.com 5-minute CDN cache.
-                $isNotFound = $false
-                try {
-                    if ($_.Exception.Response -and ([int]$_.Exception.Response.StatusCode -eq 404)) {
-                        $isNotFound = $true
-                    }
-                } catch {}
-                if (-not $isNotFound -and ($_.Exception.Message -match '404')) { $isNotFound = $true }
-                if (-not $isNotFound) { throw }
-
-                $fallbackRef = "main"
-                try {
-                    $commitObj = Invoke-RestMethod -Uri "https://api.github.com/repos/$repoTarget/commits/main" -Headers $headers -TimeoutSec 10 -ErrorAction Stop
-                    if ($commitObj -and $commitObj.sha) {
-                        $fallbackRef = [string]$commitObj.sha
-                    }
-                } catch {}
-                $updState.FallbackRef = $fallbackRef
-
-                $rawApiHeaders = @{
-                    'User-Agent'    = 'SecurityIncidentAutomator-App'
-                    'Accept'        = 'application/vnd.github.raw+json'
-                    'Cache-Control' = 'no-cache'
-                }
-
-                $cleanRaw = ""
-                try {
-                    $apiVerResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$repoTarget/contents/VERSION?ref=$fallbackRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
-                    $cleanRaw = (& $decodeWebContent $apiVerResp).Trim()
-                } catch {
-                    $rawVerUrl = "https://raw.githubusercontent.com/$repoTarget/$fallbackRef/VERSION"
-                    $rawVerResp = Invoke-WebRequest -Uri $rawVerUrl -Headers $headers -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
-                    $cleanRaw = (& $decodeWebContent $rawVerResp).Trim()
-                }
-
-                if ([string]::IsNullOrWhiteSpace($cleanRaw)) { throw "Empty VERSION response from GitHub." }
-                $latestTag = $(if ($cleanRaw.StartsWith('v', [StringComparison]::OrdinalIgnoreCase)) { $cleanRaw } else { "v$cleanRaw" })
-                $updState.UseRawMainFallback = $true
-                try {
-                    $rawChgResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$repoTarget/contents/CHANGELOG.md?ref=$fallbackRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
-                    if ($rawChgResp -and $rawChgResp.Content) {
-                        $updState.RawFallbackNotes = ((& $decodeWebContent $rawChgResp) -replace "`r?`n", "`r`n")
-                    }
-                } catch {
-                    try {
-                        $rawChgResp = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$repoTarget/$fallbackRef/CHANGELOG.md" -Headers $headers -UseBasicParsing -TimeoutSec 8 -ErrorAction SilentlyContinue
-                        if ($rawChgResp -and $rawChgResp.Content) { $updState.RawFallbackNotes = ((& $decodeWebContent $rawChgResp) -replace "`r?`n", "`r`n") }
-                    } catch {}
-                }
-            }
-
-            $updState.LatestTag = $latestTag
-            $cleanLat = ($latestTag -replace '[^0-9\.]', '').Trim('.')
-            $cleanInst = ($instVer -replace '[^0-9\.]', '').Trim('.')
+        if ($chkRes.Success) {
+            $updState.ReleaseData        = $chkRes.ReleaseData
+            $updState.LatestTag          = $chkRes.LatestTag
+            $updState.RawFallbackNotes   = $chkRes.RawFallbackNotes
+            $updState.UseRawMainFallback = $chkRes.UseRawMainFallback
+            $updState.FallbackRef        = $chkRes.FallbackRef
 
             $prgUpd.Value = 75
-            & $appendUpdLine "[STATUS] GitHub Latest Version: $latestTag" $fgLog
-
-            $isNewer = $false
-            try {
-                $vI = [version]$cleanInst
-                $vL = [version]$cleanLat
-                if ($vL -gt $vI) { $isNewer = $true }
-            } catch {
-                if (-not [string]::Equals($cleanInst, $cleanLat, [StringComparison]::OrdinalIgnoreCase)) {
-                    $isNewer = $true
-                }
-            }
+            & $appendUpdLine "[STATUS] GitHub Latest Version: $($chkRes.LatestTag)" $fgLog
 
             $prgUpd.Value = 100
             & $appendUpdLine "" $fgLog
-            if ($isNewer) {
+            if ($chkRes.UpdateAvailable) {
                 $updState.ConfirmedUpdate = $true
-                & $appendUpdLine "[UPDATE AVAILABLE] You're not running the latest version (Latest: $latestTag)." $fgRed
+                & $appendUpdLine "[UPDATE AVAILABLE] You're not running the latest version (Latest: $($chkRes.LatestTag))." $fgRed
                 & $appendUpdLine "Click 'Update & Restart' to install or 'View Changelog' to review changes." $fgLog
                 $btnUpdateRestart.Enabled = $true
                 $btnUpdateRestart.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
@@ -8087,10 +8300,13 @@ function Show-UpdateCheckWindow {
                 & $appendUpdLine "[UP TO DATE] You're running the latest version of Security Incident Automator." $fgGreen
                 & $appendUpdLine "Click 'View Changelog' to review changes." $fgLog
             }
-        } catch {
+            if ([string]::Equals($repoTarget, "mkstewart88/Security-Incident-Helper", [StringComparison]::OrdinalIgnoreCase)) {
+                Update-HeaderUpdateButtonState -UpdateAvailable $chkRes.UpdateAvailable -LatestTag $chkRes.LatestTag
+            }
+        } else {
             $prgUpd.Value = 100
             & $appendUpdLine "" $fgLog
-            & $appendUpdLine "[ERROR] Failed to check GitHub for updates: $($_.Exception.Message)" $fgRed
+            & $appendUpdLine "[ERROR] Failed to check GitHub for updates: $($chkRes.Error)" $fgRed
             & $appendUpdLine "Verify internet connectivity and repository path, then try again." $fgLog
         }
     }
@@ -11053,8 +11269,13 @@ function Apply-AppTheme {
         $lblSub.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
     }
     if ($btnCheckUpdates) {
-        $btnCheckUpdates.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
-        $btnCheckUpdates.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) })
+        if ($script:updateAvailable) {
+            $btnCheckUpdates.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(69, 26, 3) } else { [System.Drawing.Color]::FromArgb(254, 243, 199) })
+            $btnCheckUpdates.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(251, 191, 36) } else { [System.Drawing.Color]::FromArgb(180, 83, 9) })
+        } else {
+            $btnCheckUpdates.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+            $btnCheckUpdates.ForeColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) })
+        }
     }
 
     $bgLogBox = $(if ($Dark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::FromArgb(255, 255, 255) })
@@ -11376,6 +11597,11 @@ $form.Add_Shown({
         }
     })
     $script:startupTimer.Start()
+    Start-StartupUpdateCheckAsync
+})
+
+$form.Add_FormClosing({
+    Stop-StartupUpdateCheckAsync
 })
 
 try {

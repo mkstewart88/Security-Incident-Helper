@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.57)
+SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.58)
 ================================================================================
 
 ARCHITECTURAL SPECIFICATION & EXHAUSTIVE CONTROL-BY-CONTROL ENGINEERING REFERENCE
@@ -53,11 +53,16 @@ When a user is selected:
 ================================================================================
 
 TOP HEADER BAR:
-- Check for Updates ($btnCheckUpdates) / View Changelog ($btnViewChangelog):
-  Queries GitHub releases/latest and VERSION (with UTF-8 decoding and commit SHA
-  cache bypass). Shows colorized status & notes; Update & Restart validates .ps1
-  syntax or locally auto-recompiles IncidentResponse.exe via PS2EXE with MZ
-  header verification before hot-swapping and restarting.
+- Update Status Button ($btnCheckUpdates: "v<version>" / "Update Available") &
+  View Changelog ($btnViewChangelog):
+  On startup ($form.Add_Shown), Start-StartupUpdateCheckAsync runs an
+  asynchronous background check via Get-GitHubUpdateStatusSafe against GitHub
+  releases/latest and VERSION (with UTF-8 decoding and commit SHA cache bypass).
+  Update-HeaderUpdateButtonState displays "v<version>" (e.g., v1.1.58) when up
+  to date/offline or "Update Available" with theme-aware amber highlight when a
+  newer release exists. Clicking opens Show-UpdateCheckWindow for Check for
+  Updates, View Changelog, and Update & Restart (.ps1 syntax check or local
+  PS2EXE compilation with MZ header validation before hot-swapping).
 - [ Light Mode ] / [ Dark Mode ] ($btnThemeToggle):
   Invokes Apply-AppTheme($Dark). Dynamically recolors all forms, headers,
   action logs, decision boxes, input controls, and data grids without reloading.

@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.57)
+SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.58)
 ================================================================================
 
 OVERVIEW:
@@ -72,8 +72,11 @@ STEP 2: DOMAIN PROFILES & SWITCHING TARGET DOMAINS
      another AD account or from a non-domain workstation (held in memory only).
   5. Click "Connect & Switch Profile" to run an LDAP RootDSE handshake and switch,
      or "Switch Cloud Only (Skip AD)" for off-VPN Graph/GAM triage.
-  6. Click "Check for Updates" in the header to check GitHub releases, "View
-     Changelog", or run "Update & Restart" (auto-recompiles .exe when needed).
+  6. On startup, the app automatically checks GitHub in the background and sets
+     the top-right header button to "v<version>" (e.g., v1.1.58) if up to date
+     or "Update Available" if a newer release exists. Click it anytime to run
+     "Check for Updates", "View Changelog", or "Update & Restart" (auto-recompiles
+     .exe when needed).
 
 STEP 3: SEARCHING & VERIFYING COMPROMISED IDENTITIES (TAB 2)
   1. Open Tab 2 ("2. Containment").

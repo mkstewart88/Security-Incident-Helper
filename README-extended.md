@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.57](https://img.shields.io/badge/Version-1.1.57-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.58](https://img.shields.io/badge/Version-1.1.58-emerald.svg)](CHANGELOG.md)
 
 ### Exhaustive Architectural Specification & Control-by-Control Engineering Reference
 **Target Audience:** Cybersecurity Engineers, SOC Leads, Systems Architects, and Security Developers
@@ -95,9 +95,9 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
   * Action and decision text boxes (`$txtLog`, `$txtRuleDecision`, `$txtEventDecision`): `#020617` / `#e2e8f0` (Dark) vs `#ffffff` / `#0f172a` (Light)
   * DataGridView cells, headers, and alternating row backgrounds are restyled dynamically without losing current selection or scroll position.
 
-#### `Check for Updates` (`$btnCheckUpdates`) & `View Changelog` (`$btnViewChangelog`)
-* **Underlying Functions:** `Show-UpdateCheckWindow`, `Show-ChangelogWindow`
-* **Mechanics:** Queries GitHub Releases (`releases/latest`) and `VERSION` on `main` (with SHA-busted caching and UTF-8 byte decoding). Displays colorized status text and release notes; **Update & Restart** validates `.ps1` syntax (and `Setup-*.bat` sync) or auto-recompiles `IncidentResponse.exe` locally via `PS2EXE` with `MZ` PE-header verification before hot-swapping and restarting.
+#### Update Status Button (`v<version>` / `Update Available`, `$btnCheckUpdates`) & `View Changelog` (`$btnViewChangelog`)
+* **Underlying Functions:** `Start-StartupUpdateCheckAsync`, `Get-GitHubUpdateStatusSafe`, `Update-HeaderUpdateButtonState`, `Show-UpdateCheckWindow`, `Show-ChangelogWindow`
+* **Mechanics:** On application load (`$form.Add_Shown`), `Start-StartupUpdateCheckAsync` launches a non-blocking background PowerShell runspace that calls `Get-GitHubUpdateStatusSafe` against GitHub Releases (`releases/latest`) with commit-SHA-busted `VERSION` fallback and UTF-8 byte decoding. `Update-HeaderUpdateButtonState` sets `$btnCheckUpdates` to **`v<version>`** (e.g., `v1.1.58`) when up to date or offline, or **`Update Available`** with theme-aware amber/gold highlight styling (preserved across Dark/Light mode changes by `Apply-AppTheme`) when a newer version is found. Clicking the button opens `Show-UpdateCheckWindow` with full **Check for Updates**, **View Changelog**, and **Update & Restart** (`.ps1` AST validation or local `PS2EXE` `IncidentResponse.exe` rebuild with `MZ` verification) functionality.
 
 #### `GitHub Repository Shortcut` (`$btnGitHub`)
 * **Location:** Top-right header bar immediately to the right of `[ Light Mode ]` / `[ Dark Mode ]`.

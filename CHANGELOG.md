@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.58] - 2026-11-17
+
+### Changed & Improved
+- **Automatic Startup GitHub Update Check & Dynamic Header Version Badge (`Start-StartupUpdateCheckAsync`):**
+  - The console now automatically checks GitHub (`releases/latest` with commit-SHA-busted `VERSION` fallback) asynchronously in the background when the application loads without blocking startup or pre-flight checks.
+  - Replaced the static **"Check for Updates"** header button label with a live status label (`Update-HeaderUpdateButtonState`):
+    - Displays **`v<version>`** (e.g., `v1.1.58`) when you are running the latest version (or when offline/unreachable, with explanatory hover tooltip).
+    - Displays **`Update Available`** with theme-aware amber/gold highlight styling in both Dark Mode and Light Mode whenever a newer version is published on GitHub.
+  - Clicking the button continues to open the full **Check for Updates** dialog (`Show-UpdateCheckWindow`) with **View Changelog**, **Update & Restart**, and local `PS2EXE` rebuild functionality unchanged, and running a manual check inside the dialog also refreshes the header button label.
+
 ## [1.1.57] - 2026-11-12
 
 ### Changed & Improved

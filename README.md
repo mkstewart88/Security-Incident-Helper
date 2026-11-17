@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.57](https://img.shields.io/badge/Version-1.1.57-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.58](https://img.shields.io/badge/Version-1.1.58-emerald.svg)](CHANGELOG.md)
 
 A high-performance, domain-agnostic administrative incident containment console and security forensics triage utility for hybrid enterprise environments spanning **Active Directory Domain Services (AD DS)**, **Microsoft Entra ID (Microsoft 365)**, and **Google Workspace**.
 
@@ -162,7 +162,7 @@ If operating from a non-domain-joined laptop or managing multiple corporate/clie
 3. Click **Auto-Detect Domain** to populate the local joined domain, or enter a target Domain FQDN or Domain Controller IP/hostname (e.g. `contoso.com`).
 4. Check **Use alternate Domain Admin credentials (same domain or remote DC)** and enter administrative credentials (`DOMAIN\admin` and Password) if switching AD accounts or connecting from a workgroup PC (passwords stay in memory only).
 5. Click **Connect & Switch Profile** to verify LDAP RootDSE connectivity and switch the active profile, or click **Switch Cloud Only (Skip AD)** for off-VPN cloud triage when an on-premises Domain Controller is unreachable.
-6. Click **Check for Updates** in the upper header at any time to check GitHub releases, **View Changelog**, or run **Update & Restart** (which validates and auto-recompiles `IncidentResponse.exe` locally when running as an `.exe`).
+6. On startup, the console automatically checks GitHub in the background: the top-right update button displays **`v<version>`** (for example `v1.1.58`) when up to date or **`Update Available`** when a newer release exists. Click it at any time to open the updater dialog, **Check for Updates**, **View Changelog**, or run **Update & Restart** (which validates and auto-recompiles `IncidentResponse.exe` locally when running as an `.exe`).
 
 ### 3. Locating and Verifying a Compromised Identity (Tab 2)
 1. Navigate to **Tab 2 (`2. Containment`)**.

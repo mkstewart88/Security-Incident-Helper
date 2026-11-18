@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.64] - 2026-11-18
+
+### Added & Improved
+- **Smooth Theme Cross-Fade Animation (`src/index.css`):**
+  - Added CSS View Transition keyframes (`::view-transition-old(root)` and `::view-transition-new(root)`) with a 360ms `cubic-bezier(0.22, 1, 0.36, 1)` transition for butter-smooth visual cross-fading when toggling between Light and Dark modes (supporting `prefers-reduced-motion`).
+- **Comprehensive Break-Glass & Complete System Wipe (`MasterPassphraseModal.tsx` & `credentialVault.ts`):**
+  - Upgraded **"Remove Passphrase & All Creds"** (Break-Glass Reset) to thoroughly eradicate all stored trace data from the computer: AD credential vaults, domain profiles (`Profiles.json`), GAM7 OAuth credential folders (`Profiles\<id>\gam`), and Microsoft Graph / Entra ID session contexts (`Profiles\<id>\graph`, `Profiles\<id>\mg`, and user `.mg\MgContext.json`).
+- **Two-Step Red Warning Confirmation Flow:**
+  - Clicking the wipe/reset button now triggers a two-step confirmation dialog:
+    - **Step 1:** Displays a single red warning sentence explaining that all profiles, AD credentials, Microsoft Graph contexts, and Google Workspace GAM7 profiles will be wiped from the computer, with a **"Continue"** button and "No".
+    - **Step 2:** Clicking "Continue" prompts **"Are you sure you want to delete all profiles and credentials?"** before executing the complete system wipe.
+
 ## [1.1.63] - 2026-11-18
 
 ### Changed & Improved

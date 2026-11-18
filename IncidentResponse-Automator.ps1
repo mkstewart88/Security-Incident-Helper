@@ -1395,24 +1395,120 @@ $script:inMemoryAuditLog = [System.Collections.Generic.List[psobject]]::new()
 # -----------------------------------------------------------------------------
 # STEP 2: DOMAIN AUTO-DETECTION & MULTI-DOMAIN PROFILE ENGINE (AD + GRAPH + GAM)
 # -----------------------------------------------------------------------------
-$script:BaseDefaultGamCfgDir = if (-not [string]::IsNullOrWhiteSpace($env:GAMCFGDIR)) {
-    [Environment]::ExpandEnvironmentVariables($env:GAMCFGDIR)
-} elseif (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
-    Join-Path $env:USERPROFILE '.gam'
-} else {
-    ''
+function Resolve-GamExecutable {
+    $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    $combinedEntries = (($userPath + ';' + $machinePath + ';' + $env:Path) -split ';') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    foreach ($entry in $combinedEntries) {
+        try {
+            $expanded = [Environment]::ExpandEnvironmentVariables($entry.Trim().Trim('"')).TrimEnd('\')
+            if ($expanded) {
+                $candidates.Add((Join-Path $expanded 'gam.exe'))
+            }
+        } catch {}
+    }
+
+    $localAppData = $(if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        $env:LOCALAPPDATA
+    } else {
+        [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+    })
+
+    foreach ($dir in @(
+        (Join-Path $localAppData 'Programs\GAM7'),
+        (Join-Path $localAppData 'GAM7'),
+        (Join-Path $localAppData 'GAM'),
+        'C:\GAM7',
+        'C:\GAM',
+        (Join-Path $env:USERPROFILE 'gam'),
+        'C:\GAMADV-XTD3'
+    )) {
+        if ($dir) {
+            $candidates.Add((Join-Path $dir 'gam.exe'))
+        }
+    }
+
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+            $dirName = Split-Path -Parent $candidate
+            if (($env:Path -split ';') -notcontains $dirName) {
+                $env:Path = "$dirName;$env:Path"
+            }
+            return $candidate
+        }
+    }
+    return $null
 }
-$script:BaseDefaultGraphDir = if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-    Join-Path $env:LOCALAPPDATA 'MicrosoftGraphSetup'
-} else {
-    Join-Path ([IO.Path]::GetTempPath()) 'MicrosoftGraphSetup'
-}
+
 $script:ProfilesRootDir = if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
     Join-Path $env:LOCALAPPDATA 'IncidentResponse-Automator\Profiles'
 } elseif (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
     Join-Path $env:USERPROFILE '.incident-response\Profiles'
 } else {
     Join-Path ([IO.Path]::GetTempPath()) 'IncidentResponse-Automator\Profiles'
+}
+
+function Resolve-BaseDefaultGamConfigDirSafe {
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    $addCand = {
+        param([string]$RawPath)
+        if ([string]::IsNullOrWhiteSpace($RawPath)) { return }
+        try {
+            $exp = [Environment]::ExpandEnvironmentVariables($RawPath.Trim().Trim('"')).TrimEnd('\')
+            if ([string]::IsNullOrWhiteSpace($exp)) { return }
+            if (-not [string]::IsNullOrWhiteSpace($script:ProfilesRootDir)) {
+                $profRootNorm = $script:ProfilesRootDir.TrimEnd('\') + '\'
+                if ($exp.StartsWith($profRootNorm, [StringComparison]::OrdinalIgnoreCase)) { return }
+            }
+            if (-not ($candidates -contains $exp)) {
+                [void]$candidates.Add($exp)
+            }
+        } catch {}
+    }
+
+    & $addCand $env:GAMCFGDIR
+    try { & $addCand ([Environment]::GetEnvironmentVariable('GAMCFGDIR', 'User')) } catch {}
+    try { & $addCand ([Environment]::GetEnvironmentVariable('GAMCFGDIR', 'Machine')) } catch {}
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        & $addCand (Join-Path $env:USERPROFILE '.gam')
+        & $addCand (Join-Path $env:USERPROFILE 'GAMConfig')
+    }
+    $localApp = $(if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { $env:LOCALAPPDATA } else { [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData) })
+    if (-not [string]::IsNullOrWhiteSpace($localApp)) {
+        & $addCand (Join-Path $localApp 'GAM7')
+    }
+    & $addCand 'C:\GAMConfig'
+    $resolvedExe = Resolve-GamExecutable
+    if ($resolvedExe) {
+        & $addCand (Split-Path -Parent $resolvedExe)
+    }
+
+    foreach ($dir in $candidates) {
+        if (Test-Path -LiteralPath $dir -PathType Container) {
+            if ((Test-Path -LiteralPath (Join-Path $dir 'oauth2.txt') -PathType Leaf) -or
+                (Test-Path -LiteralPath (Join-Path $dir 'oauth2service.json') -PathType Leaf) -or
+                (Test-Path -LiteralPath (Join-Path $dir 'client_secrets.json') -PathType Leaf)) {
+                return $dir
+            }
+        }
+    }
+    foreach ($dir in $candidates) {
+        if ((Test-Path -LiteralPath $dir -PathType Container) -and (Test-Path -LiteralPath (Join-Path $dir 'gam.cfg') -PathType Leaf)) {
+            return $dir
+        }
+    }
+    if ($candidates.Count -gt 0) { return $candidates[0] }
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) { return (Join-Path $env:USERPROFILE '.gam') }
+    return ''
+}
+
+$script:BaseDefaultGamCfgDir = Resolve-BaseDefaultGamConfigDirSafe
+$script:BaseDefaultGraphDir = if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+    Join-Path $env:LOCALAPPDATA 'MicrosoftGraphSetup'
+} else {
+    Join-Path ([IO.Path]::GetTempPath()) 'MicrosoftGraphSetup'
 }
 
 function Save-LastDomainConnectionSafe {
@@ -2403,10 +2499,10 @@ function Show-MasterPassphraseDialogSafe {
     $pnlKeep.Controls.Add($btnBackKeep)
 
     $btnContKeep = New-Object System.Windows.Forms.Button
-    $btnContKeep.Text = "Continue to Warning Prompt"
+    $btnContKeep.Text = "Continue"
     $btnContKeep.UseMnemonic = $false
-    $btnContKeep.Location = New-Object System.Drawing.Point(210, 210)
-    $btnContKeep.Size = New-Object System.Drawing.Size(208, 36)
+    $btnContKeep.Location = New-Object System.Drawing.Point(278, 210)
+    $btnContKeep.Size = New-Object System.Drawing.Size(140, 36)
     $btnContKeep.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnContKeep.BackColor = [System.Drawing.Color]::FromArgb(180, 83, 9)
     $btnContKeep.ForeColor = [System.Drawing.Color]::White
@@ -3693,7 +3789,11 @@ function Invoke-ApplyStartupDiscoveryResultSafe {
     param($ProbeRows)
     $connectedNow = $false
     if ($ProbeRows -and @($ProbeRows).Count -gt 0) {
-        $matchedRow = $ProbeRows | Where-Object { $_.Probe -and $_.Probe.Reachable } | Sort-Object -Property @{ Expression = { [bool]$_.Probe.MatchesNicSuffix }; Descending = $true } | Select-Object -First 1
+        $activeIdNow = $(if ($script:activeProfile) { [string]$script:activeProfile.Id } else { '' })
+        $matchedRow = $ProbeRows | Where-Object { $_.Probe -and $_.Probe.Reachable } | Sort-Object -Property `
+            @{ Expression = { [bool]$_.Probe.MatchesNicSuffix }; Descending = $true }, `
+            @{ Expression = { $activeIdNow -and [string]::Equals([string]$_.ProfileId, $activeIdNow, [StringComparison]::OrdinalIgnoreCase) }; Descending = $true } |
+            Select-Object -First 1
         $summaryParts = @($ProbeRows | ForEach-Object { "$($_.Name): $(if($_.Probe -and $_.Probe.Reachable){'REACHABLE'}else{'OFFLINE'})" })
         $script:lastNetworkProbeSummary = $summaryParts -join ' | '
 
@@ -4361,6 +4461,9 @@ if (-not $activePathsInit.IsDefault) {
         }
     }
 } else {
+    if (-not [string]::IsNullOrWhiteSpace($activePathsInit.GamDir)) {
+        $env:GAMCFGDIR = $activePathsInit.GamDir
+    }
     # Ensure Default profile retains a snapshot if user already has an existing .mg\MgContext.json
     if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
         $liveMgCtx = Join-Path $env:USERPROFILE '.mg\MgContext.json'
@@ -5110,8 +5213,21 @@ function Invoke-GamCliSafe {
     $psi.Arguments = $escapedArgs
     $psi.UseShellExecute = $false
     $activeGamDir = Get-ActiveGamConfigDir
-    if (-not [string]::IsNullOrWhiteSpace($activeGamDir)) {
+    $isCustomGamProf = $script:activeProfile -and (-not [bool]$script:activeProfile.IsDefault) -and ([string]$script:activeProfile.Id -ne 'default')
+    if ($isCustomGamProf -and (-not [string]::IsNullOrWhiteSpace($activeGamDir))) {
         $psi.EnvironmentVariables['GAMCFGDIR'] = $activeGamDir
+    } elseif (-not [string]::IsNullOrWhiteSpace($activeGamDir) -and (Test-Path -LiteralPath $activeGamDir -PathType Container)) {
+        $hasLocalGamFiles = (Test-Path -LiteralPath (Join-Path $activeGamDir 'gam.cfg') -PathType Leaf) -or
+                            (Test-Path -LiteralPath (Join-Path $activeGamDir 'oauth2.txt') -PathType Leaf) -or
+                            (Test-Path -LiteralPath (Join-Path $activeGamDir 'oauth2service.json') -PathType Leaf) -or
+                            (Test-Path -LiteralPath (Join-Path $activeGamDir 'client_secrets.json') -PathType Leaf)
+        if ($hasLocalGamFiles) {
+            $psi.EnvironmentVariables['GAMCFGDIR'] = $activeGamDir
+        } elseif ($psi.EnvironmentVariables.ContainsKey('GAMCFGDIR')) {
+            $psi.EnvironmentVariables.Remove('GAMCFGDIR')
+        }
+    } elseif ($psi.EnvironmentVariables.ContainsKey('GAMCFGDIR')) {
+        $psi.EnvironmentVariables.Remove('GAMCFGDIR')
     }
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
@@ -5390,53 +5506,6 @@ function Get-UserActiveSessionTelemetry {
     return $telemetry
 }
 
-function Resolve-GamExecutable {
-    $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
-    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-    $combinedEntries = (($userPath + ';' + $machinePath + ';' + $env:Path) -split ';') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-
-    $candidates = [System.Collections.Generic.List[string]]::new()
-    foreach ($entry in $combinedEntries) {
-        try {
-            $expanded = [Environment]::ExpandEnvironmentVariables($entry.Trim().Trim('"')).TrimEnd('\')
-            if ($expanded) {
-                $candidates.Add((Join-Path $expanded 'gam.exe'))
-            }
-        } catch {}
-    }
-
-    $localAppData = $(if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-        $env:LOCALAPPDATA
-    } else {
-        [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
-    })
-
-    foreach ($dir in @(
-        (Join-Path $localAppData 'Programs\GAM7'),
-        (Join-Path $localAppData 'GAM7'),
-        (Join-Path $localAppData 'GAM'),
-        'C:\GAM7',
-        'C:\GAM',
-        (Join-Path $env:USERPROFILE 'gam'),
-        'C:\GAMADV-XTD3'
-    )) {
-        if ($dir) {
-            $candidates.Add((Join-Path $dir 'gam.exe'))
-        }
-    }
-
-    foreach ($candidate in ($candidates | Select-Object -Unique)) {
-        if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
-            $dirName = Split-Path -Parent $candidate
-            if (($env:Path -split ';') -notcontains $dirName) {
-                $env:Path = "$dirName;$env:Path"
-            }
-            return $candidate
-        }
-    }
-    return $null
-}
-
 function Invoke-VerifyGAM {
     param([switch]$QuickStartup)
 
@@ -5486,6 +5555,14 @@ function Invoke-VerifyGAM {
                         ((-not $isCustomGamProfile) -and (Test-Path -LiteralPath (Join-Path $gamDir 'oauth2.txt') -PathType Leaf))
 
         if (-not ($hasClientSecrets -or $hasServiceAccount -or $hasOauthFile)) {
+            $defHasGam = (-not [string]::IsNullOrWhiteSpace($script:BaseDefaultGamCfgDir)) -and (
+                (Test-Path -LiteralPath (Join-Path $script:BaseDefaultGamCfgDir 'oauth2.txt') -PathType Leaf) -or
+                (Test-Path -LiteralPath (Join-Path $script:BaseDefaultGamCfgDir 'oauth2service.json') -PathType Leaf) -or
+                (Test-Path -LiteralPath (Join-Path $script:BaseDefaultGamCfgDir 'client_secrets.json') -PathType Leaf)
+            )
+            if ($isCustomGamProfile -and $defHasGam -and $script:activeProfile) {
+                throw "Active profile '$($script:activeProfile.Name)' uses an isolated GAM folder ($cfgDir) with no Workspace OAuth yet (your Default profile's GAM7 config is still in $($script:BaseDefaultGamCfgDir)). Switch back to Default or click '2. Setup Google GAM7' to link this profile."
+            }
             throw "GAM $($result.Version) is installed at $gamExe, but Google Cloud credentials for this profile ($cfgDir) were not found. Open Tab 1 ('1. Setup') and click '2. Setup Google GAM7'."
         }
 
@@ -10256,8 +10333,9 @@ function Show-ChangelogWindow {
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
             "## [1.1.63] - 2026-11-18`r`n" +
             "### Changed & Improved`r`n" +
-            "  * Action-First Master Passphrase Dialog: When enabled, opening Master Passphrase now presents an action menu with zero textboxes ('Change Passphrase', 'Remove Passphrase', 'Remove Passphrase & All Creds') and reveals only the exact input field(s) needed for your chosen action (3 for Change, 1 for Remove Passphrase, 0 for Break-Glass Reset, 2 when enabling).`r`n" +
-            "  * Action-First First-Time Primary Profile Setup: Opens with zero textboxes for Yes/No selection and displays only the single contextual profile name box ('Primary Profile Name' or 'Temporary / Assisting Profile Name') after you choose an option.`r`n`r`n" +
+            "  * Action-First Master Passphrase Dialog: When enabled, opening Master Passphrase now presents an action menu with zero textboxes ('Change Passphrase', 'Remove Passphrase', 'Remove Passphrase & All Creds') and reveals only the exact input field(s) needed for your chosen action (3 for Change, 1 for Remove Passphrase + 'Continue', 0 for Break-Glass Reset, 2 when enabling).`r`n" +
+            "  * Action-First First-Time Primary Profile Setup: Opens with zero textboxes for Yes/No selection and displays only the single contextual profile name box ('Primary Profile Name' or 'Temporary / Assisting Profile Name') after you choose an option.`r`n" +
+            "  * Reliable GAM7 Config Discovery & Profile Affinity: Resolves Default GAM7 credentials across User/Machine GAMCFGDIR, .gam, GAMConfig, GAM7, and gam.exe directory without inheriting stale profile paths or overriding working configs with an empty .gam folder, and clarifies isolated-profile GAM status.`r`n`r`n" +
             "## [1.1.62] - 2026-11-18`r`n" +
             "### Added & Fixed`r`n" +
             "  * Fixed Startup Domain Auto-Connect Race & Unjoined Plug-In Detection: Parallel RunspacePool probing + active NIC DNS-suffix prioritization now detects reachable configured domains on startup (even when the laptop is not joined to that domain), unlocks saved DPAPI credentials automatically, and logs directly into Active Directory, Microsoft Graph, and Google GAM7 while remaining on Tab 1.`r`n" +

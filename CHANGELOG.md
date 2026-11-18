@@ -19,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Action-First First-Time Primary Profile Setup (`Show-PrimaryProfilePromptSafe` / `PrimaryProfileModal`):**
   - Step 1 displays only the detected environment and choice buttons (`Yes - Set as My Primary Profile`, `No - Assisting Another Domain` / `No - Stay on Current Profile`, `Later`) with **0 textboxes**.
   - Clicking **Yes** or **No** advances to Step 2 with **only the single contextual profile name input** (`Primary Profile Name:` or `Temporary / Assisting Profile Name:`), plus `Back`, `Later`, and the matching confirm button.
+- **Reliable GAM7 Config Discovery & Profile Affinity (`Resolve-BaseDefaultGamConfigDirSafe` / `Invoke-GamCliSafe`):**
+  - Resolves Default GAM7 config reliably across User/Machine `GAMCFGDIR`, `~/.gam`, `~/GAMConfig`, `%LOCALAPPDATA%\GAM7`, `C:\GAMConfig`, and the `gam.exe` folder while ignoring stale inherited profile `GAMCFGDIR` values across restarts, never forcing an empty `.gam` folder over a working GAM installation, and keeping the active profile sticky on equal network probe matches.
 
 ## [1.1.62] - 2026-11-18
 

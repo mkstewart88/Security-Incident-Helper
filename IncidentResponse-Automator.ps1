@@ -34,7 +34,7 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
-$script:AppVersion = "1.1.63"
+$script:AppVersion = "1.1.65"
 $script:updateAvailable = $false
 $script:latestKnownVersionTag = "v$($script:AppVersion)"
 $script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
@@ -10331,6 +10331,10 @@ function Show-ChangelogWindow {
             "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
             "===========================================================`r`n" +
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+            "## [1.1.65] - 2026-11-18`r`n" +
+            "### Added & Fixed`r`n" +
+            "  * Instant Startup Update Check: Fixed startup update probing so the header button immediately renders 'Update Available' on launch when a newer release exists without waiting for a manual click.`r`n" +
+            "  * Robust Self-Updater Hot-Swap: Fixed post-update version persistence by ensuring downloaded updates correctly overwrite and swap the executing binary before restarting.`r`n`r`n" +
             "## [1.1.63] - 2026-11-18`r`n" +
             "### Changed & Improved`r`n" +
             "  * Action-First Master Passphrase Dialog: When enabled, opening Master Passphrase now presents an action menu with zero textboxes ('Change Passphrase', 'Remove Passphrase', 'Remove Passphrase & All Creds') and reveals only the exact input field(s) needed for your chosen action (3 for Change, 1 for Remove Passphrase + 'Continue', 0 for Break-Glass Reset, 2 when enabling).`r`n" +

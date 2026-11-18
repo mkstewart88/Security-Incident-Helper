@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.62](https://img.shields.io/badge/Version-1.1.62-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.63](https://img.shields.io/badge/Version-1.1.63-emerald.svg)](CHANGELOG.md)
 
 A high-performance, domain-agnostic administrative incident containment console and security forensics triage utility for hybrid enterprise environments spanning **Active Directory Domain Services (AD DS)**, **Microsoft Entra ID (Microsoft 365)**, and **Google Workspace**.
 
@@ -145,7 +145,7 @@ To package the entire console and its embedded setup scripts into a single stand
 ## Operator Step-by-Step User Guide
 
 ### 1. Pre-Flight Verification & Integration Setup (Tab 1)
-Upon launch, if no **Primary Domain Profile** has been configured yet, a startup prompt asks whether this workstation/environment is your **Primary (Home) Domain Profile** or if you are temporarily assisting another domain—keeping your clean Primary slot reserved until you return to your home domain. You can also mark or change your Primary Profile at any time via **Manage / AD...** or **Switch AD Account / Domain** on Tab 1.
+Upon launch, if no **Primary Domain Profile** has been configured yet, a two-step startup prompt asks whether this workstation/environment is your **Primary (Home) Domain Profile** or if you are temporarily assisting another domain—keeping your clean Primary slot reserved until you return home (and showing only the single profile name box needed for the option you click). You can also mark or change your Primary Profile at any time via **Manage / AD...** or **Switch AD Account / Domain** on Tab 1.
 
 1. Navigate to **Tab 1 (`1. Setup`)**.
 2. Use the top **Profile** bar (`Switch Profile`, `+ New Profile`, `Manage / AD...`) to select or create a Domain Profile if supporting multiple environments.
@@ -161,15 +161,13 @@ If operating from a non-domain-joined laptop or managing multiple corporate/clie
 2. Select an existing **Domain Profile** or click **+ New** to create an isolated profile (`%LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>`), **Set Primary** to designate your home domain, **Rename**, or **Delete**.
 3. Click **Auto-Detect Domain** to populate the local joined domain or active NIC DNS suffix, or enter a target Domain FQDN or Domain Controller IP/hostname (e.g. `contoso.com`).
 4. Check **Use alternate Domain Admin credentials (same domain or remote DC)** and enter administrative credentials (`DOMAIN\admin` and Password) if switching AD accounts or connecting from a workgroup PC. Optionally check **Save AD credentials securely on this PC (DPAPI CurrentUser encrypted, zero-lockout)** to lock credentials strictly to the current workstation and Windows user account for automatic startup detection and login.
-5. Click **`Master Passphrase`** in the top-right header (immediately to the right of the GitHub icon) if you want an optional application-wide passphrase protecting **all** saved Domain Profiles:
-   * **Not Set:** The app opens directly and auto-connects to any detected domain on launch with no prompt.
-   * **Set:** Opening the app immediately prompts for your Master Passphrase before probing or logging in (1st wrong attempt warns you; 2nd wrong attempt or Cancel closes the application cleanly).
-   * **Change:** Requires re-entering the current passphrase.
-   * **Remove Passphrase:** Requires your current passphrase and displays an explanation of what removing it does and why you should keep one; if confirmed, keeps saved AD credentials under DPAPI `CurrentUser` protection with no startup lock.
-   * **Remove Passphrase & All Creds (Break-Glass Reset):** Does **not** require a passphrase (for emergency recovery if forgotten); displays a warning prompt before confirming that all stored AD credentials across every profile will be permanently wiped and the app reset to default.
+5. Click **`Master Passphrase`** in the top-right header (immediately to the right of the GitHub icon) if you want an optional application-wide passphrase protecting **all** saved Domain Profiles (when active, clicking an action reveals only the specific input field(s) needed for that action):
+   * **Not Set:** Displays only the 2 fields (`New` + `Confirm`) to enable the passphrase; when unset, the app opens directly and auto-connects to any detected domain on launch.
+   * **Active Action Menu (0 textboxes):** Choose **Change Passphrase** (reveals 3 fields: `Current` + `New` + `Confirm`), **Remove Passphrase** (reveals only 1 field for `Current`, then explains what removing it does and why you should keep one while keeping saved DPAPI credentials), or break-glass **Remove Passphrase & All Creds** (0 fields, no passphrase needed if forgotten; warns before wiping all saved credentials across every profile back to default).
+   * **Startup Lock:** When active, opening the app immediately prompts for your Master Passphrase before probing or logging in (1st wrong attempt warns you; 2nd wrong attempt or Cancel closes the application cleanly).
 6. Click **Connect & Switch Profile** to verify LDAP RootDSE connectivity and switch the active profile, or click **Switch Cloud Only (Skip AD)** for off-VPN cloud triage when an on-premises Domain Controller is unreachable.
 7. Use Tab 1's **Credential Health & Encrypted AD Vault** diagnostic panel to run **Validate Credential Health** (checks network reachability, Kerberos `pwdLastSet`/`badPwdCount`/`lockoutTime` before binding, and 1-strike circuit-breaker health), **Detect Network & Auto-Connect**, **Configure Saved AD Creds...**, or **Purge Saved Creds**.
-8. On startup, the console automatically checks GitHub in the background: the top-right update button displays **`v<version>`** (for example `v1.1.62`) when up to date or **`Update Available`** when a newer release exists. Click it at any time to open the updater dialog, **Check for Updates**, **View Changelog**, or run **Update & Restart** (which validates and auto-recompiles `IncidentResponse.exe` locally when running as an `.exe`).
+8. On startup, the console automatically checks GitHub in the background: the top-right update button displays **`v<version>`** (for example `v1.1.63`) when up to date or **`Update Available`** when a newer release exists. Click it at any time to open the updater dialog, **Check for Updates**, **View Changelog**, or run **Update & Restart** (which validates and auto-recompiles `IncidentResponse.exe` locally when running as an `.exe`).
 
 ### 3. Locating and Verifying a Compromised Identity (Tab 2)
 1. Navigate to **Tab 2 (`2. Containment`)**.

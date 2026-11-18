@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.63] - 2026-11-18
+
+### Changed & Improved
+- **Action-First `Master Passphrase` Dialog (`Show-MasterPassphraseDialogSafe` / `MasterPassphraseModal`):**
+  - Replaced the static multi-box form with contextual step views so **only the input field(s) needed for your chosen action appear**:
+    - **Not Configured:** Displays only the 2 fields required to enable a passphrase (`New` + `Confirm`).
+    - **Active Menu (`0` textboxes):** Opens to an action menu (`Change Passphrase`, `Remove Passphrase`, `Remove Passphrase & All Creds`, `Close`).
+    - **Change Passphrase:** Reveals the 3 required inputs (`Current`, `New`, `Confirm`) + `Back`.
+    - **`Remove Passphrase`:** Reveals **only 1 input** (`Current Master Passphrase`) + `Back`, then shows the explanatory confirmation warning before keeping saved AD credentials under DPAPI `CurrentUser` / device key.
+    - **`Remove Passphrase & All Creds` (Break-Glass Reset):** Requires **0 inputs** — opens directly to the wipe confirmation warning so forgotten passphrases can be reset cleanly.
+- **Action-First First-Time Primary Profile Setup (`Show-PrimaryProfilePromptSafe` / `PrimaryProfileModal`):**
+  - Step 1 displays only the detected environment and choice buttons (`Yes - Set as My Primary Profile`, `No - Assisting Another Domain` / `No - Stay on Current Profile`, `Later`) with **0 textboxes**.
+  - Clicking **Yes** or **No** advances to Step 2 with **only the single contextual profile name input** (`Primary Profile Name:` or `Temporary / Assisting Profile Name:`), plus `Back`, `Later`, and the matching confirm button.
+
 ## [1.1.62] - 2026-11-18
 
 ### Added & Improved
@@ -14,12 +28,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - On launch, the automator probes all configured Domain Profiles in parallel (prioritizing plugged-in active NIC DNS suffixes even on non-domain-joined workstations), silently unseals the matching profile's DPAPI-encrypted AD credentials, connects to Active Directory (`$script:targetDomain` / `$script:adSessionCred`), and runs `Invoke-StartupUnifiedPreflightSafe` to automatically initialize **Active Directory**, **Microsoft Graph**, and **Google GAM7** together while **remaining cleanly on Tab 1 (`1. Setup`)**.
 - **Global Application-Wide `Master Passphrase` Button & 2-Attempt Startup Security Gate (`Show-MasterPassphraseDialogSafe` / `Show-StartupMasterPassphraseGateSafe`):**
   - **Top-Right Header Placement:** Added the **`Master Passphrase`** button immediately to the right of the GitHub button in the top-right header (`$btnMasterPassphrase` in `IncidentResponse-Automator.ps1`; `Master Passphrase` button + modal in `src/App.tsx` and `MasterPassphraseModal.tsx`).
-  - **Streamlined Global Passphrase Management:** Replaced per-profile vault passphrase checkboxes with a single optional application-wide Master Passphrase covering all Domain Profiles via an **action-first workflow** where only the input box(es) required for your chosen action appear:
-    - **Not Configured:** Shows only the 2 fields needed to set a new passphrase (`New` + `Confirm`).
-    - **Active Menu (0 textboxes):** Choose **Change Passphrase** (reveals 3 fields: `Current` + `New` + `Confirm`), **`Remove Passphrase`** (reveals **only 1 field** for `Current`, followed by a confirmation warning explaining what reverting to DPAPI `CurrentUser` / device key does and why keeping a passphrase protects Domain Admin credentials), or **`Remove Passphrase & All Creds`** (0 fields; emergency break-glass reset if forgotten, with a warning explaining that all stored credentials across every profile will be permanently wiped back to default).
+  - **Streamlined Global Passphrase Management:** Replaced per-profile vault passphrase checkboxes with a single optional application-wide Master Passphrase covering all Domain Profiles:
+    - **Set / Change:** Configure a new passphrase or update it (requires current passphrase), re-encrypting all saved profile vaults.
+    - **`Remove Passphrase`:** Requires verifying the current passphrase and presents a detailed confirmation warning explaining both what happens (saved vaults revert to machine/user-only DPAPI `CurrentUser` / device Web CryptoKey without a startup prompt) and why you should keep a passphrase protecting Domain Admin credentials.
+    - **`Remove Passphrase & All Creds` (Break-Glass Reset):** Does **not** require the current passphrase—intended for emergency use if forgotten—and presents a full confirmation warning explaining that proceeding permanently wipes all stored AD credentials across every profile and resets saved vault state back to default.
   - **2-Attempt Startup Gate:** When a Master Passphrase is enabled, opening the application prompts immediately before any domain probing or login; attempt #1 wrong entry warns (`1 attempt remaining before the application closes`), and attempt #2 failure (or Cancel/Exit) cleanly closes the console. When no passphrase is configured, the console opens and auto-connects directly.
-- **Action-First First-Time Primary Profile Setup (`Show-PrimaryProfilePromptSafe` / `PrimaryProfileModal`):**
-  - Opens to a clean choice prompt with **0 textboxes** (`Yes - Set as My Primary Profile`, `No - Assisting Another Domain`, `Later`), then reveals **only the single contextual profile name box** matching the option you selected.
 
 ## [1.1.61] - 2026-11-18
 

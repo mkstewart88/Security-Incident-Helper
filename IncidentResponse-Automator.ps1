@@ -1,5 +1,5 @@
 # ==============================================================================
-# Security Incident Response Automator (v1.1.62)
+# Security Incident Response Automator (v1.1.63)
 # Standalone Native Windows Form Application (Tabbed UI, Real Verification, Audit Trail)
 # Domain Agnostic | Auto-Detect Domain | Multi-Domain Profiles (AD + Graph + GAM7)
 # Encrypted Per-Profile AD Vault (DPAPI CurrentUser) | Zero-Lockout Credential Health
@@ -34,7 +34,7 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
-$script:AppVersion = "1.1.62"
+$script:AppVersion = "1.1.63"
 $script:updateAvailable = $false
 $script:latestKnownVersionTag = "v$($script:AppVersion)"
 $script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
@@ -10254,6 +10254,10 @@ function Show-ChangelogWindow {
             "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
             "===========================================================`r`n" +
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+            "## [1.1.63] - 2026-11-18`r`n" +
+            "### Changed & Improved`r`n" +
+            "  * Action-First Master Passphrase Dialog: When enabled, opening Master Passphrase now presents an action menu with zero textboxes ('Change Passphrase', 'Remove Passphrase', 'Remove Passphrase & All Creds') and reveals only the exact input field(s) needed for your chosen action (3 for Change, 1 for Remove Passphrase, 0 for Break-Glass Reset, 2 when enabling).`r`n" +
+            "  * Action-First First-Time Primary Profile Setup: Opens with zero textboxes for Yes/No selection and displays only the single contextual profile name box ('Primary Profile Name' or 'Temporary / Assisting Profile Name') after you choose an option.`r`n`r`n" +
             "## [1.1.62] - 2026-11-18`r`n" +
             "### Added & Fixed`r`n" +
             "  * Fixed Startup Domain Auto-Connect Race & Unjoined Plug-In Detection: Parallel RunspacePool probing + active NIC DNS-suffix prioritization now detects reachable configured domains on startup (even when the laptop is not joined to that domain), unlocks saved DPAPI credentials automatically, and logs directly into Active Directory, Microsoft Graph, and Google GAM7 while remaining on Tab 1.`r`n" +

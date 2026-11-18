@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.62)
+SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.63)
 ================================================================================
 
 Security Incident Response Automator can be launched or compiled in seconds
@@ -32,18 +32,20 @@ To package the script and its embedded setup scripts into a single standalone bi
 4. PRE-FLIGHT INTEGRATION SETUP, DOMAIN PROFILES & MASTER PASSPHRASE
 --------------------------------------------------------------------------------
 - Global Master Passphrase (Optional): Click "Master Passphrase" in the top-right
-  header (to the right of the GitHub icon) to set an app-wide passphrase across
-  all saved Domain Profiles, change it (requires current passphrase), "Remove
-  Passphrase" (requires current passphrase + confirms why to keep one while
-  keeping saved creds), or break-glass "Remove Passphrase & All Creds" (no
-  passphrase needed if forgotten; wipes all saved creds back to default).
+  header (to the right of the GitHub icon). When active, it opens an action
+  menu (0 textboxes) and shows only the input(s) required for the button you
+  click: Change Passphrase (3 boxes), "Remove Passphrase" (1 box: current +
+  why-keep warning while keeping saved creds), or break-glass "Remove Passphrase
+  & All Creds" (0 boxes, no passphrase needed if forgotten; wipes all saved
+  creds back to default).
 - Automatic Plugged-In Domain Detection: On startup, the console detects any
   configured domain reachable on your active network (even on non-joined PCs),
   switches to its Domain Profile, unlocks saved DPAPI AD credentials, and logs
   into Active Directory + Microsoft Graph + Google GAM7 automatically on Tab 1.
 - On first launch, if no Primary Domain Profile is configured yet, choose
   whether this environment is your Primary (Home) Domain Profile or if you are
-  temporarily assisting another domain.
+  temporarily assisting another domain (then enter only the single profile name
+  box for your choice).
 - Open Tab 1 ("1. Setup") to verify connectivity with Active Directory,
   Microsoft Graph, and Google Workspace (GAM7), and run the 1-click setup
   scripts if any modules or CLI tools need to be installed.

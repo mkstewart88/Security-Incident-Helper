@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.62)
+SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.63)
 ================================================================================
 
 OVERVIEW:
@@ -45,9 +45,10 @@ OPERATOR STEP-BY-STEP HOW-TO GUIDE:
 
 STEP 1: PRE-FLIGHT VERIFICATION & INTEGRATION SETUP (TAB 1)
   0. First-Launch Primary Profile Prompt: If no Primary Domain Profile is
-     configured yet, the app asks whether this environment is your Primary
+     configured yet, Step 1 asks whether this environment is your Primary
      (Home) Domain Profile or if you are temporarily assisting another domain
-     (keeping the clean Primary slot reserved until you return home).
+     (showing 0 textboxes until you click Yes or No, then revealing only the
+     single profile name box needed for your choice).
   1. Open Tab 1 ("1. Setup").
   2. Use the top Profile bar ("Switch Profile", "+ New Profile", "Manage / AD...")
      to switch or create isolated Domain Profiles when supporting multiple domains.
@@ -74,14 +75,16 @@ STEP 2: DOMAIN PROFILES & SWITCHING TARGET DOMAINS
      zero-lockout)" to enable automatic startup connection across AD, Graph,
      and GAM7 whenever plugged into that network.
   5. Optional Global Master Passphrase: Click "Master Passphrase" in the
-     top-right header (to the right of the GitHub button) to Set, Change
-     (requires current passphrase), "Remove Passphrase" (requires current
-     passphrase and explains what it does & why you should keep one while
-     keeping saved credentials under DPAPI CurrentUser), or break-glass
-     "Remove Passphrase & All Creds" (no passphrase required; warns and wipes
-     all saved AD credentials back to default if forgotten). If configured, the
-     console prompts at startup and closes cleanly after 2 failed attempts; if
-     unset, the app opens directly on Tab 1 and auto-connects AD + Graph + GAM7.
+     top-right header (to the right of the GitHub button). When active, it opens
+     to an action menu with 0 textboxes and displays only the field(s) needed
+     for your selected action: Change Passphrase (3 boxes: current/new/confirm),
+     "Remove Passphrase" (1 box: current passphrase, plus a warning explaining
+     what it does & why you should keep one while keeping saved DPAPI creds),
+     or break-glass "Remove Passphrase & All Creds" (0 boxes, no passphrase
+     needed if forgotten; warns and wipes all saved AD credentials back to
+     default). When enabled, startup prompts for the passphrase and closes
+     cleanly after 2 failed attempts; when unset, the app opens directly on
+     Tab 1 and auto-connects AD + Graph + GAM7.
   6. Click "Connect & Switch Profile" to run an LDAP RootDSE handshake and switch,
      or "Switch Cloud Only (Skip AD)" for off-VPN Graph/GAM triage.
   7. Use the Tab 1 "Credential Health & Encrypted AD Vault" panel to run
@@ -90,7 +93,7 @@ STEP 2: DOMAIN PROFILES & SWITCHING TARGET DOMAINS
      anti-lockout circuit breaker), "Configure Saved AD Creds...", or
      "Purge Saved Creds".
   8. On startup, the app automatically checks GitHub in the background and sets
-     the top-right header button to "v<version>" (e.g., v1.1.62) if up to date
+     the top-right header button to "v<version>" (e.g., v1.1.63) if up to date
      or "Update Available" if a newer release exists. Click it anytime to run
      "Check for Updates", "View Changelog", or "Update & Restart" (auto-recompiles
      .exe when needed).

@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.62)
+SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.63)
 ================================================================================
 
 ARCHITECTURAL SPECIFICATION & EXHAUSTIVE CONTROL-BY-CONTROL ENGINEERING REFERENCE
@@ -58,7 +58,7 @@ TOP HEADER BAR:
   On startup ($form.Add_Shown), Start-StartupUpdateCheckAsync runs an
   asynchronous background check via Get-GitHubUpdateStatusSafe against GitHub
   releases/latest and VERSION (with UTF-8 decoding and commit SHA cache bypass).
-  Update-HeaderUpdateButtonState displays "v<version>" (e.g., v1.1.62) when up
+  Update-HeaderUpdateButtonState displays "v<version>" (e.g., v1.1.63) when up
   to date/offline or "Update Available" with theme-aware amber highlight when a
   newer release exists. Clicking opens Show-UpdateCheckWindow (enforcing trusted
   github.com/githubusercontent.com HTTPS download URLs & ref checks) for Check for
@@ -75,18 +75,22 @@ TOP HEADER BAR:
   Show-StartupMasterPassphraseGateSafe):
   Positioned immediately to the right of $btnGitHub. Manages an optional global
   application-wide passphrase (MasterVault.json) applied to all saved Domain
-  Profiles: Set, Change (requires current), "Remove Passphrase" (requires
-  current passphrase and shows why-keep warning while preserving saved vaults
-  under DPAPI CurrentUser), and break-glass "Remove Passphrase & All Creds"
-  (requires no passphrase if forgotten; confirms wipe of all saved credentials
-  back to default). When enabled, startup enforces a 2-attempt gate before any
-  probing or sign-in; when unset, startup skips the prompt and auto-connects.
+  Profiles using an action-first panel flow: when unset, shows 2 boxes (New +
+  Confirm); when active, opens to $pnlMenu (0 boxes) with Change Passphrase
+  (3 boxes: Current/New/Confirm), "Remove Passphrase" (1 box: Current, showing
+  a why-keep warning while preserving saved vaults under DPAPI CurrentUser),
+  and break-glass "Remove Passphrase & All Creds" (0 boxes, no passphrase needed
+  if forgotten; confirms wipe of all saved credentials back to default). When
+  enabled, startup enforces a 2-attempt gate before any probing or sign-in; when
+  unset, startup skips the prompt and auto-connects.
 
 TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
 - Active Profile Bar ($cmbDiagProfile, Switch Profile $btnDiagSwitchProfile,
   + New Profile $btnDiagNewProfile, Manage / AD... $btnDiagManageProfiles) &
   Show-PrimaryProfilePromptSafe:
-  Prompts on first launch if no Primary Domain Profile is configured yet,
+  Prompts on first launch if no Primary Domain Profile is configured yet using
+  Step 1 ($pnlChoice, 0 textboxes) and Step 2 ($pnlNameInput, single contextual
+  $txtSelectedName box matching the chosen Primary vs Assisting action),
   allowing technicians to reserve their clean Primary slot if currently assisting
   another domain. Manages isolated Domain Profiles stored in Profiles.json and
   %LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id> (with ad_cred.dpapi.json

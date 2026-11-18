@@ -2053,8 +2053,8 @@ function Show-MasterPassphraseDialogSafe {
     $fgMain = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
     $fgMuted = $(if ($isDark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
 
-    $baseW = 560
-    $baseH = $(if ($isEnabled) { 392 } else { 320 })
+    $baseW = 556
+    $baseH = $(if ($isEnabled) { 338 } else { 276 })
     $dlg = New-Object System.Windows.Forms.Form
     $dlg.Text = "Application Master Passphrase Configuration"
     $dlg.ClientSize = New-Object System.Drawing.Size($baseW, $baseH)
@@ -2068,12 +2068,12 @@ function Show-MasterPassphraseDialogSafe {
     $lblStatusBanner = New-Object System.Windows.Forms.Label
     $lblStatusBanner.UseMnemonic = $false
     $lblStatusBanner.Location = New-Object System.Drawing.Point(18, 14)
-    $lblStatusBanner.Size = New-Object System.Drawing.Size(524, 46)
+    $lblStatusBanner.Size = New-Object System.Drawing.Size(520, 44)
     $lblStatusBanner.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $lblStatusBanner.Text = $(if ($isEnabled) {
-        "STATUS: ACTIVE - Startup Master Passphrase protects all profiles ($savedCount saved AD vault(s)). Changing or setting re-encrypts all saved vaults."
+        "STATUS: ACTIVE - Protects all profiles ($savedCount saved AD vault(s)). Select an action below; only the fields needed for that action will appear."
     } else {
-        "STATUS: NOT CONFIGURED - Saved AD credentials auto-unlock via Windows DPAPI CurrentUser ($savedCount saved AD vault(s)). Enable below to require a passphrase on app launch."
+        "STATUS: NOT CONFIGURED - Saved AD credentials auto-unlock via Windows DPAPI CurrentUser ($savedCount saved AD vault(s)). Set a passphrase below to lock app launch."
     })
     $lblStatusBanner.ForeColor = $(if ($isEnabled) {
         if ($isDark) { [System.Drawing.Color]::FromArgb(74, 222, 128) } else { [System.Drawing.Color]::FromArgb(21, 128, 61) }
@@ -2082,245 +2082,491 @@ function Show-MasterPassphraseDialogSafe {
     })
     $dlg.Controls.Add($lblStatusBanner)
 
-    $yPos = 68
-    $txtCur = $null
-    if ($isEnabled) {
-        $lblCur = New-Object System.Windows.Forms.Label
-        $lblCur.Text = "Current Master Passphrase (required to Change or Remove Passphrase):"
-        $lblCur.UseMnemonic = $false
-        $lblCur.Location = New-Object System.Drawing.Point(18, $yPos)
-        $lblCur.Size = New-Object System.Drawing.Size(524, 20)
-        $lblCur.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-        $dlg.Controls.Add($lblCur)
+    if (-not $isEnabled) {
+        # NOT CONFIGURED: Only 2 boxes shown (both required to set a passphrase)
+        $lblNewSet = New-Object System.Windows.Forms.Label
+        $lblNewSet.Text = "Configure Master Passphrase (min 6 characters):"
+        $lblNewSet.UseMnemonic = $false
+        $lblNewSet.Location = New-Object System.Drawing.Point(18, 66)
+        $lblNewSet.Size = New-Object System.Drawing.Size(520, 20)
+        $lblNewSet.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+        $dlg.Controls.Add($lblNewSet)
 
-        $txtCur = New-Object System.Windows.Forms.TextBox
-        $txtCur.PasswordChar = '*'
-        $txtCur.Location = New-Object System.Drawing.Point(18, ($yPos + 22))
-        $txtCur.Size = New-Object System.Drawing.Size(524, 25)
-        $txtCur.BackColor = $bgInput
-        $txtCur.ForeColor = $fgMain
-        $dlg.Controls.Add($txtCur)
-        $yPos += 56
-    }
+        $txtNewSet = New-Object System.Windows.Forms.TextBox
+        $txtNewSet.PasswordChar = '*'
+        $txtNewSet.Location = New-Object System.Drawing.Point(18, 88)
+        $txtNewSet.Size = New-Object System.Drawing.Size(520, 25)
+        $txtNewSet.BackColor = $bgInput
+        $txtNewSet.ForeColor = $fgMain
+        $dlg.Controls.Add($txtNewSet)
 
-    $lblNew = New-Object System.Windows.Forms.Label
-    $lblNew.Text = $(if ($isEnabled) { "New Master Passphrase (min 6 characters):" } else { "Configure Master Passphrase (min 6 characters):" })
-    $lblNew.UseMnemonic = $false
-    $lblNew.Location = New-Object System.Drawing.Point(18, $yPos)
-    $lblNew.Size = New-Object System.Drawing.Size(524, 20)
-    $lblNew.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $dlg.Controls.Add($lblNew)
+        $lblConfSet = New-Object System.Windows.Forms.Label
+        $lblConfSet.Text = "Confirm Master Passphrase:"
+        $lblConfSet.UseMnemonic = $false
+        $lblConfSet.Location = New-Object System.Drawing.Point(18, 122)
+        $lblConfSet.Size = New-Object System.Drawing.Size(520, 20)
+        $lblConfSet.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+        $dlg.Controls.Add($lblConfSet)
 
-    $txtNew = New-Object System.Windows.Forms.TextBox
-    $txtNew.PasswordChar = '*'
-    $txtNew.Location = New-Object System.Drawing.Point(18, ($yPos + 22))
-    $txtNew.Size = New-Object System.Drawing.Size(524, 25)
-    $txtNew.BackColor = $bgInput
-    $txtNew.ForeColor = $fgMain
-    $dlg.Controls.Add($txtNew)
-    $yPos += 56
+        $txtConfSet = New-Object System.Windows.Forms.TextBox
+        $txtConfSet.PasswordChar = '*'
+        $txtConfSet.Location = New-Object System.Drawing.Point(18, 144)
+        $txtConfSet.Size = New-Object System.Drawing.Size(520, 25)
+        $txtConfSet.BackColor = $bgInput
+        $txtConfSet.ForeColor = $fgMain
+        $dlg.Controls.Add($txtConfSet)
 
-    $lblConf = New-Object System.Windows.Forms.Label
-    $lblConf.Text = "Confirm Master Passphrase:"
-    $lblConf.UseMnemonic = $false
-    $lblConf.Location = New-Object System.Drawing.Point(18, $yPos)
-    $lblConf.Size = New-Object System.Drawing.Size(524, 20)
-    $lblConf.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $dlg.Controls.Add($lblConf)
+        $lblErrSet = New-Object System.Windows.Forms.Label
+        $lblErrSet.Text = ""
+        $lblErrSet.UseMnemonic = $false
+        $lblErrSet.Location = New-Object System.Drawing.Point(18, 176)
+        $lblErrSet.Size = New-Object System.Drawing.Size(520, 34)
+        $lblErrSet.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
+        $lblErrSet.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
+        $dlg.Controls.Add($lblErrSet)
 
-    $txtConf = New-Object System.Windows.Forms.TextBox
-    $txtConf.PasswordChar = '*'
-    $txtConf.Location = New-Object System.Drawing.Point(18, ($yPos + 22))
-    $txtConf.Size = New-Object System.Drawing.Size(524, 25)
-    $txtConf.BackColor = $bgInput
-    $txtConf.ForeColor = $fgMain
-    $dlg.Controls.Add($txtConf)
-    $yPos += 56
+        $btnSaveSet = New-Object System.Windows.Forms.Button
+        $btnSaveSet.Text = "Set Master Passphrase"
+        $btnSaveSet.UseMnemonic = $false
+        $btnSaveSet.Location = New-Object System.Drawing.Point(18, 220)
+        $btnSaveSet.Size = New-Object System.Drawing.Size(200, 36)
+        $btnSaveSet.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+        $btnSaveSet.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+        $btnSaveSet.ForeColor = [System.Drawing.Color]::White
+        $btnSaveSet.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $dlg.Controls.Add($btnSaveSet)
 
-    $lblFeedback = New-Object System.Windows.Forms.Label
-    $lblFeedback.Text = ""
-    $lblFeedback.UseMnemonic = $false
-    $lblFeedback.Location = New-Object System.Drawing.Point(18, $yPos)
-    $lblFeedback.Size = New-Object System.Drawing.Size(524, 34)
-    $lblFeedback.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
-    $lblFeedback.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
-    $dlg.Controls.Add($lblFeedback)
-    $yPos += 42
+        $btnCloseSet = New-Object System.Windows.Forms.Button
+        $btnCloseSet.Text = "Close"
+        $btnCloseSet.UseMnemonic = $false
+        $btnCloseSet.Location = New-Object System.Drawing.Point(444, 220)
+        $btnCloseSet.Size = New-Object System.Drawing.Size(94, 36)
+        $btnCloseSet.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $btnCloseSet.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+        $dlg.Controls.Add($btnCloseSet)
 
-    $btnSavePass = New-Object System.Windows.Forms.Button
-    $btnSavePass.Text = $(if ($isEnabled) { "Change Passphrase" } else { "Set Master Passphrase" })
-    $btnSavePass.UseMnemonic = $false
-    $btnSavePass.Location = New-Object System.Drawing.Point(18, $yPos)
-    $btnSavePass.Size = New-Object System.Drawing.Size($(if ($isEnabled) { 168 } else { 200 }), 36)
-    $btnSavePass.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $btnSavePass.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
-    $btnSavePass.ForeColor = [System.Drawing.Color]::White
-    $btnSavePass.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $dlg.Controls.Add($btnSavePass)
-
-    if ($isEnabled) {
-        $btnRemoveKeep = New-Object System.Windows.Forms.Button
-        $btnRemoveKeep.Text = "Remove Passphrase"
-        $btnRemoveKeep.UseMnemonic = $false
-        $btnRemoveKeep.Location = New-Object System.Drawing.Point(194, $yPos)
-        $btnRemoveKeep.Size = New-Object System.Drawing.Size(166, 36)
-        $btnRemoveKeep.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-        $btnRemoveKeep.BackColor = [System.Drawing.Color]::FromArgb(180, 83, 9)
-        $btnRemoveKeep.ForeColor = [System.Drawing.Color]::White
-        $btnRemoveKeep.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-        $dlg.Controls.Add($btnRemoveKeep)
-
-        $btnRemoveKeep.Add_Click({
-            $curCheck = $(if ($txtCur) { $txtCur.Text } else { "" })
-            if ([string]::IsNullOrEmpty($curCheck)) {
-                $lblFeedback.Text = "Enter your current Master Passphrase above to Remove Passphrase (keeps saved creds). If forgotten, use 'Remove Passphrase & All Creds'."
+        $btnSaveSet.Add_Click({
+            $newVal = $txtNewSet.Text
+            $confVal = $txtConfSet.Text
+            if ([string]::IsNullOrEmpty($newVal) -or $newVal.Length -lt 6) {
+                $lblErrSet.Text = "Master Passphrase must be at least 6 characters."
                 return
             }
-            if (-not (Test-MasterPassphraseVerifierSafe -VaultMeta $mv -Passphrase $curCheck)) {
-                $lblFeedback.Text = "Current Master Passphrase is incorrect."
+            if ($newVal -ne $confVal) {
+                $lblErrSet.Text = "Master Passphrase and confirmation do not match."
                 return
             }
-            $lblFeedback.Text = ""
-            $nl = [System.Environment]::NewLine
-            $promptKeep =
-                "What this will do:$nl" +
-                "- Removes the startup Master Passphrase prompt and switches your $savedCount saved AD credential vault(s) back to Windows DPAPI CurrentUser protection only (credentials stay saved on this PC and auto-connect on launch).$nl$nl" +
-                "Why you should keep a Master Passphrase:$nl" +
-                "- These are high-privilege Domain Admin credentials. Without a Master Passphrase, anyone who gains access to your unlocked Windows user session can open this console and automatically authenticate to connected domains without an extra passphrase or the 2-attempt startup lock.$nl$nl" +
-                "Do you want to remove the Master Passphrase and keep your saved AD credentials?"
-            $ansKeep = [System.Windows.Forms.MessageBox]::Show(
-                $dlg,
-                $promptKeep,
-                "Confirm Remove Master Passphrase (Keep Credentials)",
-                [System.Windows.Forms.MessageBoxButtons]::YesNo,
-                [System.Windows.Forms.MessageBoxIcon]::Warning
-            )
-            if ($ansKeep -eq [System.Windows.Forms.DialogResult]::Yes) {
-                try {
-                    $kept = Remove-GlobalMasterPassphraseKeepCredsSafe -CurrentPassphrase $curCheck
-                    Update-HeaderMasterPassphraseButtonState
-                    Refresh-IntegrationStatusLabelsSafe -Quick:$true
-                    if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
-                    Write-AppLog "Removed Global Master Passphrase (kept $kept saved AD profile vault(s) protected by Windows DPAPI CurrentUser)." "WARN"
-                    [System.Windows.Forms.MessageBox]::Show(
-                        $dlg,
-                        "Master Passphrase removed. $kept saved AD profile vault(s) were retained under Windows DPAPI CurrentUser protection.",
-                        "Master Passphrase Removed",
-                        [System.Windows.Forms.MessageBoxButtons]::OK,
-                        [System.Windows.Forms.MessageBoxIcon]::Information
-                    ) | Out-Null
-                    $dlg.Close()
-                } catch {
-                    $lblFeedback.Text = $_.Exception.Message
-                }
-            }
-        })
-
-        $btnBreakGlass = New-Object System.Windows.Forms.Button
-        $btnBreakGlass.Text = "Remove Passphrase & All Creds"
-        $btnBreakGlass.UseMnemonic = $false
-        $btnBreakGlass.Location = New-Object System.Drawing.Point(18, ($yPos + 46))
-        $btnBreakGlass.Size = New-Object System.Drawing.Size(242, 36)
-        $btnBreakGlass.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
-        $btnBreakGlass.BackColor = [System.Drawing.Color]::FromArgb(185, 28, 28)
-        $btnBreakGlass.ForeColor = [System.Drawing.Color]::White
-        $btnBreakGlass.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-        $dlg.Controls.Add($btnBreakGlass)
-
-        $lblBreakGlassHint = New-Object System.Windows.Forms.Label
-        $lblBreakGlassHint.Text = "Break-glass reset (no passphrase needed): wipes all stored AD credentials if forgotten."
-        $lblBreakGlassHint.UseMnemonic = $false
-        $lblBreakGlassHint.Location = New-Object System.Drawing.Point(268, ($yPos + 47))
-        $lblBreakGlassHint.Size = New-Object System.Drawing.Size(274, 34)
-        $lblBreakGlassHint.Font = New-Object System.Drawing.Font("Segoe UI", 7.75)
-        $lblBreakGlassHint.ForeColor = $fgMuted
-        $dlg.Controls.Add($lblBreakGlassHint)
-
-        $btnBreakGlass.Add_Click({
-            $nl = [System.Environment]::NewLine
-            $promptWipe =
-                "EMERGENCY BREAK-GLASS RESET (Forgotten Passphrase):$nl" +
-                "Does NOT require your current Master Passphrase.$nl$nl" +
-                "What this will do:$nl" +
-                "- Permanently WIPE ALL stored AD credentials across every Domain Profile ($savedCount saved vault(s))$nl" +
-                "- Remove the application Master Passphrase and clear session vault keys$nl" +
-                "- Reset the application's saved credentials back to its clean default state (you will need to manually re-enter and re-save AD credentials)$nl$nl" +
-                "Are you sure you want to wipe all stored credentials and reset?"
-            $ans = [System.Windows.Forms.MessageBox]::Show(
-                $dlg,
-                $promptWipe,
-                "Confirm Break-Glass Reset & Wipe All Stored Credentials",
-                [System.Windows.Forms.MessageBoxButtons]::YesNo,
-                [System.Windows.Forms.MessageBoxIcon]::Warning
-            )
-            if ($ans -eq [System.Windows.Forms.DialogResult]::Yes) {
-                $purged = Remove-GlobalMasterPassphraseAndPurgeAllSafe
+            try {
+                $reWrapped = Set-GlobalMasterPassphraseSafe -NewPassphrase $newVal -CurrentPassphrase ""
                 Update-HeaderMasterPassphraseButtonState
-                Refresh-IntegrationStatusLabelsSafe -Quick:$true
                 if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
-                Write-AppLog "Executed Break-Glass Reset: removed Global Master Passphrase and wiped all stored AD credentials across $purged profile(s)." "WARN"
+                Write-AppLog "Enabled Global Master Passphrase and re-encrypted $reWrapped saved AD profile vault(s) with AES-256 + PBKDF2-SHA256." "SUCCESS"
                 [System.Windows.Forms.MessageBox]::Show(
                     $dlg,
-                    "Break-glass reset complete. Master Passphrase removed and all stored AD credentials ($purged profile(s)) were permanently wiped.",
-                    "Application Credentials Reset",
+                    "Master Passphrase Enabled successfully.`r`nRe-encrypted $reWrapped saved AD profile vault(s). You will be prompted once on startup (2 attempts max).",
+                    "Master Passphrase Saved",
                     [System.Windows.Forms.MessageBoxButtons]::OK,
                     [System.Windows.Forms.MessageBoxIcon]::Information
                 ) | Out-Null
                 $dlg.Close()
+            } catch {
+                $lblErrSet.Text = $_.Exception.Message
             }
         })
+
+        $dlg.AcceptButton = $btnSaveSet
+        $dlg.CancelButton = $btnCloseSet
+        $dlg.Add_Shown({ $txtNewSet.Focus() })
+        Invoke-ApplyModalResponsiveScale -ModalForm $dlg -BaseWidth $baseW -BaseHeight $baseH -Owner $OwnerForm
+        [void]$dlg.ShowDialog($OwnerForm)
+        return
     }
 
-    $btnClose = New-Object System.Windows.Forms.Button
-    $btnClose.Text = "Close"
-    $btnClose.UseMnemonic = $false
-    $btnClose.Location = New-Object System.Drawing.Point(448, $yPos)
-    $btnClose.Size = New-Object System.Drawing.Size(94, 36)
-    $btnClose.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $btnClose.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $dlg.Controls.Add($btnClose)
+    # ACTIVE: Action-first views so ONLY the boxes needed for the chosen action are visible
+    # View 1: Menu (0 textboxes)
+    $pnlMenu = New-Object System.Windows.Forms.Panel
+    $pnlMenu.Location = New-Object System.Drawing.Point(18, 66)
+    $pnlMenu.Size = New-Object System.Drawing.Size(520, 254)
+    $pnlMenu.BackColor = $bgDlg
+    $dlg.Controls.Add($pnlMenu)
 
-    $btnSavePass.Add_Click({
-        $curVal = $(if ($txtCur) { $txtCur.Text } else { "" })
-        $newVal = $txtNew.Text
-        $confVal = $txtConf.Text
+    $btnChooseChange = New-Object System.Windows.Forms.Button
+    $btnChooseChange.Text = "Change Passphrase"
+    $btnChooseChange.UseMnemonic = $false
+    $btnChooseChange.Location = New-Object System.Drawing.Point(0, 8)
+    $btnChooseChange.Size = New-Object System.Drawing.Size(222, 38)
+    $btnChooseChange.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $btnChooseChange.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+    $btnChooseChange.ForeColor = [System.Drawing.Color]::White
+    $btnChooseChange.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $pnlMenu.Controls.Add($btnChooseChange)
 
-        if ($isEnabled -and [string]::IsNullOrEmpty($curVal)) {
-            $lblFeedback.Text = "Enter your current Master Passphrase to change it."
+    $lblDescChange = New-Object System.Windows.Forms.Label
+    $lblDescChange.Text = "Enter current + new passphrase to update and re-encrypt all saved vaults."
+    $lblDescChange.UseMnemonic = $false
+    $lblDescChange.Location = New-Object System.Drawing.Point(232, 10)
+    $lblDescChange.Size = New-Object System.Drawing.Size(288, 34)
+    $lblDescChange.Font = New-Object System.Drawing.Font("Segoe UI", 8.0)
+    $lblDescChange.ForeColor = $fgMuted
+    $pnlMenu.Controls.Add($lblDescChange)
+
+    $btnChooseRemoveKeep = New-Object System.Windows.Forms.Button
+    $btnChooseRemoveKeep.Text = "Remove Passphrase"
+    $btnChooseRemoveKeep.UseMnemonic = $false
+    $btnChooseRemoveKeep.Location = New-Object System.Drawing.Point(0, 62)
+    $btnChooseRemoveKeep.Size = New-Object System.Drawing.Size(222, 38)
+    $btnChooseRemoveKeep.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $btnChooseRemoveKeep.BackColor = [System.Drawing.Color]::FromArgb(180, 83, 9)
+    $btnChooseRemoveKeep.ForeColor = [System.Drawing.Color]::White
+    $btnChooseRemoveKeep.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $pnlMenu.Controls.Add($btnChooseRemoveKeep)
+
+    $lblDescKeep = New-Object System.Windows.Forms.Label
+    $lblDescKeep.Text = "Requires current passphrase. Keeps saved AD creds under DPAPI CurrentUser only."
+    $lblDescKeep.UseMnemonic = $false
+    $lblDescKeep.Location = New-Object System.Drawing.Point(232, 64)
+    $lblDescKeep.Size = New-Object System.Drawing.Size(288, 34)
+    $lblDescKeep.Font = New-Object System.Drawing.Font("Segoe UI", 8.0)
+    $lblDescKeep.ForeColor = $fgMuted
+    $pnlMenu.Controls.Add($lblDescKeep)
+
+    $btnChooseBreakGlass = New-Object System.Windows.Forms.Button
+    $btnChooseBreakGlass.Text = "Remove Passphrase & All Creds"
+    $btnChooseBreakGlass.UseMnemonic = $false
+    $btnChooseBreakGlass.Location = New-Object System.Drawing.Point(0, 116)
+    $btnChooseBreakGlass.Size = New-Object System.Drawing.Size(222, 38)
+    $btnChooseBreakGlass.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
+    $btnChooseBreakGlass.BackColor = [System.Drawing.Color]::FromArgb(185, 28, 28)
+    $btnChooseBreakGlass.ForeColor = [System.Drawing.Color]::White
+    $btnChooseBreakGlass.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $pnlMenu.Controls.Add($btnChooseBreakGlass)
+
+    $lblDescBreak = New-Object System.Windows.Forms.Label
+    $lblDescBreak.Text = "Break-glass reset if forgotten (no passphrase needed): wipes all stored creds."
+    $lblDescBreak.UseMnemonic = $false
+    $lblDescBreak.Location = New-Object System.Drawing.Point(232, 118)
+    $lblDescBreak.Size = New-Object System.Drawing.Size(288, 34)
+    $lblDescBreak.Font = New-Object System.Drawing.Font("Segoe UI", 8.0)
+    $lblDescBreak.ForeColor = $fgMuted
+    $pnlMenu.Controls.Add($lblDescBreak)
+
+    $btnMenuClose = New-Object System.Windows.Forms.Button
+    $btnMenuClose.Text = "Close"
+    $btnMenuClose.UseMnemonic = $false
+    $btnMenuClose.Location = New-Object System.Drawing.Point(426, 210)
+    $btnMenuClose.Size = New-Object System.Drawing.Size(94, 36)
+    $btnMenuClose.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $btnMenuClose.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $pnlMenu.Controls.Add($btnMenuClose)
+
+    # View 2: Change Passphrase (3 boxes: Current + New + Confirm)
+    $pnlChange = New-Object System.Windows.Forms.Panel
+    $pnlChange.Location = New-Object System.Drawing.Point(18, 66)
+    $pnlChange.Size = New-Object System.Drawing.Size(520, 254)
+    $pnlChange.BackColor = $bgDlg
+    $pnlChange.Visible = $false
+    $dlg.Controls.Add($pnlChange)
+
+    $lblCurChg = New-Object System.Windows.Forms.Label
+    $lblCurChg.Text = "Current Master Passphrase:"
+    $lblCurChg.UseMnemonic = $false
+    $lblCurChg.Location = New-Object System.Drawing.Point(0, 0)
+    $lblCurChg.Size = New-Object System.Drawing.Size(520, 18)
+    $lblCurChg.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $pnlChange.Controls.Add($lblCurChg)
+
+    $txtCurChg = New-Object System.Windows.Forms.TextBox
+    $txtCurChg.PasswordChar = '*'
+    $txtCurChg.Location = New-Object System.Drawing.Point(0, 20)
+    $txtCurChg.Size = New-Object System.Drawing.Size(520, 24)
+    $txtCurChg.BackColor = $bgInput
+    $txtCurChg.ForeColor = $fgMain
+    $pnlChange.Controls.Add($txtCurChg)
+
+    $lblNewChg = New-Object System.Windows.Forms.Label
+    $lblNewChg.Text = "New Master Passphrase (min 6 characters):"
+    $lblNewChg.UseMnemonic = $false
+    $lblNewChg.Location = New-Object System.Drawing.Point(0, 52)
+    $lblNewChg.Size = New-Object System.Drawing.Size(520, 18)
+    $lblNewChg.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $pnlChange.Controls.Add($lblNewChg)
+
+    $txtNewChg = New-Object System.Windows.Forms.TextBox
+    $txtNewChg.PasswordChar = '*'
+    $txtNewChg.Location = New-Object System.Drawing.Point(0, 72)
+    $txtNewChg.Size = New-Object System.Drawing.Size(520, 24)
+    $txtNewChg.BackColor = $bgInput
+    $txtNewChg.ForeColor = $fgMain
+    $pnlChange.Controls.Add($txtNewChg)
+
+    $lblConfChg = New-Object System.Windows.Forms.Label
+    $lblConfChg.Text = "Confirm New Master Passphrase:"
+    $lblConfChg.UseMnemonic = $false
+    $lblConfChg.Location = New-Object System.Drawing.Point(0, 104)
+    $lblConfChg.Size = New-Object System.Drawing.Size(520, 18)
+    $lblConfChg.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $pnlChange.Controls.Add($lblConfChg)
+
+    $txtConfChg = New-Object System.Windows.Forms.TextBox
+    $txtConfChg.PasswordChar = '*'
+    $txtConfChg.Location = New-Object System.Drawing.Point(0, 124)
+    $txtConfChg.Size = New-Object System.Drawing.Size(520, 24)
+    $txtConfChg.BackColor = $bgInput
+    $txtConfChg.ForeColor = $fgMain
+    $pnlChange.Controls.Add($txtConfChg)
+
+    $lblErrChg = New-Object System.Windows.Forms.Label
+    $lblErrChg.Text = ""
+    $lblErrChg.UseMnemonic = $false
+    $lblErrChg.Location = New-Object System.Drawing.Point(0, 154)
+    $lblErrChg.Size = New-Object System.Drawing.Size(520, 44)
+    $lblErrChg.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
+    $lblErrChg.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
+    $pnlChange.Controls.Add($lblErrChg)
+
+    $btnBackChg = New-Object System.Windows.Forms.Button
+    $btnBackChg.Text = "Back"
+    $btnBackChg.UseMnemonic = $false
+    $btnBackChg.Location = New-Object System.Drawing.Point(0, 210)
+    $btnBackChg.Size = New-Object System.Drawing.Size(90, 36)
+    $btnBackChg.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $pnlChange.Controls.Add($btnBackChg)
+
+    $btnSaveChg = New-Object System.Windows.Forms.Button
+    $btnSaveChg.Text = "Save New Passphrase"
+    $btnSaveChg.UseMnemonic = $false
+    $btnSaveChg.Location = New-Object System.Drawing.Point(242, 210)
+    $btnSaveChg.Size = New-Object System.Drawing.Size(176, 36)
+    $btnSaveChg.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $btnSaveChg.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+    $btnSaveChg.ForeColor = [System.Drawing.Color]::White
+    $btnSaveChg.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $pnlChange.Controls.Add($btnSaveChg)
+
+    $btnCloseChg = New-Object System.Windows.Forms.Button
+    $btnCloseChg.Text = "Close"
+    $btnCloseChg.UseMnemonic = $false
+    $btnCloseChg.Location = New-Object System.Drawing.Point(426, 210)
+    $btnCloseChg.Size = New-Object System.Drawing.Size(94, 36)
+    $btnCloseChg.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $btnCloseChg.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $pnlChange.Controls.Add($btnCloseChg)
+
+    # View 3: Remove Passphrase Keep Creds (ONLY 1 box: Current Master Passphrase)
+    $pnlKeep = New-Object System.Windows.Forms.Panel
+    $pnlKeep.Location = New-Object System.Drawing.Point(18, 66)
+    $pnlKeep.Size = New-Object System.Drawing.Size(520, 254)
+    $pnlKeep.BackColor = $bgDlg
+    $pnlKeep.Visible = $false
+    $dlg.Controls.Add($pnlKeep)
+
+    $lblKeepIntro = New-Object System.Windows.Forms.Label
+    $lblKeepIntro.Text = "Enter your current Master Passphrase to remove the startup lock while keeping your saved AD credentials protected by Windows DPAPI CurrentUser:"
+    $lblKeepIntro.UseMnemonic = $false
+    $lblKeepIntro.Location = New-Object System.Drawing.Point(0, 4)
+    $lblKeepIntro.Size = New-Object System.Drawing.Size(520, 38)
+    $lblKeepIntro.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
+    $lblKeepIntro.ForeColor = $fgMuted
+    $pnlKeep.Controls.Add($lblKeepIntro)
+
+    $lblCurKeep = New-Object System.Windows.Forms.Label
+    $lblCurKeep.Text = "Current Master Passphrase:"
+    $lblCurKeep.UseMnemonic = $false
+    $lblCurKeep.Location = New-Object System.Drawing.Point(0, 50)
+    $lblCurKeep.Size = New-Object System.Drawing.Size(520, 20)
+    $lblCurKeep.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $pnlKeep.Controls.Add($lblCurKeep)
+
+    $txtCurKeep = New-Object System.Windows.Forms.TextBox
+    $txtCurKeep.PasswordChar = '*'
+    $txtCurKeep.Location = New-Object System.Drawing.Point(0, 72)
+    $txtCurKeep.Size = New-Object System.Drawing.Size(520, 25)
+    $txtCurKeep.BackColor = $bgInput
+    $txtCurKeep.ForeColor = $fgMain
+    $pnlKeep.Controls.Add($txtCurKeep)
+
+    $lblErrKeep = New-Object System.Windows.Forms.Label
+    $lblErrKeep.Text = ""
+    $lblErrKeep.UseMnemonic = $false
+    $lblErrKeep.Location = New-Object System.Drawing.Point(0, 108)
+    $lblErrKeep.Size = New-Object System.Drawing.Size(520, 48)
+    $lblErrKeep.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
+    $lblErrKeep.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
+    $pnlKeep.Controls.Add($lblErrKeep)
+
+    $btnBackKeep = New-Object System.Windows.Forms.Button
+    $btnBackKeep.Text = "Back"
+    $btnBackKeep.UseMnemonic = $false
+    $btnBackKeep.Location = New-Object System.Drawing.Point(0, 210)
+    $btnBackKeep.Size = New-Object System.Drawing.Size(90, 36)
+    $btnBackKeep.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $pnlKeep.Controls.Add($btnBackKeep)
+
+    $btnContKeep = New-Object System.Windows.Forms.Button
+    $btnContKeep.Text = "Continue to Warning Prompt"
+    $btnContKeep.UseMnemonic = $false
+    $btnContKeep.Location = New-Object System.Drawing.Point(210, 210)
+    $btnContKeep.Size = New-Object System.Drawing.Size(208, 36)
+    $btnContKeep.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $btnContKeep.BackColor = [System.Drawing.Color]::FromArgb(180, 83, 9)
+    $btnContKeep.ForeColor = [System.Drawing.Color]::White
+    $btnContKeep.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $pnlKeep.Controls.Add($btnContKeep)
+
+    $btnCloseKeep = New-Object System.Windows.Forms.Button
+    $btnCloseKeep.Text = "Close"
+    $btnCloseKeep.UseMnemonic = $false
+    $btnCloseKeep.Location = New-Object System.Drawing.Point(426, 210)
+    $btnCloseKeep.Size = New-Object System.Drawing.Size(94, 36)
+    $btnCloseKeep.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $btnCloseKeep.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $pnlKeep.Controls.Add($btnCloseKeep)
+
+    $showPassPanel = {
+        param([string]$ModeName)
+        $pnlMenu.Visible = ($ModeName -eq 'Menu')
+        $pnlChange.Visible = ($ModeName -eq 'Change')
+        $pnlKeep.Visible = ($ModeName -eq 'Keep')
+        $lblErrChg.Text = ""
+        $lblErrKeep.Text = ""
+        $txtCurChg.Text = ""
+        $txtNewChg.Text = ""
+        $txtConfChg.Text = ""
+        $txtCurKeep.Text = ""
+        if ($ModeName -eq 'Change') {
+            $dlg.AcceptButton = $btnSaveChg
+            $dlg.CancelButton = $btnCloseChg
+            $txtCurChg.Focus()
+        } elseif ($ModeName -eq 'Keep') {
+            $dlg.AcceptButton = $btnContKeep
+            $dlg.CancelButton = $btnCloseKeep
+            $txtCurKeep.Focus()
+        } else {
+            $dlg.AcceptButton = $null
+            $dlg.CancelButton = $btnMenuClose
+        }
+    }
+
+    $btnChooseChange.Add_Click({ & $showPassPanel 'Change' })
+    $btnChooseRemoveKeep.Add_Click({ & $showPassPanel 'Keep' })
+    $btnBackChg.Add_Click({ & $showPassPanel 'Menu' })
+    $btnBackKeep.Add_Click({ & $showPassPanel 'Menu' })
+
+    $btnChooseBreakGlass.Add_Click({
+        $nl = [System.Environment]::NewLine
+        $promptWipe =
+            "EMERGENCY BREAK-GLASS RESET (Forgotten Passphrase):$nl" +
+            "Does NOT require your current Master Passphrase.$nl$nl" +
+            "What this will do:$nl" +
+            "- Permanently WIPE ALL stored AD credentials across every Domain Profile ($savedCount saved vault(s))$nl" +
+            "- Remove the application Master Passphrase and clear session vault keys$nl" +
+            "- Reset the application's saved credentials back to its clean default state (you will need to manually re-enter and re-save AD credentials)$nl$nl" +
+            "Are you sure you want to wipe all stored credentials and reset?"
+        $ans = [System.Windows.Forms.MessageBox]::Show(
+            $dlg,
+            $promptWipe,
+            "Confirm Break-Glass Reset & Wipe All Stored Credentials",
+            [System.Windows.Forms.MessageBoxButtons]::YesNo,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        )
+        if ($ans -eq [System.Windows.Forms.DialogResult]::Yes) {
+            $purged = Remove-GlobalMasterPassphraseAndPurgeAllSafe
+            Update-HeaderMasterPassphraseButtonState
+            Refresh-IntegrationStatusLabelsSafe -Quick:$true
+            if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
+            Write-AppLog "Executed Break-Glass Reset: removed Global Master Passphrase and wiped all stored AD credentials across $purged profile(s)." "WARN"
+            [System.Windows.Forms.MessageBox]::Show(
+                $dlg,
+                "Break-glass reset complete. Master Passphrase removed and all stored AD credentials ($purged profile(s)) were permanently wiped.",
+                "Application Credentials Reset",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Information
+            ) | Out-Null
+            $dlg.Close()
+        }
+    })
+
+    $btnContKeep.Add_Click({
+        $curCheck = $txtCurKeep.Text
+        if ([string]::IsNullOrEmpty($curCheck)) {
+            $lblErrKeep.Text = "Enter your current Master Passphrase above to continue. If you forgot it, go Back and use 'Remove Passphrase & All Creds'."
+            return
+        }
+        if (-not (Test-MasterPassphraseVerifierSafe -VaultMeta $mv -Passphrase $curCheck)) {
+            $lblErrKeep.Text = "Current Master Passphrase is incorrect."
+            return
+        }
+        $lblErrKeep.Text = ""
+        $nl = [System.Environment]::NewLine
+        $promptKeep =
+            "What this will do:$nl" +
+            "- Removes the startup Master Passphrase prompt and switches your $savedCount saved AD credential vault(s) back to Windows DPAPI CurrentUser protection only (credentials stay saved on this PC and auto-connect on launch).$nl$nl" +
+            "Why you should keep a Master Passphrase:$nl" +
+            "- These are high-privilege Domain Admin credentials. Without a Master Passphrase, anyone who gains access to your unlocked Windows user session can open this console and automatically authenticate to connected domains without an extra passphrase or the 2-attempt startup lock.$nl$nl" +
+            "Do you want to remove the Master Passphrase and keep your saved AD credentials?"
+        $ansKeep = [System.Windows.Forms.MessageBox]::Show(
+            $dlg,
+            $promptKeep,
+            "Confirm Remove Master Passphrase (Keep Credentials)",
+            [System.Windows.Forms.MessageBoxButtons]::YesNo,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        )
+        if ($ansKeep -eq [System.Windows.Forms.DialogResult]::Yes) {
+            try {
+                $kept = Remove-GlobalMasterPassphraseKeepCredsSafe -CurrentPassphrase $curCheck
+                Update-HeaderMasterPassphraseButtonState
+                Refresh-IntegrationStatusLabelsSafe -Quick:$true
+                if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
+                Write-AppLog "Removed Global Master Passphrase (kept $kept saved AD profile vault(s) protected by Windows DPAPI CurrentUser)." "WARN"
+                [System.Windows.Forms.MessageBox]::Show(
+                    $dlg,
+                    "Master Passphrase removed. $kept saved AD profile vault(s) were retained under Windows DPAPI CurrentUser protection.",
+                    "Master Passphrase Removed",
+                    [System.Windows.Forms.MessageBoxButtons]::OK,
+                    [System.Windows.Forms.MessageBoxIcon]::Information
+                ) | Out-Null
+                $dlg.Close()
+            } catch {
+                $lblErrKeep.Text = $_.Exception.Message
+            }
+        }
+    })
+
+    $btnSaveChg.Add_Click({
+        $curVal = $txtCurChg.Text
+        $newVal = $txtNewChg.Text
+        $confVal = $txtConfChg.Text
+        if ([string]::IsNullOrEmpty($curVal)) {
+            $lblErrChg.Text = "Enter your current Master Passphrase."
             return
         }
         if ([string]::IsNullOrEmpty($newVal) -or $newVal.Length -lt 6) {
-            $lblFeedback.Text = "New Master Passphrase must be at least 6 characters."
+            $lblErrChg.Text = "New Master Passphrase must be at least 6 characters."
             return
         }
         if ($newVal -ne $confVal) {
-            $lblFeedback.Text = "New Master Passphrase and confirmation do not match."
+            $lblErrChg.Text = "New Master Passphrase and confirmation do not match."
             return
         }
         try {
             $reWrapped = Set-GlobalMasterPassphraseSafe -NewPassphrase $newVal -CurrentPassphrase $curVal
             Update-HeaderMasterPassphraseButtonState
             if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
-            $actWord = $(if ($isEnabled) { "Updated" } else { "Enabled" })
-            Write-AppLog "$actWord Global Master Passphrase and re-encrypted $reWrapped saved AD profile vault(s) with AES-256 + PBKDF2-SHA256." "SUCCESS"
+            Write-AppLog "Updated Global Master Passphrase and re-encrypted $reWrapped saved AD profile vault(s) with AES-256 + PBKDF2-SHA256." "SUCCESS"
             [System.Windows.Forms.MessageBox]::Show(
                 $dlg,
-                "Master Passphrase $actWord successfully.`r`nRe-encrypted $reWrapped saved AD profile vault(s). You will be prompted once on startup (2 attempts max).",
+                "Master Passphrase Updated successfully.`r`nRe-encrypted $reWrapped saved AD profile vault(s). You will be prompted once on startup (2 attempts max).",
                 "Master Passphrase Saved",
                 [System.Windows.Forms.MessageBoxButtons]::OK,
                 [System.Windows.Forms.MessageBoxIcon]::Information
             ) | Out-Null
             $dlg.Close()
         } catch {
-            $lblFeedback.Text = $_.Exception.Message
+            $lblErrChg.Text = $_.Exception.Message
         }
     })
 
-    $dlg.AcceptButton = $btnSavePass
-    $dlg.CancelButton = $btnClose
-    $dlg.Add_Shown({
-        if ($txtCur) { $txtCur.Focus() } else { $txtNew.Focus() }
-    })
+    $dlg.CancelButton = $btnMenuClose
     Invoke-ApplyModalResponsiveScale -ModalForm $dlg -BaseWidth $baseW -BaseHeight $baseH -Owner $OwnerForm
     [void]$dlg.ShowDialog($OwnerForm)
 }
@@ -9075,16 +9321,19 @@ function Show-PrimaryProfilePromptSafe {
 
     $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
     $isOnClientProfile = ($script:activeProfile -and (-not [bool]$script:activeProfile.IsDefault))
+    $bgDlg = $(if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
+    $bgInput = $(if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::White })
+    $fgMain = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
 
     $dlgPrim = New-Object System.Windows.Forms.Form
     $dlgPrim.Text = "Primary Domain Profile Setup"
-    $dlgPrim.ClientSize = New-Object System.Drawing.Size(600, 344)
+    $dlgPrim.ClientSize = New-Object System.Drawing.Size(600, 300)
     $dlgPrim.StartPosition = "CenterParent"
     $dlgPrim.FormBorderStyle = "FixedDialog"
     $dlgPrim.MaximizeBox = $false
     $dlgPrim.MinimizeBox = $false
-    $dlgPrim.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
-    $dlgPrim.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $dlgPrim.BackColor = $bgDlg
+    $dlgPrim.ForeColor = $fgMain
 
     $hdr = New-Object System.Windows.Forms.Panel
     $hdr.Location = New-Object System.Drawing.Point(0, 0)
@@ -9094,6 +9343,7 @@ function Show-PrimaryProfilePromptSafe {
 
     $lblHdr = New-Object System.Windows.Forms.Label
     $lblHdr.Text = "No Primary Domain Profile Is Configured Yet"
+    $lblHdr.UseMnemonic = $false
     $lblHdr.Font = New-Object System.Drawing.Font("Segoe UI", 10.5, [System.Drawing.FontStyle]::Bold)
     $lblHdr.ForeColor = [System.Drawing.Color]::White
     $lblHdr.Location = New-Object System.Drawing.Point(18, 13)
@@ -9103,95 +9353,117 @@ function Show-PrimaryProfilePromptSafe {
     $envLabel = $(if ($script:isDomainJoined) { "Joined Domain: $($script:detectedDomain)" } else { "Workgroup / Remote Workstation" })
     $lblQuestion = New-Object System.Windows.Forms.Label
     $lblQuestion.Location = New-Object System.Drawing.Point(18, 60)
-    $lblQuestion.Size = New-Object System.Drawing.Size(564, 96)
+    $lblQuestion.Size = New-Object System.Drawing.Size(564, 92)
+    $lblQuestion.UseMnemonic = $false
     $lblQuestion.Font = New-Object System.Drawing.Font("Segoe UI", 9.0)
     $lblQuestion.Text = "Detected Environment: $envLabel`r`n`r`nWill this current environment be your Primary (Home) Domain Profile?`r`nIf you are installing or running this tool while assisting another domain, keep Primary unset so your home domain profile stays clean for when you return."
     $dlgPrim.Controls.Add($lblQuestion)
 
-    $lblPrimName = New-Object System.Windows.Forms.Label
-    $lblPrimName.Text = "Primary Profile Name (if setting this as Primary):"
-    $lblPrimName.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $lblPrimName.Location = New-Object System.Drawing.Point(18, 162)
-    $lblPrimName.Size = New-Object System.Drawing.Size(564, 22)
-    $dlgPrim.Controls.Add($lblPrimName)
-
-    $txtPrimName = New-Object System.Windows.Forms.TextBox
-    $txtPrimName.Location = New-Object System.Drawing.Point(18, 186)
-    $txtPrimName.Size = New-Object System.Drawing.Size(564, 25)
-    $txtPrimName.Font = New-Object System.Drawing.Font("Segoe UI", 9.25)
-    $txtPrimName.Text = $(if ($script:isDomainJoined -and (-not [string]::IsNullOrWhiteSpace($script:detectedDomain))) { "$($script:detectedDomain) (Primary)" } else { "Primary Domain" })
-    $dlgPrim.Controls.Add($txtPrimName)
-
-    $lblOtherName = New-Object System.Windows.Forms.Label
-    $lblOtherName.Text = $(if ($isOnClientProfile) { "Or keep assisting another domain (leave Primary unset for home):" } else { "If assisting another domain instead, name that temporary/client profile:" })
-    $lblOtherName.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-    $lblOtherName.Location = New-Object System.Drawing.Point(18, 220)
-    $lblOtherName.Size = New-Object System.Drawing.Size(564, 22)
-    $dlgPrim.Controls.Add($lblOtherName)
-
-    $nextClientNum = (@($script:domainProfilesData.Profiles | Where-Object { -not [bool]$_.IsDefault }).Count) + 1
-    $txtClientName = New-Object System.Windows.Forms.TextBox
-    $txtClientName.Location = New-Object System.Drawing.Point(18, 244)
-    $txtClientName.Size = New-Object System.Drawing.Size(564, 25)
-    $txtClientName.Font = New-Object System.Drawing.Font("Segoe UI", 9.25)
-    $txtClientName.Text = $(if ($isOnClientProfile) { [string]$script:activeProfile.Name } else { "Assisting Domain $nextClientNum" })
-    if ($isOnClientProfile) { $txtClientName.ReadOnly = $true }
-    $dlgPrim.Controls.Add($txtClientName)
+    # Step 1: Choice buttons only (0 textboxes shown)
+    $pnlChoice = New-Object System.Windows.Forms.Panel
+    $pnlChoice.Location = New-Object System.Drawing.Point(18, 162)
+    $pnlChoice.Size = New-Object System.Drawing.Size(564, 120)
+    $pnlChoice.BackColor = $bgDlg
+    $dlgPrim.Controls.Add($pnlChoice)
 
     $btnYesPrimary = New-Object System.Windows.Forms.Button
     $btnYesPrimary.Text = "Yes - Set as My Primary Profile"
     $btnYesPrimary.UseMnemonic = $false
-    $btnYesPrimary.Location = New-Object System.Drawing.Point(18, 286)
+    $btnYesPrimary.Location = New-Object System.Drawing.Point(0, 60)
     $btnYesPrimary.Size = New-Object System.Drawing.Size(236, 38)
     $btnYesPrimary.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnYesPrimary.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
     $btnYesPrimary.ForeColor = [System.Drawing.Color]::White
     $btnYesPrimary.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $dlgPrim.Controls.Add($btnYesPrimary)
+    $pnlChoice.Controls.Add($btnYesPrimary)
 
     $btnNoAssisting = New-Object System.Windows.Forms.Button
     $btnNoAssisting.Text = $(if ($isOnClientProfile) { "No - Stay on Current Profile" } else { "No - Assisting Another Domain" })
     $btnNoAssisting.UseMnemonic = $false
-    $btnNoAssisting.Location = New-Object System.Drawing.Point(262, 286)
+    $btnNoAssisting.Location = New-Object System.Drawing.Point(244, 60)
     $btnNoAssisting.Size = New-Object System.Drawing.Size(222, 38)
     $btnNoAssisting.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnNoAssisting.BackColor = [System.Drawing.Color]::FromArgb(5, 150, 105)
     $btnNoAssisting.ForeColor = [System.Drawing.Color]::White
     $btnNoAssisting.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $dlgPrim.Controls.Add($btnNoAssisting)
+    $pnlChoice.Controls.Add($btnNoAssisting)
 
     $btnLater = New-Object System.Windows.Forms.Button
     $btnLater.Text = "Later"
     $btnLater.UseMnemonic = $false
-    $btnLater.Location = New-Object System.Drawing.Point(492, 286)
+    $btnLater.Location = New-Object System.Drawing.Point(474, 60)
     $btnLater.Size = New-Object System.Drawing.Size(90, 38)
     $btnLater.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
     $btnLater.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btnLater.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $dlgPrim.Controls.Add($btnLater)
+    $pnlChoice.Controls.Add($btnLater)
+
+    # Step 2: Single contextual profile name box (only for chosen option)
+    $pnlNameInput = New-Object System.Windows.Forms.Panel
+    $pnlNameInput.Location = New-Object System.Drawing.Point(18, 162)
+    $pnlNameInput.Size = New-Object System.Drawing.Size(564, 120)
+    $pnlNameInput.BackColor = $bgDlg
+    $pnlNameInput.Visible = $false
+    $dlgPrim.Controls.Add($pnlNameInput)
+
+    $lblSelectedName = New-Object System.Windows.Forms.Label
+    $lblSelectedName.Text = "Primary Profile Name:"
+    $lblSelectedName.UseMnemonic = $false
+    $lblSelectedName.Location = New-Object System.Drawing.Point(0, 0)
+    $lblSelectedName.Size = New-Object System.Drawing.Size(564, 22)
+    $lblSelectedName.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $pnlNameInput.Controls.Add($lblSelectedName)
+
+    $txtSelectedName = New-Object System.Windows.Forms.TextBox
+    $txtSelectedName.Location = New-Object System.Drawing.Point(0, 26)
+    $txtSelectedName.Size = New-Object System.Drawing.Size(564, 25)
+    $txtSelectedName.Font = New-Object System.Drawing.Font("Segoe UI", 9.25)
+    $txtSelectedName.BackColor = $bgInput
+    $txtSelectedName.ForeColor = $fgMain
+    $pnlNameInput.Controls.Add($txtSelectedName)
+
+    $btnBackPrim = New-Object System.Windows.Forms.Button
+    $btnBackPrim.Text = "Back"
+    $btnBackPrim.UseMnemonic = $false
+    $btnBackPrim.Location = New-Object System.Drawing.Point(0, 68)
+    $btnBackPrim.Size = New-Object System.Drawing.Size(90, 38)
+    $btnBackPrim.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $pnlNameInput.Controls.Add($btnBackPrim)
+
+    $btnConfirmPrim = New-Object System.Windows.Forms.Button
+    $btnConfirmPrim.Text = "Confirm Primary Profile"
+    $btnConfirmPrim.UseMnemonic = $false
+    $btnConfirmPrim.Location = New-Object System.Drawing.Point(224, 68)
+    $btnConfirmPrim.Size = New-Object System.Drawing.Size(242, 38)
+    $btnConfirmPrim.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $btnConfirmPrim.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+    $btnConfirmPrim.ForeColor = [System.Drawing.Color]::White
+    $btnConfirmPrim.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $pnlNameInput.Controls.Add($btnConfirmPrim)
+
+    $btnLaterStep2 = New-Object System.Windows.Forms.Button
+    $btnLaterStep2.Text = "Later"
+    $btnLaterStep2.UseMnemonic = $false
+    $btnLaterStep2.Location = New-Object System.Drawing.Point(474, 68)
+    $btnLaterStep2.Size = New-Object System.Drawing.Size(90, 38)
+    $btnLaterStep2.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $btnLaterStep2.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $pnlNameInput.Controls.Add($btnLaterStep2)
+
+    $nextClientNum = (@($script:domainProfilesData.Profiles | Where-Object { -not [bool]$_.IsDefault }).Count) + 1
+    $primState = @{ Mode = 'Primary' }
 
     $btnYesPrimary.Add_Click({
-        $primTitle = $(if (-not [string]::IsNullOrWhiteSpace($txtPrimName.Text)) { $txtPrimName.Text.Trim() } else { "Primary Domain" })
-        $defPr = Get-ProfileByIdSafe -ProfileId 'default'
-        if (-not $defPr) { $defPr = $script:domainProfilesData.Profiles[0] }
-
-        if ($script:activeProfile -and ($script:activeProfile.Id -ne $defPr.Id)) {
-            # Technician returned home from a temporary/client profile: populate Primary slot cleanly and switch to it
-            if ($script:isDomainJoined -and (-not [string]::IsNullOrWhiteSpace($script:detectedDomain))) {
-                $defPr.TargetDomain = $script:detectedDomain
-                $defPr.TargetServer = $script:detectedDomain
-                $defPr.UseExplicitCreds = $false
-            }
-            Set-PrimaryDomainProfileSafe -TargetProfile $defPr -NewName $primTitle
-            Switch-ActiveDomainProfileSafe -TargetProfile $defPr -UseExplicitAdCreds ([bool]$defPr.UseExplicitCreds) -SkipAdVerify $false
-        } else {
-            Set-PrimaryDomainProfileSafe -TargetProfile $defPr -NewName $primTitle
-            Update-HeaderSubLabelSafe
-            Sync-DiagProfileControls
-        }
-        Write-AppLog "Primary Domain Profile configured: '$($defPr.Name)'." "SUCCESS"
-        $dlgPrim.DialogResult = [System.Windows.Forms.DialogResult]::OK
-        $dlgPrim.Close()
+        $primState.Mode = 'Primary'
+        $lblSelectedName.Text = "Primary Profile Name:"
+        $txtSelectedName.Text = $(if ($script:isDomainJoined -and (-not [string]::IsNullOrWhiteSpace($script:detectedDomain))) { "$($script:detectedDomain) (Primary)" } else { "Primary Domain" })
+        $btnConfirmPrim.Text = "Confirm Primary Profile"
+        $btnConfirmPrim.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+        $pnlChoice.Visible = $false
+        $pnlNameInput.Visible = $true
+        $dlgPrim.AcceptButton = $btnConfirmPrim
+        $dlgPrim.CancelButton = $btnLaterStep2
+        $txtSelectedName.Focus()
     })
 
     $btnNoAssisting.Add_Click({
@@ -9201,17 +9473,58 @@ function Show-PrimaryProfilePromptSafe {
             $dlgPrim.Close()
             return
         }
-        $clientTitle = $(if (-not [string]::IsNullOrWhiteSpace($txtClientName.Text)) { $txtClientName.Text.Trim() } else { "Assisting Domain $nextClientNum" })
-        $newClientPr = New-DomainProfileSafe -ProfileName $clientTitle
-        Switch-ActiveDomainProfileSafe -TargetProfile $newClientPr -UseExplicitAdCreds $true -SkipAdVerify $true
-        Write-AppLog "Created isolated Domain Profile '$($newClientPr.Name)' for assisting another domain. Primary Domain Profile kept clean and unset for your home domain." "INFO"
+        $primState.Mode = 'Assisting'
+        $lblSelectedName.Text = "Temporary / Assisting Profile Name:"
+        $txtSelectedName.Text = "Assisting Domain $nextClientNum"
+        $btnConfirmPrim.Text = "Create Assisting Profile"
+        $btnConfirmPrim.BackColor = [System.Drawing.Color]::FromArgb(5, 150, 105)
+        $pnlChoice.Visible = $false
+        $pnlNameInput.Visible = $true
+        $dlgPrim.AcceptButton = $btnConfirmPrim
+        $dlgPrim.CancelButton = $btnLaterStep2
+        $txtSelectedName.Focus()
+    })
+
+    $btnBackPrim.Add_Click({
+        $pnlNameInput.Visible = $false
+        $pnlChoice.Visible = $true
+        $dlgPrim.AcceptButton = $btnYesPrimary
+        $dlgPrim.CancelButton = $btnLater
+    })
+
+    $btnConfirmPrim.Add_Click({
+        if ($primState.Mode -eq 'Primary') {
+            $primTitle = $(if (-not [string]::IsNullOrWhiteSpace($txtSelectedName.Text)) { $txtSelectedName.Text.Trim() } else { "Primary Domain" })
+            $defPr = Get-ProfileByIdSafe -ProfileId 'default'
+            if (-not $defPr) { $defPr = $script:domainProfilesData.Profiles[0] }
+
+            if ($script:activeProfile -and ($script:activeProfile.Id -ne $defPr.Id)) {
+                if ($script:isDomainJoined -and (-not [string]::IsNullOrWhiteSpace($script:detectedDomain))) {
+                    $defPr.TargetDomain = $script:detectedDomain
+                    $defPr.TargetServer = $script:detectedDomain
+                    $defPr.UseExplicitCreds = $false
+                }
+                Set-PrimaryDomainProfileSafe -TargetProfile $defPr -NewName $primTitle
+                Switch-ActiveDomainProfileSafe -TargetProfile $defPr -UseExplicitAdCreds ([bool]$defPr.UseExplicitCreds) -SkipAdVerify $false
+            } else {
+                Set-PrimaryDomainProfileSafe -TargetProfile $defPr -NewName $primTitle
+                Update-HeaderSubLabelSafe
+                Sync-DiagProfileControls
+            }
+            Write-AppLog "Primary Domain Profile configured: '$($defPr.Name)'." "SUCCESS"
+        } else {
+            $clientTitle = $(if (-not [string]::IsNullOrWhiteSpace($txtSelectedName.Text)) { $txtSelectedName.Text.Trim() } else { "Assisting Domain $nextClientNum" })
+            $newClientPr = New-DomainProfileSafe -ProfileName $clientTitle
+            Switch-ActiveDomainProfileSafe -TargetProfile $newClientPr -UseExplicitAdCreds $true -SkipAdVerify $true
+            Write-AppLog "Created isolated Domain Profile '$($newClientPr.Name)' for assisting another domain. Primary Domain Profile kept clean and unset for your home domain." "INFO"
+        }
         $dlgPrim.DialogResult = [System.Windows.Forms.DialogResult]::OK
         $dlgPrim.Close()
     })
 
     $dlgPrim.AcceptButton = $btnYesPrimary
     $dlgPrim.CancelButton = $btnLater
-    Invoke-ApplyModalResponsiveScale -ModalForm $dlgPrim -BaseWidth 600 -BaseHeight 344 -Owner $OwnerForm
+    Invoke-ApplyModalResponsiveScale -ModalForm $dlgPrim -BaseWidth 600 -BaseHeight 300 -Owner $OwnerForm
     [void]$dlgPrim.ShowDialog($OwnerForm)
 }
 

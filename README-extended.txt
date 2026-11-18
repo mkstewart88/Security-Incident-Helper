@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.58)
+SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.62)
 ================================================================================
 
 ARCHITECTURAL SPECIFICATION & EXHAUSTIVE CONTROL-BY-CONTROL ENGINEERING REFERENCE
@@ -58,9 +58,10 @@ TOP HEADER BAR:
   On startup ($form.Add_Shown), Start-StartupUpdateCheckAsync runs an
   asynchronous background check via Get-GitHubUpdateStatusSafe against GitHub
   releases/latest and VERSION (with UTF-8 decoding and commit SHA cache bypass).
-  Update-HeaderUpdateButtonState displays "v<version>" (e.g., v1.1.58) when up
+  Update-HeaderUpdateButtonState displays "v<version>" (e.g., v1.1.62) when up
   to date/offline or "Update Available" with theme-aware amber highlight when a
-  newer release exists. Clicking opens Show-UpdateCheckWindow for Check for
+  newer release exists. Clicking opens Show-UpdateCheckWindow (enforcing trusted
+  github.com/githubusercontent.com HTTPS download URLs & ref checks) for Check for
   Updates, View Changelog, and Update & Restart (.ps1 syntax check or local
   PS2EXE compilation with MZ header validation before hot-swapping).
 - [ Light Mode ] / [ Dark Mode ] ($btnThemeToggle):
@@ -70,6 +71,16 @@ TOP HEADER BAR:
   Positioned immediately to the right of [ Light Mode ] / [ Dark Mode ].
   Renders a DPI-aware vector GitHub mark and launches
   https://github.com/mkstewart88/Security-Incident-Helper in the default browser.
+- Master Passphrase ($btnMasterPassphrase -> Show-MasterPassphraseDialogSafe /
+  Show-StartupMasterPassphraseGateSafe):
+  Positioned immediately to the right of $btnGitHub. Manages an optional global
+  application-wide passphrase (MasterVault.json) applied to all saved Domain
+  Profiles: Set, Change (requires current), "Remove Passphrase" (requires
+  current passphrase and shows why-keep warning while preserving saved vaults
+  under DPAPI CurrentUser), and break-glass "Remove Passphrase & All Creds"
+  (requires no passphrase if forgotten; confirms wipe of all saved credentials
+  back to default). When enabled, startup enforces a 2-attempt gate before any
+  probing or sign-in; when unset, startup skips the prompt and auto-connects.
 
 TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
 - Active Profile Bar ($cmbDiagProfile, Switch Profile $btnDiagSwitchProfile,
@@ -78,12 +89,27 @@ TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
   Prompts on first launch if no Primary Domain Profile is configured yet,
   allowing technicians to reserve their clean Primary slot if currently assisting
   another domain. Manages isolated Domain Profiles stored in Profiles.json and
-  %LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id> (with LastDomainConnection.json
-  caching last domain/DC/username hints without ever saving passwords).
+  %LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id> (with ad_cred.dpapi.json
+  encrypted via DPAPI CurrentUser + optional AES-256 Master Passphrase and
+  single-user NTFS ACLs, plus ad_cred_health.json tracking zero-lockout state).
   - Profile Controls in Show-DomainSwitcher: $cmbProf, + New ($btnNewProf),
     Set Primary ($btnSetPrimaryProf), Rename ($btnRenameProf), Delete ($btnDelProf),
-    Auto-Detect Domain ($btnAutoDetect), Connect & Switch Profile ($btnConnect),
-    and Switch Cloud Only (Skip AD) ($btnCloudOnly).
+    Auto-Detect Domain ($btnAutoDetect), Save AD Creds ($chkSaveCred),
+    Purge Saved ($btnPurgeDlgCred), Connect & Switch Profile ($btnConnect),
+    and Switch Cloud Only (Skip AD) ($btnCloudOnly). Saved vaults automatically
+    bind to the global Master Passphrase when configured in the top header.
+- Credential Health & Encrypted AD Vault Panel ($grpCredHealth):
+  - Validate Credential Health ($btnValidateCredHealth -> Invoke-ValidateStoredADCredentialHealthSafe):
+    Runs zero-credential network reachability check (NIC DNS suffixes + DNS SRV +
+    700ms TCP 389/636), Kerberos pre-bind pwdLastSet/badPwdCount/lockoutTime audit,
+    and 1-strike circuit-breaker validation.
+  - Detect Network & Auto-Connect ($btnAutoConnectProfile / Start-StartupADAutoConnectAsync /
+    Invoke-ApplyStartupDiscoveryResultSafe / Invoke-StartupUnifiedPreflightSafe):
+    Probes configured profile domains asynchronously without UI freeze (even on
+    plugged-in unjoined networks), auto-connects AD via saved vault credentials,
+    and runs unified preflight across Active Directory + Microsoft Graph + GAM7
+    while staying cleanly on Tab 1.
+  - Configure Saved AD Creds... ($btnManageSavedCred) & Purge Saved Creds ($btnPurgeSavedCred).
 - Column 1 (Active Directory, X=15):
   - Test Active Directory ($btnTestAD, Row 1): Performs live LDAP RootDSE bind.
   - Install RSAT (Optional) ($btnRunRsatSetup, Row 2): Runs Setup-RSAT-ActiveDirectory.bat
@@ -152,6 +178,11 @@ TAB 4: MULTI-SOURCE SECURITY EVENT TRIAGE
   dictionary for offline event lookup.
 - Show Pulled Events ($btnRestorePulledEvents): Restores previous query results
   instantly without re-querying domain controllers or APIs.
+- Live Filter ($txtEventSearch) & Full Result/Detail Highlighting: Searches across
+  Timestamp, Source, EventCode, Severity, HostOrIP, Meaning, Decision, and RawDetail
+  as you type, using GDI+ CellPainting across columns 1..5 (Source, Code, Severity,
+  Host/IP, Summary) plus Update-EventDecisionDetailBox RichTextBox highlighting
+  inside the clicked event detail panel ($txtEventDecision, DetectUrls = $false).
 
 TAB 5: FORENSIC COMPLIANCE AUDIT TRAIL
 - Refresh Audit Trail ($btnRefreshAudit): Reads C:\ProgramData\IncidentResponse-Automator\AuditLog.csv.

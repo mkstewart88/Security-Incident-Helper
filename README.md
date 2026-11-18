@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.58](https://img.shields.io/badge/Version-1.1.58-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.62](https://img.shields.io/badge/Version-1.1.62-emerald.svg)](CHANGELOG.md)
 
 A high-performance, domain-agnostic administrative incident containment console and security forensics triage utility for hybrid enterprise environments spanning **Active Directory Domain Services (AD DS)**, **Microsoft Entra ID (Microsoft 365)**, and **Google Workspace**.
 
@@ -92,7 +92,7 @@ Filterable, searchable audit logging with CSV field sanitization, recording ever
 
 * **Single-Click Universal Containment:** Reset Active Directory password (with forced change at next logon), invalidate Microsoft 365 OAuth refresh tokens, terminate Google Workspace web/mobile sessions, and disable directory accounts in under 10 seconds.
 * **Dual Active Directory Engine:** Operates seamlessly via native .NET `System.DirectoryServices` (LDAP/ADSI over TCP/389 or LDAPS over TCP/636) without requiring Remote Server Administration Tools (RSAT), while automatically leveraging the RSAT `ActiveDirectory` module if present.
-* **Multi-Domain Profiles & Auto-Detection:** Automatically discovers local domain membership, forest roots, and DNS suffix lists, with isolated **Domain Profiles** (`Profiles\<id>`) for AD, Microsoft Graph, and GAM7—making single-domain use zero-step while letting multi-tenant technicians switch environments in one click.
+* **Multi-Domain Profiles, Encrypted AD Vault & Zero-Lockout Auto-Connect:** On launch, probes configured profiles in parallel (prioritizing active NIC DNS suffixes even when the workstation is **not** domain-joined), switches automatically to the reachable domain, unlocks its saved DPAPI credentials, and logs straight into **Active Directory + Microsoft Graph + Google GAM7** while keeping you cleanly on **Tab 1 (`1. Setup`)**. Stored credentials are locked strictly to the configured PC and Windows user via **Windows DPAPI (`CurrentUser`)**, protected by **Tab 1 Credential Health** pre-bind checks, a **1-Strike Circuit Breaker**, and an optional app-wide **`Master Passphrase`** in the top-right header (with a 2-attempt startup gate, **Remove Passphrase** keeping creds, and break-glass **Remove Passphrase & All Creds** reset).
 * **Deep Account Isolation:**
   * Immediately disables Entra ID sign-in via Microsoft Graph REST API, closing the 30-minute Entra Connect synchronization gap.
   * Suspends Google Workspace accounts via GAM7 CLI with multi-pass convergence verification.
@@ -159,10 +159,17 @@ Upon launch, if no **Primary Domain Profile** has been configured yet, a startup
 If operating from a non-domain-joined laptop or managing multiple corporate/client domains and cloud tenants:
 1. Open **Tab 1 (`1. Setup`)** and click **Manage / AD...** in the top Profile bar (or **Switch AD Account / Domain** in the Active Directory column).
 2. Select an existing **Domain Profile** or click **+ New** to create an isolated profile (`%LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>`), **Set Primary** to designate your home domain, **Rename**, or **Delete**.
-3. Click **Auto-Detect Domain** to populate the local joined domain, or enter a target Domain FQDN or Domain Controller IP/hostname (e.g. `contoso.com`).
-4. Check **Use alternate Domain Admin credentials (same domain or remote DC)** and enter administrative credentials (`DOMAIN\admin` and Password) if switching AD accounts or connecting from a workgroup PC (passwords stay in memory only).
-5. Click **Connect & Switch Profile** to verify LDAP RootDSE connectivity and switch the active profile, or click **Switch Cloud Only (Skip AD)** for off-VPN cloud triage when an on-premises Domain Controller is unreachable.
-6. On startup, the console automatically checks GitHub in the background: the top-right update button displays **`v<version>`** (for example `v1.1.58`) when up to date or **`Update Available`** when a newer release exists. Click it at any time to open the updater dialog, **Check for Updates**, **View Changelog**, or run **Update & Restart** (which validates and auto-recompiles `IncidentResponse.exe` locally when running as an `.exe`).
+3. Click **Auto-Detect Domain** to populate the local joined domain or active NIC DNS suffix, or enter a target Domain FQDN or Domain Controller IP/hostname (e.g. `contoso.com`).
+4. Check **Use alternate Domain Admin credentials (same domain or remote DC)** and enter administrative credentials (`DOMAIN\admin` and Password) if switching AD accounts or connecting from a workgroup PC. Optionally check **Save AD credentials securely on this PC (DPAPI CurrentUser encrypted, zero-lockout)** to lock credentials strictly to the current workstation and Windows user account for automatic startup detection and login.
+5. Click **`Master Passphrase`** in the top-right header (immediately to the right of the GitHub icon) if you want an optional application-wide passphrase protecting **all** saved Domain Profiles:
+   * **Not Set:** The app opens directly and auto-connects to any detected domain on launch with no prompt.
+   * **Set:** Opening the app immediately prompts for your Master Passphrase before probing or logging in (1st wrong attempt warns you; 2nd wrong attempt or Cancel closes the application cleanly).
+   * **Change:** Requires re-entering the current passphrase.
+   * **Remove Passphrase:** Requires your current passphrase and displays an explanation of what removing it does and why you should keep one; if confirmed, keeps saved AD credentials under DPAPI `CurrentUser` protection with no startup lock.
+   * **Remove Passphrase & All Creds (Break-Glass Reset):** Does **not** require a passphrase (for emergency recovery if forgotten); displays a warning prompt before confirming that all stored AD credentials across every profile will be permanently wiped and the app reset to default.
+6. Click **Connect & Switch Profile** to verify LDAP RootDSE connectivity and switch the active profile, or click **Switch Cloud Only (Skip AD)** for off-VPN cloud triage when an on-premises Domain Controller is unreachable.
+7. Use Tab 1's **Credential Health & Encrypted AD Vault** diagnostic panel to run **Validate Credential Health** (checks network reachability, Kerberos `pwdLastSet`/`badPwdCount`/`lockoutTime` before binding, and 1-strike circuit-breaker health), **Detect Network & Auto-Connect**, **Configure Saved AD Creds...**, or **Purge Saved Creds**.
+8. On startup, the console automatically checks GitHub in the background: the top-right update button displays **`v<version>`** (for example `v1.1.62`) when up to date or **`Update Available`** when a newer release exists. Click it at any time to open the updater dialog, **Check for Updates**, **View Changelog**, or run **Update & Restart** (which validates and auto-recompiles `IncidentResponse.exe` locally when running as an `.exe`).
 
 ### 3. Locating and Verifying a Compromised Identity (Tab 2)
 1. Navigate to **Tab 2 (`2. Containment`)**.
@@ -205,9 +212,9 @@ For high-severity or suspected Business Email Compromise (BEC) incidents:
 ### 7. Triaging Security Events (Tab 4)
 1. Navigate to **Tab 4 (`4. Event Triage`)**.
 2. Click **Pull Events (AD + Entra + Google)** to query Domain Controller security logs, Entra sign-in audit logs, and Google login reports.
-3. Filter results by source or severity using the dropdown selectors.
-4. Select any event to read its plain-English explanation and recommended incident response decision.
-5. Click **View Event Guide** to browse the complete built-in dictionary of Windows, Entra, and Google security codes. Click **Show Pulled Events** to return to your query results without re-pulling.
+3. Filter results by source or severity using the dropdown selectors, or type into the live **Filter** search box to search across **both the result table columns** (`Source`, `Event Code`, `Severity`, `Host/IP`, `Summary`) **and the clicked log's details** (`What It Means`, `Recommended Decision`, `Raw Telemetry`), **dynamically highlighting matching text across both the result rows and the clicked event detail box** as you type.
+4. Select any event to read its highlighted plain-English explanation, recommended incident response decision, and raw telemetry details.
+5. Click **View Event Guide** to browse the complete built-in dictionary of Windows, Entra, and Google security codes (live filtering and result/detail highlighting work on the Event Guide too). Click **Show Pulled Events** to return to your query results without re-querying.
 
 ### 8. Reviewing the Compliance Audit Trail (Tab 5)
 1. Navigate to **Tab 5 (`5. Audit Trail`)**.

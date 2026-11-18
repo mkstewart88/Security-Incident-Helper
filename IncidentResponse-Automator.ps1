@@ -1,23 +1,24 @@
 # ==============================================================================
-# Security Incident Response Automator (v1.1.58)
+# Security Incident Response Automator (v1.1.62)
 # Standalone Native Windows Form Application (Tabbed UI, Real Verification, Audit Trail)
 # Domain Agnostic | Auto-Detect Domain | Multi-Domain Profiles (AD + Graph + GAM7)
+# Encrypted Per-Profile AD Vault (DPAPI CurrentUser) | Zero-Lockout Credential Health
 # Native .NET System.DirectoryServices Fallback (Runs with or without RSAT!)
 #
 # DEVELOPER ARCHITECTURAL NAVIGATION INDEX:
 #   [01] Single-Threaded Apartment (-STA) Auto-Enforcement   (Line ~25)
 #   [02] Embedded Setup Batch Scripts (Base64 UTF-8)        (Line ~70)
-#   [03] Domain Auto-Discovery & Domain Profiles             (Line ~1390)
-#   [04] Microsoft Graph Identity & Session Revocation       (Line ~2120)
-#   [05] Google Workspace (GAM7) Orchestration & Signout     (Line ~2860)
-#   [06] Active Directory Dual-Engine & User Search          (Line ~3280)
-#   [07] Deep Isolation, Cloud MFA Wipe & KDC Hard-Lock      (Line ~3770)
-#   [08] Mailbox Forwarding & Inbox Rule Remediation         (Line ~4170)
-#   [09] Security Event Triage & Plain-English Decoder       (Line ~5170)
-#   [10] Windows Forms 5-Tab GUI Architecture & Controls     (Line ~5955)
-#   [11] Domain Profile Switcher, Changelog & Self-Updater   (Line ~6590)
-#   [12] Dynamic Theme Engine (Light / Dark Mode)            (Line ~11150)
-#   [13] High-DPI Responsive Scaling & Pixel Font Cache      (Line ~11370)
+#   [03] Domain Auto-Discovery, Profiles & DPAPI AD Vault   (Line ~1390)
+#   [04] Active Directory Dual-Engine & User Search          (Line ~3270)
+#   [05] Microsoft Graph Identity & Session Revocation       (Line ~3495)
+#   [06] Google Workspace (GAM7) Orchestration & Signout     (Line ~3965)
+#   [07] Deep Isolation, Cloud MFA Wipe & KDC Hard-Lock      (Line ~5165)
+#   [08] Mailbox Forwarding & Inbox Rule Remediation         (Line ~5470)
+#   [09] Security Event Triage & Plain-English Decoder       (Line ~6345)
+#   [10] Windows Forms 5-Tab GUI Architecture & Controls     (Line ~7290)
+#   [11] Domain Switcher, Cred Health, Changelog & Updater   (Line ~8375)
+#   [12] Dynamic Theme Engine (Light / Dark Mode)            (Line ~12735)
+#   [13] High-DPI Responsive Scaling & Pixel Font Cache      (Line ~12885)
 # ==============================================================================
 
 #Requires -Version 5.1
@@ -33,7 +34,7 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
-$script:AppVersion = "1.1.58"
+$script:AppVersion = "1.1.62"
 $script:updateAvailable = $false
 $script:latestKnownVersionTag = "v$($script:AppVersion)"
 $script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
@@ -41,6 +42,7 @@ $script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyComman
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.DirectoryServices
+Add-Type -AssemblyName System.Security
 
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
@@ -1539,12 +1541,2057 @@ function Get-DomainProfilePaths {
     })
 
     $mgDir = Join-Path $profDir 'mg'
+    $credVaultPath = Join-Path $profDir 'ad_cred.dpapi.json'
+    $credHealthPath = Join-Path $profDir 'ad_cred_health.json'
     return @{
-        ProfileDir = $profDir
-        GamDir     = $gamDir
-        GraphDir   = $graphDir
-        MgDir      = $mgDir
-        IsDefault  = $isDef
+        ProfileDir     = $profDir
+        GamDir         = $gamDir
+        GraphDir       = $graphDir
+        MgDir          = $mgDir
+        CredVaultPath  = $credVaultPath
+        CredHealthPath = $credHealthPath
+        IsDefault      = $isDef
+    }
+}
+
+# -----------------------------------------------------------------------------
+# ENCRYPTED PER-PROFILE AD CREDENTIAL VAULT (DPAPI + OPTIONAL PASSPHRASE) &
+# ZERO-LOCKOUT CREDENTIAL HEALTH + NETWORK DOMAIN PRE-FLIGHT ENGINE
+# -----------------------------------------------------------------------------
+$script:lastCredHealthResult = $null
+$script:lastNetworkProbeSummary = $null
+$script:sessionMasterPassphrase = ""
+$script:masterGateFailedClose = $false
+
+function Get-GlobalMasterVaultPathSafe {
+    $root = $(if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        Join-Path $env:LOCALAPPDATA 'IncidentResponse-Automator'
+    } elseif (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        Join-Path $env:USERPROFILE '.incident-response'
+    } else {
+        $PSScriptRoot
+    })
+    return (Join-Path $root 'MasterVault.dpapi.json')
+}
+
+function Get-GlobalMasterVaultEntropyBytes {
+    $sidVal = "UNKNOWN-SID"
+    try {
+        $cur = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+        if ($cur -and $cur.User) { $sidVal = [string]$cur.User.Value }
+    } catch {}
+    return [System.Text.Encoding]::UTF8.GetBytes("IRA-GLOBAL-MASTER-v1|$sidVal")
+}
+
+function New-MasterPassphraseVerifierSafe {
+    param([Parameter(Mandatory = $true)][string]$Passphrase)
+    $salt = New-Object byte[] 16
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng.GetBytes($salt) } finally { if ($rng) { $rng.Dispose() } }
+
+    $iterations = 150000
+    $kdfAlg = "PBKDF2-SHA256"
+    $kdf = $null
+    $passBytes = [System.Text.Encoding]::UTF8.GetBytes($Passphrase)
+    try {
+        try {
+            $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($passBytes, $salt, $iterations, [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+        } catch {
+            $kdfAlg = "PBKDF2-SHA1"
+            $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($Passphrase, $salt, $iterations)
+        }
+        $dk = $kdf.GetBytes(32)
+        $hmac = New-Object System.Security.Cryptography.HMACSHA256
+        $hmac.Key = $dk
+        $ctx = [System.Text.Encoding]::UTF8.GetBytes("IRA-MASTER-VERIFIER-v1")
+        try {
+            $verBytes = $hmac.ComputeHash($ctx)
+        } finally {
+            if ($hmac) { $hmac.Dispose() }
+            [Array]::Clear($dk, 0, $dk.Length)
+        }
+        return [PSCustomObject]@{
+            SchemaVersion   = 1
+            Enabled         = $true
+            KdfAlg          = $kdfAlg
+            Iterations      = $iterations
+            SaltB64         = [Convert]::ToBase64String($salt)
+            VerifierHashB64 = [Convert]::ToBase64String($verBytes)
+            UpdatedAtUtc    = (Get-Date).ToUniversalTime().ToString('o')
+        }
+    } finally {
+        if ($kdf) { $kdf.Dispose() }
+        if ($passBytes) { [Array]::Clear($passBytes, 0, $passBytes.Length) }
+    }
+}
+
+function Test-MasterPassphraseVerifierSafe {
+    param(
+        $VaultMeta,
+        [string]$Passphrase
+    )
+    if (-not $VaultMeta -or (-not [bool]$VaultMeta.Enabled)) { return $true }
+    if ([string]::IsNullOrEmpty($Passphrase)) { return $false }
+    try {
+        $salt = [Convert]::FromBase64String([string]$VaultMeta.SaltB64)
+        $expected = [Convert]::FromBase64String([string]$VaultMeta.VerifierHashB64)
+        $iterations = [int]$VaultMeta.Iterations
+        $kdfAlg = [string]$VaultMeta.KdfAlg
+
+        $passBytes = [System.Text.Encoding]::UTF8.GetBytes($Passphrase)
+        $kdf = $null
+        try {
+            if ($kdfAlg -eq "PBKDF2-SHA256") {
+                $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($passBytes, $salt, $iterations, [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+            } else {
+                $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($Passphrase, $salt, $iterations)
+            }
+            $dk = $kdf.GetBytes(32)
+            $hmac = New-Object System.Security.Cryptography.HMACSHA256
+            $hmac.Key = $dk
+            $ctx = [System.Text.Encoding]::UTF8.GetBytes("IRA-MASTER-VERIFIER-v1")
+            $actual = $hmac.ComputeHash($ctx)
+            $hmac.Dispose()
+            [Array]::Clear($dk, 0, $dk.Length)
+
+            if ($actual.Length -ne $expected.Length) { return $false }
+            $diff = 0
+            for ($i = 0; $i -lt $actual.Length; $i++) {
+                $diff = $diff -bor ($actual[$i] -bxor $expected[$i])
+            }
+            return ($diff -eq 0)
+        } finally {
+            if ($kdf) { $kdf.Dispose() }
+            if ($passBytes) { [Array]::Clear($passBytes, 0, $passBytes.Length) }
+        }
+    } catch {
+        return $false
+    }
+}
+
+function Get-GlobalMasterVaultMetaSafe {
+    $def = [PSCustomObject]@{
+        Enabled      = $false
+        KdfAlg       = ''
+        Iterations   = 0
+        SaltB64      = ''
+        VerifierHashB64 = ''
+        UpdatedAtUtc = ''
+        Corrupt      = $false
+    }
+    $path = Get-GlobalMasterVaultPathSafe
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $def }
+    try {
+        $raw = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
+        $outer = $raw | ConvertFrom-Json -ErrorAction Stop
+        if (-not $outer -or [string]::IsNullOrWhiteSpace([string]$outer.DpapiBlobB64)) {
+            $def.Corrupt = $true
+            return $def
+        }
+        $blob = [Convert]::FromBase64String([string]$outer.DpapiBlobB64)
+        $entropy = Get-GlobalMasterVaultEntropyBytes
+        $plainBytes = [System.Security.Cryptography.ProtectedData]::Unprotect(
+            $blob,
+            $entropy,
+            [System.Security.Cryptography.DataProtectionScope]::CurrentUser
+        )
+        $json = [System.Text.Encoding]::UTF8.GetString($plainBytes)
+        [Array]::Clear($plainBytes, 0, $plainBytes.Length)
+        $parsed = $json | ConvertFrom-Json -ErrorAction Stop
+        if ($parsed -and [bool]$parsed.Enabled) {
+            return [PSCustomObject]@{
+                Enabled         = $true
+                KdfAlg          = [string]$parsed.KdfAlg
+                Iterations      = [int]$parsed.Iterations
+                SaltB64         = [string]$parsed.SaltB64
+                VerifierHashB64 = [string]$parsed.VerifierHashB64
+                UpdatedAtUtc    = [string]$parsed.UpdatedAtUtc
+                Corrupt         = $false
+            }
+        }
+    } catch {
+        $def.Corrupt = $true
+    }
+    return $def
+}
+
+function Save-GlobalMasterVaultMetaSafe {
+    param([Parameter(Mandatory = $true)]$VerifierObj)
+    $path = Get-GlobalMasterVaultPathSafe
+    $dir = Split-Path -Parent $path
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+        New-Item -ItemType Directory -Path $dir -Force -ErrorAction Stop | Out-Null
+    }
+    $innerJson = $VerifierObj | ConvertTo-Json -Compress
+    $innerBytes = [System.Text.Encoding]::UTF8.GetBytes($innerJson)
+    $entropy = Get-GlobalMasterVaultEntropyBytes
+    $dpapi = [System.Security.Cryptography.ProtectedData]::Protect(
+        $innerBytes,
+        $entropy,
+        [System.Security.Cryptography.DataProtectionScope]::CurrentUser
+    )
+    [Array]::Clear($innerBytes, 0, $innerBytes.Length)
+    $outer = [PSCustomObject]@{
+        SchemaVersion = 1
+        ProtectedWith = "DPAPI-CurrentUser"
+        UpdatedAtUtc  = (Get-Date).ToUniversalTime().ToString('o')
+        DpapiBlobB64  = [Convert]::ToBase64String($dpapi)
+    }
+    [Array]::Clear($dpapi, 0, $dpapi.Length)
+    [System.IO.File]::WriteAllText($path, ($outer | ConvertTo-Json -Depth 3), [System.Text.Encoding]::UTF8)
+    Set-StrictUserFileAclSafe -FilePath $path
+}
+
+function Set-GlobalMasterPassphraseSafe {
+    param(
+        [Parameter(Mandatory = $true)][string]$NewPassphrase,
+        [string]$CurrentPassphrase = ""
+    )
+    if ([string]::IsNullOrWhiteSpace($NewPassphrase) -or $NewPassphrase.Length -lt 6) {
+        throw "Master Passphrase must be at least 6 characters long."
+    }
+
+    $existing = Get-GlobalMasterVaultMetaSafe
+    $wasEnabled = [bool]$existing.Enabled
+    if ($wasEnabled) {
+        if (-not (Test-MasterPassphraseVerifierSafe -VaultMeta $existing -Passphrase $CurrentPassphrase)) {
+            throw "Current Master Passphrase is incorrect."
+        }
+    }
+
+    # Pre-decrypt all saved profile AD vaults in memory before modifying disk files
+    $staged = [System.Collections.Generic.List[hashtable]]::new()
+    if ($script:domainProfilesData -and $script:domainProfilesData.Profiles) {
+        foreach ($pr in $script:domainProfilesData.Profiles) {
+            $meta = Get-ADCredentialHealthMetaSafe -ProfileObj $pr
+            if (-not $meta.HasSavedCred) { continue }
+            $passToRead = $(if ($meta.RequirePassphrase) {
+                if (-not [string]::IsNullOrEmpty($CurrentPassphrase)) { $CurrentPassphrase } else { $script:sessionMasterPassphrase }
+            } else { "" })
+            $unw = Unprotect-ProfileADCredentialSafe -ProfileObj $pr -MasterPassphrase $passToRead
+            if (-not $unw.Success -or (-not $unw.Credential)) {
+                foreach ($s in $staged) { $s.PlainPass = $null }
+                throw "Failed to unlock existing saved AD credentials for profile '$($pr.Name)': $($unw.Error)"
+            }
+            $netCred = $unw.Credential.GetNetworkCredential()
+            $staged.Add(@{
+                Profile            = $pr
+                TargetDomain       = $(if ($unw.TargetDomain) { $unw.TargetDomain } else { [string]$pr.TargetDomain })
+                TargetServer       = $(if ($unw.TargetServer) { $unw.TargetServer } else { [string]$pr.TargetServer })
+                Username           = $unw.Username
+                PlainPass          = $netCred.Password
+                SavedPwdLastSetUtc = [string]$meta.SavedPwdLastSetUtc
+            })
+        }
+    }
+
+    try {
+        $verObj = New-MasterPassphraseVerifierSafe -Passphrase $NewPassphrase
+        Save-GlobalMasterVaultMetaSafe -VerifierObj $verObj
+        foreach ($item in $staged) {
+            [void](Protect-ProfileADCredentialSafe `
+                -ProfileObj $item.Profile `
+                -TargetDomain $item.TargetDomain `
+                -TargetServer $item.TargetServer `
+                -Username $item.Username `
+                -PasswordPlain $item.PlainPass `
+                -MasterPassphrase $NewPassphrase `
+                -SavedPwdLastSetUtc $item.SavedPwdLastSetUtc)
+        }
+        $script:sessionMasterPassphrase = $NewPassphrase
+        return $staged.Count
+    } finally {
+        foreach ($item in $staged) { $item.PlainPass = $null }
+    }
+}
+
+function Remove-GlobalMasterPassphraseKeepCredsSafe {
+    param(
+        [Parameter(Mandatory = $true)][string]$CurrentPassphrase
+    )
+    $existing = Get-GlobalMasterVaultMetaSafe
+    if (-not $existing.Enabled) { return 0 }
+    if ([string]::IsNullOrEmpty($CurrentPassphrase) -or (-not (Test-MasterPassphraseVerifierSafe -VaultMeta $existing -Passphrase $CurrentPassphrase))) {
+        throw "Current Master Passphrase is incorrect."
+    }
+
+    # Pre-decrypt all saved profile AD vaults in memory before touching disk files
+    $staged = [System.Collections.Generic.List[hashtable]]::new()
+    if ($script:domainProfilesData -and $script:domainProfilesData.Profiles) {
+        foreach ($pr in $script:domainProfilesData.Profiles) {
+            $meta = Get-ADCredentialHealthMetaSafe -ProfileObj $pr
+            if (-not $meta.HasSavedCred) { continue }
+            $passToRead = $(if ($meta.RequirePassphrase) { $CurrentPassphrase } else { "" })
+            $unw = Unprotect-ProfileADCredentialSafe -ProfileObj $pr -MasterPassphrase $passToRead
+            if (-not $unw.Success -or (-not $unw.Credential)) {
+                foreach ($s in $staged) { $s.PlainPass = $null }
+                throw "Failed to unlock existing saved AD credentials for profile '$($pr.Name)': $($unw.Error)"
+            }
+            $netCred = $unw.Credential.GetNetworkCredential()
+            $staged.Add(@{
+                Profile            = $pr
+                TargetDomain       = $(if ($unw.TargetDomain) { $unw.TargetDomain } else { [string]$pr.TargetDomain })
+                TargetServer       = $(if ($unw.TargetServer) { $unw.TargetServer } else { [string]$pr.TargetServer })
+                Username           = $unw.Username
+                PlainPass          = $netCred.Password
+                SavedPwdLastSetUtc = [string]$meta.SavedPwdLastSetUtc
+            })
+        }
+    }
+
+    try {
+        foreach ($item in $staged) {
+            [void](Protect-ProfileADCredentialSafe `
+                -ProfileObj $item.Profile `
+                -TargetDomain $item.TargetDomain `
+                -TargetServer $item.TargetServer `
+                -Username $item.Username `
+                -PasswordPlain $item.PlainPass `
+                -MasterPassphrase "" `
+                -SavedPwdLastSetUtc $item.SavedPwdLastSetUtc)
+        }
+    } finally {
+        foreach ($item in $staged) { $item.PlainPass = $null }
+    }
+
+    $path = Get-GlobalMasterVaultPathSafe
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+        try {
+            $len = (Get-Item -LiteralPath $path -ErrorAction SilentlyContinue).Length
+            if ($len -gt 0 -and $len -lt 262144) {
+                $zeros = New-Object byte[] $len
+                [System.IO.File]::WriteAllBytes($path, $zeros)
+            }
+        } catch {}
+        Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+    }
+    $script:sessionMasterPassphrase = ""
+    return $staged.Count
+}
+
+function Remove-GlobalMasterPassphraseAndPurgeAllSafe {
+    $purgedProfiles = 0
+    if ($script:domainProfilesData -and $script:domainProfilesData.Profiles) {
+        foreach ($pr in $script:domainProfilesData.Profiles) {
+            $meta = Get-ADCredentialHealthMetaSafe -ProfileObj $pr
+            if ($meta.HasSavedCred -or $meta.CircuitBreakerTripped) {
+                Remove-SavedADCredentialVaultSafe -ProfileObj $pr
+                $purgedProfiles++
+            }
+        }
+    }
+    $path = Get-GlobalMasterVaultPathSafe
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+        try {
+            $len = (Get-Item -LiteralPath $path -ErrorAction SilentlyContinue).Length
+            if ($len -gt 0 -and $len -lt 262144) {
+                $zeros = New-Object byte[] $len
+                [System.IO.File]::WriteAllBytes($path, $zeros)
+            }
+        } catch {}
+        Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+    }
+    $script:sessionMasterPassphrase = ""
+    $script:adCredential = $null
+    $script:lastCredHealthResult = $null
+    return $purgedProfiles
+}
+
+function Update-HeaderMasterPassphraseButtonState {
+    if (-not $btnMasterPassphrase -or $btnMasterPassphrase.IsDisposed) { return }
+    $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    $mv = Get-GlobalMasterVaultMetaSafe
+    if ($mv.Enabled) {
+        $btnMasterPassphrase.Text = "Master Passphrase"
+        $btnMasterPassphrase.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(6, 78, 59) } else { [System.Drawing.Color]::FromArgb(209, 250, 229) })
+        $btnMasterPassphrase.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(110, 231, 183) } else { [System.Drawing.Color]::FromArgb(6, 95, 70) })
+        $btnMasterPassphrase.FlatAppearance.BorderColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(16, 185, 129) } else { [System.Drawing.Color]::FromArgb(5, 150, 105) })
+        if ($headerToolTip) {
+            $headerToolTip.SetToolTip($btnMasterPassphrase, "Global Master Passphrase is ACTIVE (protects all saved AD vaults on startup). Click to change or remove.")
+        }
+    } else {
+        $btnMasterPassphrase.Text = "Master Passphrase"
+        $btnMasterPassphrase.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+        $btnMasterPassphrase.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(226, 232, 240) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+        $btnMasterPassphrase.FlatAppearance.BorderColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(71, 85, 105) } else { [System.Drawing.Color]::FromArgb(148, 163, 184) })
+        if ($headerToolTip) {
+            $headerToolTip.SetToolTip($btnMasterPassphrase, "Configure an optional application-wide Master Passphrase required on startup across all saved profiles.")
+        }
+    }
+}
+
+function Show-StartupMasterPassphraseGateSafe {
+    param([System.Windows.Forms.Form]$OwnerForm = $form)
+    $mv = Get-GlobalMasterVaultMetaSafe
+    if (-not $mv.Enabled) { return $true }
+
+    $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    $bgDlg = $(if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
+    $fgMain = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $fgMuted = $(if ($isDark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
+    $bgInput = $(if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::White })
+
+    $dlg = New-Object System.Windows.Forms.Form
+    $dlg.Text = "Unlock Security Incident Response Automator"
+    $dlg.ClientSize = New-Object System.Drawing.Size(470, 224)
+    $dlg.StartPosition = "CenterParent"
+    $dlg.FormBorderStyle = "FixedDialog"
+    $dlg.MaximizeBox = $false
+    $dlg.MinimizeBox = $false
+    $dlg.TopMost = $true
+    $dlg.BackColor = $bgDlg
+    $dlg.ForeColor = $fgMain
+
+    $lbl = New-Object System.Windows.Forms.Label
+    $lbl.Text = "Enter Master Passphrase to launch and auto-connect:"
+    $lbl.UseMnemonic = $false
+    $lbl.Font = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Bold)
+    $lbl.Location = New-Object System.Drawing.Point(18, 16)
+    $lbl.Size = New-Object System.Drawing.Size(434, 24)
+    $dlg.Controls.Add($lbl)
+
+    $lblSubGate = New-Object System.Windows.Forms.Label
+    $lblSubGate.Text = "This workstation has an app-wide Master Passphrase enabled (2 attempts maximum; 2 failed attempts will close the application)."
+    $lblSubGate.UseMnemonic = $false
+    $lblSubGate.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
+    $lblSubGate.ForeColor = $fgMuted
+    $lblSubGate.Location = New-Object System.Drawing.Point(18, 44)
+    $lblSubGate.Size = New-Object System.Drawing.Size(434, 34)
+    $dlg.Controls.Add($lblSubGate)
+
+    $txtPass = New-Object System.Windows.Forms.TextBox
+    $txtPass.PasswordChar = '*'
+    $txtPass.Location = New-Object System.Drawing.Point(18, 86)
+    $txtPass.Size = New-Object System.Drawing.Size(434, 26)
+    $txtPass.Font = New-Object System.Drawing.Font("Segoe UI", 9.5)
+    $txtPass.BackColor = $bgInput
+    $txtPass.ForeColor = $fgMain
+    $dlg.Controls.Add($txtPass)
+
+    $lblErr = New-Object System.Windows.Forms.Label
+    $lblErr.Text = ""
+    $lblErr.UseMnemonic = $false
+    $lblErr.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
+    $lblErr.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
+    $lblErr.Location = New-Object System.Drawing.Point(18, 120)
+    $lblErr.Size = New-Object System.Drawing.Size(434, 34)
+    $dlg.Controls.Add($lblErr)
+
+    $btnUnlock = New-Object System.Windows.Forms.Button
+    $btnUnlock.Text = "Unlock & Continue"
+    $btnUnlock.UseMnemonic = $false
+    $btnUnlock.Location = New-Object System.Drawing.Point(208, 166)
+    $btnUnlock.Size = New-Object System.Drawing.Size(142, 36)
+    $btnUnlock.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $btnUnlock.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+    $btnUnlock.ForeColor = [System.Drawing.Color]::White
+    $btnUnlock.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $dlg.Controls.Add($btnUnlock)
+
+    $btnExit = New-Object System.Windows.Forms.Button
+    $btnExit.Text = "Exit App"
+    $btnExit.UseMnemonic = $false
+    $btnExit.Location = New-Object System.Drawing.Point(358, 166)
+    $btnExit.Size = New-Object System.Drawing.Size(94, 36)
+    $btnExit.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $btnExit.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $dlg.Controls.Add($btnExit)
+
+    $gateState = @{ Attempts = 0; Unlocked = $false }
+    $btnUnlock.Add_Click({
+        $entered = $txtPass.Text
+        if (Test-MasterPassphraseVerifierSafe -VaultMeta $mv -Passphrase $entered) {
+            $script:sessionMasterPassphrase = $entered
+            $gateState.Unlocked = $true
+            $dlg.DialogResult = [System.Windows.Forms.DialogResult]::OK
+            $dlg.Close()
+            return
+        }
+        $gateState.Attempts++
+        if ($gateState.Attempts -eq 1) {
+            $lblErr.Text = "Incorrect Master Passphrase (attempt 1 of 2). 1 attempt remaining before the application closes."
+            $txtPass.Text = ""
+            $txtPass.Focus()
+        } else {
+            $txtPass.Text = ""
+            [System.Windows.Forms.MessageBox]::Show(
+                $dlg,
+                "Incorrect Master Passphrase on 2nd attempt. The application will now close.",
+                "Master Passphrase Verification Failed",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Error
+            ) | Out-Null
+            $gateState.Unlocked = $false
+            $dlg.DialogResult = [System.Windows.Forms.DialogResult]::Abort
+            $dlg.Close()
+        }
+    })
+
+    $dlg.AcceptButton = $btnUnlock
+    $dlg.CancelButton = $btnExit
+    $dlg.Add_Shown({ $txtPass.Focus() })
+    Invoke-ApplyModalResponsiveScale -ModalForm $dlg -BaseWidth 470 -BaseHeight 224 -Owner $OwnerForm
+    [void]$dlg.ShowDialog($OwnerForm)
+    return [bool]$gateState.Unlocked
+}
+
+function Show-MasterPassphraseDialogSafe {
+    param([System.Windows.Forms.Form]$OwnerForm = $form)
+    $mv = Get-GlobalMasterVaultMetaSafe
+    $isEnabled = [bool]$mv.Enabled
+    $savedCount = 0
+    if ($script:domainProfilesData -and $script:domainProfilesData.Profiles) {
+        foreach ($pr in $script:domainProfilesData.Profiles) {
+            if ((Get-ADCredentialHealthMetaSafe -ProfileObj $pr).HasSavedCred) { $savedCount++ }
+        }
+    }
+
+    $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    $bgDlg = $(if ($isDark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
+    $bgCard = $(if ($isDark) { [System.Drawing.Color]::FromArgb(30, 41, 59) } else { [System.Drawing.Color]::White })
+    $bgInput = $(if ($isDark) { [System.Drawing.Color]::FromArgb(2, 6, 23) } else { [System.Drawing.Color]::White })
+    $fgMain = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $fgMuted = $(if ($isDark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
+
+    $baseW = 560
+    $baseH = $(if ($isEnabled) { 392 } else { 320 })
+    $dlg = New-Object System.Windows.Forms.Form
+    $dlg.Text = "Application Master Passphrase Configuration"
+    $dlg.ClientSize = New-Object System.Drawing.Size($baseW, $baseH)
+    $dlg.StartPosition = "CenterParent"
+    $dlg.FormBorderStyle = "FixedDialog"
+    $dlg.MaximizeBox = $false
+    $dlg.MinimizeBox = $false
+    $dlg.BackColor = $bgDlg
+    $dlg.ForeColor = $fgMain
+
+    $lblStatusBanner = New-Object System.Windows.Forms.Label
+    $lblStatusBanner.UseMnemonic = $false
+    $lblStatusBanner.Location = New-Object System.Drawing.Point(18, 14)
+    $lblStatusBanner.Size = New-Object System.Drawing.Size(524, 46)
+    $lblStatusBanner.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $lblStatusBanner.Text = $(if ($isEnabled) {
+        "STATUS: ACTIVE - Startup Master Passphrase protects all profiles ($savedCount saved AD vault(s)). Changing or setting re-encrypts all saved vaults."
+    } else {
+        "STATUS: NOT CONFIGURED - Saved AD credentials auto-unlock via Windows DPAPI CurrentUser ($savedCount saved AD vault(s)). Enable below to require a passphrase on app launch."
+    })
+    $lblStatusBanner.ForeColor = $(if ($isEnabled) {
+        if ($isDark) { [System.Drawing.Color]::FromArgb(74, 222, 128) } else { [System.Drawing.Color]::FromArgb(21, 128, 61) }
+    } else {
+        if ($isDark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) }
+    })
+    $dlg.Controls.Add($lblStatusBanner)
+
+    $yPos = 68
+    $txtCur = $null
+    if ($isEnabled) {
+        $lblCur = New-Object System.Windows.Forms.Label
+        $lblCur.Text = "Current Master Passphrase (required to Change or Remove Passphrase):"
+        $lblCur.UseMnemonic = $false
+        $lblCur.Location = New-Object System.Drawing.Point(18, $yPos)
+        $lblCur.Size = New-Object System.Drawing.Size(524, 20)
+        $lblCur.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+        $dlg.Controls.Add($lblCur)
+
+        $txtCur = New-Object System.Windows.Forms.TextBox
+        $txtCur.PasswordChar = '*'
+        $txtCur.Location = New-Object System.Drawing.Point(18, ($yPos + 22))
+        $txtCur.Size = New-Object System.Drawing.Size(524, 25)
+        $txtCur.BackColor = $bgInput
+        $txtCur.ForeColor = $fgMain
+        $dlg.Controls.Add($txtCur)
+        $yPos += 56
+    }
+
+    $lblNew = New-Object System.Windows.Forms.Label
+    $lblNew.Text = $(if ($isEnabled) { "New Master Passphrase (min 6 characters):" } else { "Configure Master Passphrase (min 6 characters):" })
+    $lblNew.UseMnemonic = $false
+    $lblNew.Location = New-Object System.Drawing.Point(18, $yPos)
+    $lblNew.Size = New-Object System.Drawing.Size(524, 20)
+    $lblNew.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $dlg.Controls.Add($lblNew)
+
+    $txtNew = New-Object System.Windows.Forms.TextBox
+    $txtNew.PasswordChar = '*'
+    $txtNew.Location = New-Object System.Drawing.Point(18, ($yPos + 22))
+    $txtNew.Size = New-Object System.Drawing.Size(524, 25)
+    $txtNew.BackColor = $bgInput
+    $txtNew.ForeColor = $fgMain
+    $dlg.Controls.Add($txtNew)
+    $yPos += 56
+
+    $lblConf = New-Object System.Windows.Forms.Label
+    $lblConf.Text = "Confirm Master Passphrase:"
+    $lblConf.UseMnemonic = $false
+    $lblConf.Location = New-Object System.Drawing.Point(18, $yPos)
+    $lblConf.Size = New-Object System.Drawing.Size(524, 20)
+    $lblConf.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $dlg.Controls.Add($lblConf)
+
+    $txtConf = New-Object System.Windows.Forms.TextBox
+    $txtConf.PasswordChar = '*'
+    $txtConf.Location = New-Object System.Drawing.Point(18, ($yPos + 22))
+    $txtConf.Size = New-Object System.Drawing.Size(524, 25)
+    $txtConf.BackColor = $bgInput
+    $txtConf.ForeColor = $fgMain
+    $dlg.Controls.Add($txtConf)
+    $yPos += 56
+
+    $lblFeedback = New-Object System.Windows.Forms.Label
+    $lblFeedback.Text = ""
+    $lblFeedback.UseMnemonic = $false
+    $lblFeedback.Location = New-Object System.Drawing.Point(18, $yPos)
+    $lblFeedback.Size = New-Object System.Drawing.Size(524, 34)
+    $lblFeedback.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
+    $lblFeedback.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
+    $dlg.Controls.Add($lblFeedback)
+    $yPos += 42
+
+    $btnSavePass = New-Object System.Windows.Forms.Button
+    $btnSavePass.Text = $(if ($isEnabled) { "Change Passphrase" } else { "Set Master Passphrase" })
+    $btnSavePass.UseMnemonic = $false
+    $btnSavePass.Location = New-Object System.Drawing.Point(18, $yPos)
+    $btnSavePass.Size = New-Object System.Drawing.Size($(if ($isEnabled) { 168 } else { 200 }), 36)
+    $btnSavePass.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+    $btnSavePass.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+    $btnSavePass.ForeColor = [System.Drawing.Color]::White
+    $btnSavePass.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $dlg.Controls.Add($btnSavePass)
+
+    if ($isEnabled) {
+        $btnRemoveKeep = New-Object System.Windows.Forms.Button
+        $btnRemoveKeep.Text = "Remove Passphrase"
+        $btnRemoveKeep.UseMnemonic = $false
+        $btnRemoveKeep.Location = New-Object System.Drawing.Point(194, $yPos)
+        $btnRemoveKeep.Size = New-Object System.Drawing.Size(166, 36)
+        $btnRemoveKeep.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+        $btnRemoveKeep.BackColor = [System.Drawing.Color]::FromArgb(180, 83, 9)
+        $btnRemoveKeep.ForeColor = [System.Drawing.Color]::White
+        $btnRemoveKeep.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $dlg.Controls.Add($btnRemoveKeep)
+
+        $btnRemoveKeep.Add_Click({
+            $curCheck = $(if ($txtCur) { $txtCur.Text } else { "" })
+            if ([string]::IsNullOrEmpty($curCheck)) {
+                $lblFeedback.Text = "Enter your current Master Passphrase above to Remove Passphrase (keeps saved creds). If forgotten, use 'Remove Passphrase & All Creds'."
+                return
+            }
+            if (-not (Test-MasterPassphraseVerifierSafe -VaultMeta $mv -Passphrase $curCheck)) {
+                $lblFeedback.Text = "Current Master Passphrase is incorrect."
+                return
+            }
+            $lblFeedback.Text = ""
+            $nl = [System.Environment]::NewLine
+            $promptKeep =
+                "What this will do:$nl" +
+                "- Removes the startup Master Passphrase prompt and switches your $savedCount saved AD credential vault(s) back to Windows DPAPI CurrentUser protection only (credentials stay saved on this PC and auto-connect on launch).$nl$nl" +
+                "Why you should keep a Master Passphrase:$nl" +
+                "- These are high-privilege Domain Admin credentials. Without a Master Passphrase, anyone who gains access to your unlocked Windows user session can open this console and automatically authenticate to connected domains without an extra passphrase or the 2-attempt startup lock.$nl$nl" +
+                "Do you want to remove the Master Passphrase and keep your saved AD credentials?"
+            $ansKeep = [System.Windows.Forms.MessageBox]::Show(
+                $dlg,
+                $promptKeep,
+                "Confirm Remove Master Passphrase (Keep Credentials)",
+                [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                [System.Windows.Forms.MessageBoxIcon]::Warning
+            )
+            if ($ansKeep -eq [System.Windows.Forms.DialogResult]::Yes) {
+                try {
+                    $kept = Remove-GlobalMasterPassphraseKeepCredsSafe -CurrentPassphrase $curCheck
+                    Update-HeaderMasterPassphraseButtonState
+                    Refresh-IntegrationStatusLabelsSafe -Quick:$true
+                    if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
+                    Write-AppLog "Removed Global Master Passphrase (kept $kept saved AD profile vault(s) protected by Windows DPAPI CurrentUser)." "WARN"
+                    [System.Windows.Forms.MessageBox]::Show(
+                        $dlg,
+                        "Master Passphrase removed. $kept saved AD profile vault(s) were retained under Windows DPAPI CurrentUser protection.",
+                        "Master Passphrase Removed",
+                        [System.Windows.Forms.MessageBoxButtons]::OK,
+                        [System.Windows.Forms.MessageBoxIcon]::Information
+                    ) | Out-Null
+                    $dlg.Close()
+                } catch {
+                    $lblFeedback.Text = $_.Exception.Message
+                }
+            }
+        })
+
+        $btnBreakGlass = New-Object System.Windows.Forms.Button
+        $btnBreakGlass.Text = "Remove Passphrase & All Creds"
+        $btnBreakGlass.UseMnemonic = $false
+        $btnBreakGlass.Location = New-Object System.Drawing.Point(18, ($yPos + 46))
+        $btnBreakGlass.Size = New-Object System.Drawing.Size(242, 36)
+        $btnBreakGlass.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
+        $btnBreakGlass.BackColor = [System.Drawing.Color]::FromArgb(185, 28, 28)
+        $btnBreakGlass.ForeColor = [System.Drawing.Color]::White
+        $btnBreakGlass.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $dlg.Controls.Add($btnBreakGlass)
+
+        $lblBreakGlassHint = New-Object System.Windows.Forms.Label
+        $lblBreakGlassHint.Text = "Break-glass reset (no passphrase needed): wipes all stored AD credentials if forgotten."
+        $lblBreakGlassHint.UseMnemonic = $false
+        $lblBreakGlassHint.Location = New-Object System.Drawing.Point(268, ($yPos + 47))
+        $lblBreakGlassHint.Size = New-Object System.Drawing.Size(274, 34)
+        $lblBreakGlassHint.Font = New-Object System.Drawing.Font("Segoe UI", 7.75)
+        $lblBreakGlassHint.ForeColor = $fgMuted
+        $dlg.Controls.Add($lblBreakGlassHint)
+
+        $btnBreakGlass.Add_Click({
+            $nl = [System.Environment]::NewLine
+            $promptWipe =
+                "EMERGENCY BREAK-GLASS RESET (Forgotten Passphrase):$nl" +
+                "Does NOT require your current Master Passphrase.$nl$nl" +
+                "What this will do:$nl" +
+                "- Permanently WIPE ALL stored AD credentials across every Domain Profile ($savedCount saved vault(s))$nl" +
+                "- Remove the application Master Passphrase and clear session vault keys$nl" +
+                "- Reset the application's saved credentials back to its clean default state (you will need to manually re-enter and re-save AD credentials)$nl$nl" +
+                "Are you sure you want to wipe all stored credentials and reset?"
+            $ans = [System.Windows.Forms.MessageBox]::Show(
+                $dlg,
+                $promptWipe,
+                "Confirm Break-Glass Reset & Wipe All Stored Credentials",
+                [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                [System.Windows.Forms.MessageBoxIcon]::Warning
+            )
+            if ($ans -eq [System.Windows.Forms.DialogResult]::Yes) {
+                $purged = Remove-GlobalMasterPassphraseAndPurgeAllSafe
+                Update-HeaderMasterPassphraseButtonState
+                Refresh-IntegrationStatusLabelsSafe -Quick:$true
+                if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
+                Write-AppLog "Executed Break-Glass Reset: removed Global Master Passphrase and wiped all stored AD credentials across $purged profile(s)." "WARN"
+                [System.Windows.Forms.MessageBox]::Show(
+                    $dlg,
+                    "Break-glass reset complete. Master Passphrase removed and all stored AD credentials ($purged profile(s)) were permanently wiped.",
+                    "Application Credentials Reset",
+                    [System.Windows.Forms.MessageBoxButtons]::OK,
+                    [System.Windows.Forms.MessageBoxIcon]::Information
+                ) | Out-Null
+                $dlg.Close()
+            }
+        })
+    }
+
+    $btnClose = New-Object System.Windows.Forms.Button
+    $btnClose.Text = "Close"
+    $btnClose.UseMnemonic = $false
+    $btnClose.Location = New-Object System.Drawing.Point(448, $yPos)
+    $btnClose.Size = New-Object System.Drawing.Size(94, 36)
+    $btnClose.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $btnClose.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $dlg.Controls.Add($btnClose)
+
+    $btnSavePass.Add_Click({
+        $curVal = $(if ($txtCur) { $txtCur.Text } else { "" })
+        $newVal = $txtNew.Text
+        $confVal = $txtConf.Text
+
+        if ($isEnabled -and [string]::IsNullOrEmpty($curVal)) {
+            $lblFeedback.Text = "Enter your current Master Passphrase to change it."
+            return
+        }
+        if ([string]::IsNullOrEmpty($newVal) -or $newVal.Length -lt 6) {
+            $lblFeedback.Text = "New Master Passphrase must be at least 6 characters."
+            return
+        }
+        if ($newVal -ne $confVal) {
+            $lblFeedback.Text = "New Master Passphrase and confirmation do not match."
+            return
+        }
+        try {
+            $reWrapped = Set-GlobalMasterPassphraseSafe -NewPassphrase $newVal -CurrentPassphrase $curVal
+            Update-HeaderMasterPassphraseButtonState
+            if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
+            $actWord = $(if ($isEnabled) { "Updated" } else { "Enabled" })
+            Write-AppLog "$actWord Global Master Passphrase and re-encrypted $reWrapped saved AD profile vault(s) with AES-256 + PBKDF2-SHA256." "SUCCESS"
+            [System.Windows.Forms.MessageBox]::Show(
+                $dlg,
+                "Master Passphrase $actWord successfully.`r`nRe-encrypted $reWrapped saved AD profile vault(s). You will be prompted once on startup (2 attempts max).",
+                "Master Passphrase Saved",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Information
+            ) | Out-Null
+            $dlg.Close()
+        } catch {
+            $lblFeedback.Text = $_.Exception.Message
+        }
+    })
+
+    $dlg.AcceptButton = $btnSavePass
+    $dlg.CancelButton = $btnClose
+    $dlg.Add_Shown({
+        if ($txtCur) { $txtCur.Focus() } else { $txtNew.Focus() }
+    })
+    Invoke-ApplyModalResponsiveScale -ModalForm $dlg -BaseWidth $baseW -BaseHeight $baseH -Owner $OwnerForm
+    [void]$dlg.ShowDialog($OwnerForm)
+}
+
+function Set-StrictUserFileAclSafe {
+    param([string]$FilePath)
+    if ([string]::IsNullOrWhiteSpace($FilePath) -or (-not (Test-Path -LiteralPath $FilePath))) { return }
+    try {
+        $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+        if ($id -and $id.User) {
+            $acl = New-Object System.Security.AccessControl.FileSecurity
+            $acl.SetAccessRuleProtection($true, $false)
+            $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                $id.User,
+                [System.Security.AccessControl.FileSystemRights]::FullControl,
+                [System.Security.AccessControl.AccessControlType]::Allow
+            )
+            $acl.SetAccessRule($rule)
+            [System.IO.File]::SetAccessControl($FilePath, $acl)
+        }
+    } catch {}
+}
+
+function Get-ProfileVaultEntropyBytes {
+    param([string]$ProfileId)
+    $sidVal = "UNKNOWN-SID"
+    try {
+        $cur = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+        if ($cur -and $cur.User) { $sidVal = [string]$cur.User.Value }
+    } catch {}
+    $cleanId = $(if ([string]::IsNullOrWhiteSpace($ProfileId)) { "default" } else { $ProfileId.Trim() })
+    return [System.Text.Encoding]::UTF8.GetBytes("IRA-AD-VAULT-v1|$cleanId|$sidVal")
+}
+
+function New-AesPassphraseEnvelopeSafe {
+    param(
+        [byte[]]$PlainBytes,
+        [string]$Passphrase
+    )
+    $salt = New-Object byte[] 16
+    $iv = New-Object byte[] 16
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $rng.GetBytes($salt)
+        $rng.GetBytes($iv)
+    } finally {
+        if ($rng) { $rng.Dispose() }
+    }
+
+    $iterations = 150000
+    $kdfAlg = "PBKDF2-SHA256"
+    $kdf = $null
+    try {
+        $passBytes = [System.Text.Encoding]::UTF8.GetBytes($Passphrase)
+        try {
+            $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($passBytes, $salt, $iterations, [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+        } catch {
+            $kdfAlg = "PBKDF2-SHA1"
+            $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($Passphrase, $salt, $iterations)
+        }
+        $keyMat = $kdf.GetBytes(64)
+        $encKey = New-Object byte[] 32
+        $macKey = New-Object byte[] 32
+        [Array]::Copy($keyMat, 0, $encKey, 0, 32)
+        [Array]::Copy($keyMat, 32, $macKey, 0, 32)
+
+        $aes = New-Object System.Security.Cryptography.AesCryptoServiceProvider
+        $aes.KeySize = 256
+        $aes.BlockSize = 128
+        $aes.Mode = [System.Security.Cryptography.CipherMode]::CBC
+        $aes.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7
+        $aes.Key = $encKey
+        $aes.IV = $iv
+        $cipherBytes = $null
+        try {
+            $enc = $aes.CreateEncryptor()
+            try {
+                $cipherBytes = $enc.TransformFinalBlock($PlainBytes, 0, $PlainBytes.Length)
+            } finally {
+                if ($enc) { $enc.Dispose() }
+            }
+        } finally {
+            if ($aes) { $aes.Dispose() }
+        }
+
+        $ivPlusCipher = New-Object byte[] ($iv.Length + $cipherBytes.Length)
+        [Array]::Copy($iv, 0, $ivPlusCipher, 0, $iv.Length)
+        [Array]::Copy($cipherBytes, 0, $ivPlusCipher, $iv.Length, $cipherBytes.Length)
+
+        $hmac = New-Object System.Security.Cryptography.HMACSHA256
+        $hmac.Key = $macKey
+        $macBytes = $null
+        try {
+            $macBytes = $hmac.ComputeHash($ivPlusCipher)
+        } finally {
+            if ($hmac) { $hmac.Dispose() }
+        }
+
+        [Array]::Clear($keyMat, 0, $keyMat.Length)
+        [Array]::Clear($encKey, 0, $encKey.Length)
+        [Array]::Clear($macKey, 0, $macKey.Length)
+
+        return [PSCustomObject]@{
+            KdfAlg     = $kdfAlg
+            Iterations = $iterations
+            SaltB64    = [Convert]::ToBase64String($salt)
+            IvB64      = [Convert]::ToBase64String($iv)
+            CipherB64  = [Convert]::ToBase64String($cipherBytes)
+            HmacB64    = [Convert]::ToBase64String($macBytes)
+        }
+    } finally {
+        if ($kdf) { $kdf.Dispose() }
+    }
+}
+
+function Open-AesPassphraseEnvelopeSafe {
+    param(
+        $Envelope,
+        [string]$Passphrase
+    )
+    if ($null -eq $Envelope -or [string]::IsNullOrEmpty($Passphrase)) {
+        throw "Vault Master Passphrase is required."
+    }
+    $salt = [Convert]::FromBase64String([string]$Envelope.SaltB64)
+    $iv = [Convert]::FromBase64String([string]$Envelope.IvB64)
+    $cipherBytes = [Convert]::FromBase64String([string]$Envelope.CipherB64)
+    $expectedMac = [Convert]::FromBase64String([string]$Envelope.HmacB64)
+    $iterations = [int]$Envelope.Iterations
+    $kdfAlg = [string]$Envelope.KdfAlg
+
+    $kdf = $null
+    try {
+        $passBytes = [System.Text.Encoding]::UTF8.GetBytes($Passphrase)
+        if ($kdfAlg -eq "PBKDF2-SHA256") {
+            $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($passBytes, $salt, $iterations, [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+        } else {
+            $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($Passphrase, $salt, $iterations)
+        }
+        $keyMat = $kdf.GetBytes(64)
+        $encKey = New-Object byte[] 32
+        $macKey = New-Object byte[] 32
+        [Array]::Copy($keyMat, 0, $encKey, 0, 32)
+        [Array]::Copy($keyMat, 32, $macKey, 0, 32)
+
+        $ivPlusCipher = New-Object byte[] ($iv.Length + $cipherBytes.Length)
+        [Array]::Copy($iv, 0, $ivPlusCipher, 0, $iv.Length)
+        [Array]::Copy($cipherBytes, 0, $ivPlusCipher, $iv.Length, $cipherBytes.Length)
+
+        $hmac = New-Object System.Security.Cryptography.HMACSHA256
+        $hmac.Key = $macKey
+        $computedMac = $null
+        try {
+            $computedMac = $hmac.ComputeHash($ivPlusCipher)
+        } finally {
+            if ($hmac) { $hmac.Dispose() }
+        }
+
+        if ($computedMac.Length -ne $expectedMac.Length) {
+            throw "Invalid Master Passphrase or tampered vault envelope."
+        }
+        $diff = 0
+        for ($i = 0; $i -lt $computedMac.Length; $i++) {
+            $diff = $diff -bor ($computedMac[$i] -bxor $expectedMac[$i])
+        }
+        if ($diff -ne 0) {
+            [Array]::Clear($keyMat, 0, $keyMat.Length)
+            [Array]::Clear($encKey, 0, $encKey.Length)
+            [Array]::Clear($macKey, 0, $macKey.Length)
+            throw "Incorrect Master Passphrase (HMAC verification failed)."
+        }
+
+        $aes = New-Object System.Security.Cryptography.AesCryptoServiceProvider
+        $aes.KeySize = 256
+        $aes.BlockSize = 128
+        $aes.Mode = [System.Security.Cryptography.CipherMode]::CBC
+        $aes.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7
+        $aes.Key = $encKey
+        $aes.IV = $iv
+        try {
+            $dec = $aes.CreateDecryptor()
+            try {
+                return $dec.TransformFinalBlock($cipherBytes, 0, $cipherBytes.Length)
+            } finally {
+                if ($dec) { $dec.Dispose() }
+            }
+        } finally {
+            if ($aes) { $aes.Dispose() }
+            [Array]::Clear($keyMat, 0, $keyMat.Length)
+            [Array]::Clear($encKey, 0, $encKey.Length)
+            [Array]::Clear($macKey, 0, $macKey.Length)
+        }
+    } finally {
+        if ($kdf) { $kdf.Dispose() }
+    }
+}
+
+function Get-ADCredentialHealthMetaSafe {
+    param($ProfileObj)
+    $defMeta = [PSCustomObject]@{
+        SchemaVersion        = 1
+        ProfileId            = $(if ($ProfileObj) { [string]$ProfileObj.Id } else { 'default' })
+        HasSavedCred         = $false
+        RequirePassphrase    = $false
+        ProtectionMode       = 'None'
+        Username             = $(if ($ProfileObj) { [string]$ProfileObj.AdminUsername } else { '' })
+        TargetDomain         = $(if ($ProfileObj) { [string]$ProfileObj.TargetDomain } else { '' })
+        TargetServer         = $(if ($ProfileObj) { [string]$ProfileObj.TargetServer } else { '' })
+        SavedAtUtc           = ''
+        SavedPwdLastSetUtc   = ''
+        LastValidatedUtc     = ''
+        LastStatus           = 'NONE'
+        LastDetail           = 'No saved AD credentials configured for this profile.'
+        CircuitBreakerTripped = $false
+        FailureReason        = ''
+    }
+    if (-not $ProfileObj) { return $defMeta }
+    $paths = Get-DomainProfilePaths -ProfileObj $ProfileObj
+    $hasVaultFile = (-not [string]::IsNullOrWhiteSpace($paths.CredVaultPath)) -and (Test-Path -LiteralPath $paths.CredVaultPath -PathType Leaf)
+    if (-not [string]::IsNullOrWhiteSpace($paths.CredHealthPath) -and (Test-Path -LiteralPath $paths.CredHealthPath -PathType Leaf)) {
+        try {
+            $raw = [System.IO.File]::ReadAllText($paths.CredHealthPath, [System.Text.Encoding]::UTF8)
+            if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                $parsed = $raw | ConvertFrom-Json -ErrorAction Stop
+                if ($parsed) {
+                    $defMeta.HasSavedCred = $hasVaultFile -and [bool]$parsed.HasSavedCred
+                    $defMeta.RequirePassphrase = $hasVaultFile -and [bool]$parsed.RequirePassphrase
+                    $defMeta.ProtectionMode = $(if ($hasVaultFile) { [string]$parsed.ProtectionMode } else { 'None' })
+                    if ($parsed.Username) { $defMeta.Username = [string]$parsed.Username }
+                    if ($parsed.TargetDomain) { $defMeta.TargetDomain = [string]$parsed.TargetDomain }
+                    if ($parsed.TargetServer) { $defMeta.TargetServer = [string]$parsed.TargetServer }
+                    $defMeta.SavedAtUtc = [string]$parsed.SavedAtUtc
+                    $defMeta.SavedPwdLastSetUtc = [string]$parsed.SavedPwdLastSetUtc
+                    $defMeta.LastValidatedUtc = [string]$parsed.LastValidatedUtc
+                    $defMeta.LastStatus = $(if ($parsed.LastStatus) { [string]$parsed.LastStatus } else { 'NONE' })
+                    $defMeta.LastDetail = [string]$parsed.LastDetail
+                    $defMeta.CircuitBreakerTripped = [bool]$parsed.CircuitBreakerTripped
+                    $defMeta.FailureReason = [string]$parsed.FailureReason
+                    if (-not $hasVaultFile -and (-not $defMeta.CircuitBreakerTripped)) {
+                        $defMeta.LastStatus = 'NONE'
+                        $defMeta.LastDetail = 'No saved AD credentials configured for this profile.'
+                    }
+                    return $defMeta
+                }
+            }
+        } catch {}
+    }
+    $defMeta.HasSavedCred = $hasVaultFile
+    if ($hasVaultFile) {
+        $defMeta.ProtectionMode = 'DPAPI-CurrentUser'
+        $defMeta.LastStatus = 'SAVED'
+        $defMeta.LastDetail = 'Encrypted DPAPI CurrentUser credential present (awaiting validation).'
+    }
+    return $defMeta
+}
+
+function Save-ADCredentialHealthMetaSafe {
+    param(
+        [Parameter(Mandatory = $true)]$ProfileObj,
+        [Parameter(Mandatory = $true)]$MetaObj
+    )
+    if (-not $ProfileObj -or -not $MetaObj) { return }
+    try {
+        $paths = Get-DomainProfilePaths -ProfileObj $ProfileObj
+        if (-not (Test-Path -LiteralPath $paths.ProfileDir -PathType Container)) {
+            New-Item -ItemType Directory -Path $paths.ProfileDir -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+        $json = $MetaObj | ConvertTo-Json -Depth 4
+        [System.IO.File]::WriteAllText($paths.CredHealthPath, $json, [System.Text.Encoding]::UTF8)
+        Set-StrictUserFileAclSafe -FilePath $paths.CredHealthPath
+    } catch {}
+}
+
+function Remove-SavedADCredentialVaultSafe {
+    param(
+        $ProfileObj,
+        [switch]$TripCircuitBreaker,
+        [string]$FailureReason = "",
+        [string]$StatusCode = "NONE"
+    )
+    if (-not $ProfileObj) { return }
+    try {
+        $paths = Get-DomainProfilePaths -ProfileObj $ProfileObj
+        if (-not [string]::IsNullOrWhiteSpace($paths.CredVaultPath) -and (Test-Path -LiteralPath $paths.CredVaultPath -PathType Leaf)) {
+            try {
+                $len = (Get-Item -LiteralPath $paths.CredVaultPath -ErrorAction SilentlyContinue).Length
+                if ($len -gt 0 -and $len -lt 262144) {
+                    $zeros = New-Object byte[] $len
+                    [System.IO.File]::WriteAllBytes($paths.CredVaultPath, $zeros)
+                }
+            } catch {}
+            Remove-Item -LiteralPath $paths.CredVaultPath -Force -ErrorAction SilentlyContinue
+        }
+
+        if ($script:activeProfile -and [string]::Equals([string]$script:activeProfile.Id, [string]$ProfileObj.Id, [StringComparison]::OrdinalIgnoreCase)) {
+            $script:adCredential = $null
+        }
+
+        $meta = Get-ADCredentialHealthMetaSafe -ProfileObj $ProfileObj
+        $meta.HasSavedCred = $false
+        $meta.RequirePassphrase = $false
+        $meta.ProtectionMode = 'None'
+        $meta.CircuitBreakerTripped = [bool]$TripCircuitBreaker.IsPresent
+        $meta.FailureReason = $(if ($TripCircuitBreaker.IsPresent) { $FailureReason } else { '' })
+        $meta.LastValidatedUtc = (Get-Date).ToUniversalTime().ToString('o')
+        $meta.LastStatus = $(if ($TripCircuitBreaker.IsPresent) {
+            if ($StatusCode -ne 'NONE') { $StatusCode } else { 'TRIPPED' }
+        } else {
+            'NONE'
+        })
+        $meta.LastDetail = $(if ($TripCircuitBreaker.IsPresent) {
+            "Auto-purged saved AD secret to prevent domain lockout: $FailureReason"
+        } else {
+            'Saved AD credentials purged from local DPAPI vault.'
+        })
+        Save-ADCredentialHealthMetaSafe -ProfileObj $ProfileObj -MetaObj $meta
+    } catch {}
+}
+
+function Protect-ProfileADCredentialSafe {
+    param(
+        [Parameter(Mandatory = $true)]$ProfileObj,
+        [Parameter(Mandatory = $true)][string]$TargetDomain,
+        [string]$TargetServer = "",
+        [Parameter(Mandatory = $true)][string]$Username,
+        [Parameter(Mandatory = $true)][string]$PasswordPlain,
+        [string]$MasterPassphrase = "",
+        [string]$SavedPwdLastSetUtc = ""
+    )
+    if ([string]::IsNullOrWhiteSpace($Username) -or [string]::IsNullOrEmpty($PasswordPlain)) {
+        throw "Username and password are required to store encrypted AD credentials."
+    }
+
+    $paths = Get-DomainProfilePaths -ProfileObj $ProfileObj
+    if (-not (Test-Path -LiteralPath $paths.ProfileDir -PathType Container)) {
+        New-Item -ItemType Directory -Path $paths.ProfileDir -Force -ErrorAction Stop | Out-Null
+    }
+
+    $nowUtc = (Get-Date).ToUniversalTime().ToString('o')
+    $srvEff = $(if (-not [string]::IsNullOrWhiteSpace($TargetServer)) { $TargetServer.Trim() } else { $TargetDomain.Trim() })
+    $secretObj = [PSCustomObject]@{
+        SchemaVersion = 1
+        ProfileId     = [string]$ProfileObj.Id
+        TargetDomain  = $TargetDomain.Trim()
+        TargetServer  = $srvEff
+        Username      = $Username.Trim()
+        PasswordPlain = $PasswordPlain
+        SavedAtUtc    = $nowUtc
+    }
+    $secretJson = $secretObj | ConvertTo-Json -Compress
+    $innerBytes = [System.Text.Encoding]::UTF8.GetBytes($secretJson)
+    $requirePass = (-not [string]::IsNullOrEmpty($MasterPassphrase))
+    $envelopeJson = $null
+
+    if ($requirePass) {
+        $aesEnv = New-AesPassphraseEnvelopeSafe -PlainBytes $innerBytes -Passphrase $MasterPassphrase
+        [Array]::Clear($innerBytes, 0, $innerBytes.Length)
+        $innerJson = $aesEnv | ConvertTo-Json -Compress
+        $payloadBytes = [System.Text.Encoding]::UTF8.GetBytes($innerJson)
+        $modeLabel = "DPAPI-CurrentUser+AES256-PBKDF2"
+    } else {
+        $payloadBytes = $innerBytes
+        $modeLabel = "DPAPI-CurrentUser"
+    }
+
+    $entropy = Get-ProfileVaultEntropyBytes -ProfileId ([string]$ProfileObj.Id)
+    $dpapiBytes = [System.Security.Cryptography.ProtectedData]::Protect(
+        $payloadBytes,
+        $entropy,
+        [System.Security.Cryptography.DataProtectionScope]::CurrentUser
+    )
+    [Array]::Clear($payloadBytes, 0, $payloadBytes.Length)
+
+    $vaultDiskObj = [PSCustomObject]@{
+        SchemaVersion     = 1
+        ProfileId         = [string]$ProfileObj.Id
+        ProtectionMode    = $modeLabel
+        RequirePassphrase = $requirePass
+        TargetDomain      = $TargetDomain.Trim()
+        TargetServer      = $srvEff
+        Username          = $Username.Trim()
+        SavedAtUtc        = $nowUtc
+        DpapiBlobB64      = [Convert]::ToBase64String($dpapiBytes)
+    }
+    [Array]::Clear($dpapiBytes, 0, $dpapiBytes.Length)
+
+    $vaultJson = $vaultDiskObj | ConvertTo-Json -Depth 3
+    [System.IO.File]::WriteAllText($paths.CredVaultPath, $vaultJson, [System.Text.Encoding]::UTF8)
+    Set-StrictUserFileAclSafe -FilePath $paths.CredVaultPath
+
+    $meta = [PSCustomObject]@{
+        SchemaVersion         = 1
+        ProfileId             = [string]$ProfileObj.Id
+        HasSavedCred          = $true
+        RequirePassphrase     = $requirePass
+        ProtectionMode        = $modeLabel
+        Username              = $Username.Trim()
+        TargetDomain          = $TargetDomain.Trim()
+        TargetServer          = $srvEff
+        SavedAtUtc            = $nowUtc
+        SavedPwdLastSetUtc    = $SavedPwdLastSetUtc
+        LastValidatedUtc      = $nowUtc
+        LastStatus            = 'HEALTHY'
+        LastDetail            = "Encrypted AD credential saved locally ($modeLabel)."
+        CircuitBreakerTripped = $false
+        FailureReason         = ''
+    }
+    Save-ADCredentialHealthMetaSafe -ProfileObj $ProfileObj -MetaObj $meta
+    return $meta
+}
+
+function Unprotect-ProfileADCredentialSafe {
+    param(
+        [Parameter(Mandatory = $true)]$ProfileObj,
+        [string]$MasterPassphrase = ""
+    )
+    $res = @{
+        Success         = $false
+        NeedsPassphrase = $false
+        Corrupt         = $false
+        Credential      = $null
+        Username        = ''
+        TargetDomain    = ''
+        TargetServer    = ''
+        SavedAtUtc      = ''
+        ProtectionMode  = ''
+        Error           = ''
+    }
+    $paths = Get-DomainProfilePaths -ProfileObj $ProfileObj
+    if ([string]::IsNullOrWhiteSpace($paths.CredVaultPath) -or (-not (Test-Path -LiteralPath $paths.CredVaultPath -PathType Leaf))) {
+        $res.Error = "No encrypted AD credential file exists for this profile."
+        return $res
+    }
+
+    try {
+        $rawVault = [System.IO.File]::ReadAllText($paths.CredVaultPath, [System.Text.Encoding]::UTF8)
+        $vaultObj = $rawVault | ConvertFrom-Json -ErrorAction Stop
+        if (-not $vaultObj -or [string]::IsNullOrWhiteSpace([string]$vaultObj.DpapiBlobB64)) {
+            $res.Corrupt = $true
+            $res.Error = "Encrypted AD vault file is empty or malformed."
+            return $res
+        }
+        $res.ProtectionMode = [string]$vaultObj.ProtectionMode
+        if ([bool]$vaultObj.RequirePassphrase -and [string]::IsNullOrEmpty($MasterPassphrase)) {
+            $res.NeedsPassphrase = $true
+            $res.Username = [string]$vaultObj.Username
+            $res.TargetDomain = [string]$vaultObj.TargetDomain
+            $res.Error = "Master Passphrase required to unlock AD vault."
+            return $res
+        }
+
+        $dpapiBytes = [Convert]::FromBase64String([string]$vaultObj.DpapiBlobB64)
+        $entropy = Get-ProfileVaultEntropyBytes -ProfileId ([string]$ProfileObj.Id)
+        $unprotBytes = [System.Security.Cryptography.ProtectedData]::Unprotect(
+            $dpapiBytes,
+            $entropy,
+            [System.Security.Cryptography.DataProtectionScope]::CurrentUser
+        )
+        [Array]::Clear($dpapiBytes, 0, $dpapiBytes.Length)
+
+        $innerBytes = $unprotBytes
+        if ([bool]$vaultObj.RequirePassphrase) {
+            $envJson = [System.Text.Encoding]::UTF8.GetString($unprotBytes)
+            [Array]::Clear($unprotBytes, 0, $unprotBytes.Length)
+            $aesEnv = $envJson | ConvertFrom-Json -ErrorAction Stop
+            $innerBytes = Open-AesPassphraseEnvelopeSafe -Envelope $aesEnv -Passphrase $MasterPassphrase
+        }
+
+        $secretJson = [System.Text.Encoding]::UTF8.GetString($innerBytes)
+        [Array]::Clear($innerBytes, 0, $innerBytes.Length)
+        $secretObj = $secretJson | ConvertFrom-Json -ErrorAction Stop
+        if (-not $secretObj -or [string]::IsNullOrWhiteSpace([string]$secretObj.Username) -or [string]::IsNullOrEmpty([string]$secretObj.PasswordPlain)) {
+            $res.Corrupt = $true
+            $res.Error = "Decrypted AD vault payload missing required fields."
+            return $res
+        }
+
+        $secStr = ConvertTo-SecureString ([string]$secretObj.PasswordPlain) -AsPlainText -Force
+        $secretObj.PasswordPlain = $null
+        $cred = New-Object System.Management.Automation.PSCredential(([string]$secretObj.Username), $secStr)
+        $res.Success = $true
+        $res.Credential = $cred
+        $res.Username = [string]$secretObj.Username
+        $res.TargetDomain = [string]$secretObj.TargetDomain
+        $res.TargetServer = [string]$secretObj.TargetServer
+        $res.SavedAtUtc = [string]$secretObj.SavedAtUtc
+        return $res
+    } catch {
+        $msg = $_.Exception.Message
+        if ($msg -match 'Passphrase|HMAC') {
+            $res.NeedsPassphrase = $true
+        } else {
+            $res.Corrupt = $true
+        }
+        $res.Error = $msg
+        return $res
+    }
+}
+
+function Get-ActiveNetworkDnsSuffixesSafe {
+    $suffixes = [System.Collections.Generic.List[string]]::new()
+    try {
+        $globalDom = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().DomainName
+        if (-not [string]::IsNullOrWhiteSpace($globalDom)) {
+            $gLow = $globalDom.Trim().ToLowerInvariant()
+            if (-not $suffixes.Contains($gLow)) { $suffixes.Add($gLow) }
+        }
+    } catch {}
+    try {
+        foreach ($nic in [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()) {
+            if ($nic.OperationalStatus -ne [System.Net.NetworkInformation.OperationalStatus]::Up) { continue }
+            if ($nic.NetworkInterfaceType -eq [System.Net.NetworkInformation.NetworkInterfaceType]::Loopback) { continue }
+            try {
+                $ipProps = $nic.GetIPProperties()
+                if ($ipProps -and (-not [string]::IsNullOrWhiteSpace($ipProps.DnsSuffix))) {
+                    $sLow = $ipProps.DnsSuffix.Trim().ToLowerInvariant()
+                    if (-not $suffixes.Contains($sLow)) { $suffixes.Add($sLow) }
+                }
+            } catch {}
+        }
+    } catch {}
+    return $suffixes.ToArray()
+}
+
+$script:ZeroCredNetworkProbeScript = {
+    param(
+        [string]$TargetDomain,
+        [string]$TargetServer,
+        [int]$TimeoutMs = 700,
+        [string[]]$ActiveNicSuffixes = @()
+    )
+
+    $out = [PSCustomObject]@{
+        Reachable       = $false
+        NetworkUp       = $false
+        MatchesNicSuffix = $false
+        Domain          = [string]$TargetDomain
+        TargetChecked   = $(if (-not [string]::IsNullOrWhiteSpace($TargetServer)) { [string]$TargetServer } else { [string]$TargetDomain })
+        HostChecked     = ''
+        Port            = 0
+        LatencyMs       = 0
+        DnsSrvResolved  = $false
+        Reason          = ''
+    }
+
+    try {
+        if (-not [System.Net.NetworkInformation.NetworkInterface]::GetIsNetworkAvailable()) {
+            $out.Reason = "No active network adapter detected on this workstation."
+            return $out
+        }
+        $out.NetworkUp = $true
+    } catch {
+        $out.NetworkUp = $true
+    }
+
+    $rawTarget = $(if (-not [string]::IsNullOrWhiteSpace($TargetServer)) { $TargetServer.Trim() } else { $TargetDomain.Trim() })
+    if ([string]::IsNullOrWhiteSpace($rawTarget) -or $rawTarget -eq 'Not Domain-Joined (Workgroup)' -or $rawTarget -eq 'WORKGROUP') {
+        $out.Reason = "No valid target domain or DC hostname configured."
+        return $out
+    }
+
+    if ($ActiveNicSuffixes -and $ActiveNicSuffixes.Count -gt 0) {
+        $domLower = $(if ($TargetDomain) { $TargetDomain.Trim().ToLowerInvariant() } else { '' })
+        $srvLower = $rawTarget.ToLowerInvariant()
+        foreach ($suf in $ActiveNicSuffixes) {
+            if ([string]::IsNullOrWhiteSpace($suf)) { continue }
+            $sLow = $suf.Trim().ToLowerInvariant()
+            if (($domLower -and ($domLower -eq $sLow -or $domLower.EndsWith(".$sLow") -or $sLow.EndsWith(".$domLower"))) -or
+                ($srvLower -and ($srvLower -eq $sLow -or $srvLower.EndsWith(".$sLow")))) {
+                $out.MatchesNicSuffix = $true
+                break
+            }
+        }
+    }
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($TargetServer)) {
+        $candidates.Add($TargetServer.Trim())
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetDomain) -and (-not $candidates.Contains($TargetDomain.Trim()))) {
+        $candidates.Add($TargetDomain.Trim())
+    }
+
+    $testHostTcp = {
+        param([string]$CandHost, [int]$WaitMs)
+        $resolvedOk = $false
+        $ipAddrObj = $null
+        if ([System.Net.IPAddress]::TryParse($CandHost, [ref]$ipAddrObj)) {
+            $resolvedOk = $true
+        } else {
+            try {
+                $dnsTask = [System.Net.Dns]::GetHostAddressesAsync($CandHost)
+                if ($dnsTask.Wait($WaitMs) -and $dnsTask.Result -and $dnsTask.Result.Count -gt 0) {
+                    $resolvedOk = $true
+                }
+            } catch {}
+        }
+        if (-not $resolvedOk) { return $null }
+
+        foreach ($port in @(389, 636)) {
+            $tcp = $null
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                $tcp = New-Object System.Net.Sockets.TcpClient
+                $iar = $tcp.BeginConnect($CandHost, $port, $null, $null)
+                if ($iar.AsyncWaitHandle.WaitOne($WaitMs, $false)) {
+                    $tcp.EndConnect($iar)
+                    $sw.Stop()
+                    return @{ Host = $CandHost; Port = $port; LatencyMs = [int]$sw.ElapsedMilliseconds }
+                }
+            } catch {
+            } finally {
+                if ($tcp) { try { $tcp.Close(); $tcp.Dispose() } catch {} }
+            }
+        }
+        return $null
+    }
+
+    # Fast .NET DNS + TCP 389/636 pass first (milliseconds on active LAN/VPN; avoids slow module load)
+    foreach ($candHost in $candidates) {
+        $hit = (& $testHostTcp $candHost $TimeoutMs)
+        if ($hit) {
+            $out.Reachable = $true
+            $out.HostChecked = $hit.Host
+            $out.Port = $hit.Port
+            $out.LatencyMs = $hit.LatencyMs
+            $nicTag = $(if ($out.MatchesNicSuffix) { "NIC DNS Suffix + " } else { "" })
+            $out.Reason = "${nicTag}TCP/$($hit.Port) reachable on $($hit.Host) ($($hit.LatencyMs)ms)"
+            return $out
+        }
+    }
+
+    # Split-DNS fallback: resolve _ldap._tcp.dc._msdcs.<domain> SRV records when domain apex doesn't point to a DC
+    $domToSrv = $(if (-not [string]::IsNullOrWhiteSpace($TargetDomain) -and $TargetDomain -match '\.') { $TargetDomain.Trim() } elseif ($rawTarget -match '\.') { $rawTarget } else { '' })
+    if (-not [string]::IsNullOrWhiteSpace($domToSrv)) {
+        $srvQuery = "_ldap._tcp.dc._msdcs.$domToSrv"
+        $srvHosts = [System.Collections.Generic.List[string]]::new()
+        try {
+            if (Get-Command Resolve-DnsName -ErrorAction SilentlyContinue) {
+                $srvRecs = @(Resolve-DnsName -Name $srvQuery -Type SRV -DnsOnly -ErrorAction Stop | Sort-Object Priority, Weight)
+                foreach ($rec in $srvRecs) {
+                    if ($rec -and (-not [string]::IsNullOrWhiteSpace([string]$rec.NameTarget))) {
+                        $h = ([string]$rec.NameTarget).TrimEnd('.')
+                        if (-not $candidates.Contains($h) -and (-not $srvHosts.Contains($h))) {
+                            $srvHosts.Add($h)
+                            $out.DnsSrvResolved = $true
+                            if ($srvHosts.Count -ge 3) { break }
+                        }
+                    }
+                }
+            }
+        } catch {}
+        foreach ($srvHost in $srvHosts) {
+            $hit = (& $testHostTcp $srvHost $TimeoutMs)
+            if ($hit) {
+                $out.Reachable = $true
+                $out.HostChecked = $hit.Host
+                $out.Port = $hit.Port
+                $out.LatencyMs = $hit.LatencyMs
+                $nicTag = $(if ($out.MatchesNicSuffix) { "NIC DNS Suffix + " } else { "" })
+                $out.Reason = "${nicTag}DNS SRV + TCP/$($hit.Port) reachable on $($hit.Host) ($($hit.LatencyMs)ms)"
+                return $out
+            }
+        }
+    }
+
+    $out.Reason = "Domain '$rawTarget' DNS SRV / LDAP ports (389/636) unreachable on current network."
+    return $out
+}
+
+function Test-ADDomainNetworkReachableSafe {
+    param(
+        [string]$TargetDomain,
+        [string]$TargetServer = "",
+        [int]$TimeoutMs = 700
+    )
+    $nicSuffixes = Get-ActiveNetworkDnsSuffixesSafe
+    return (& $script:ZeroCredNetworkProbeScript $TargetDomain $TargetServer $TimeoutMs $nicSuffixes)
+}
+
+function Test-IsADBadCredentialError {
+    param([string]$Message)
+    if ([string]::IsNullOrWhiteSpace($Message)) { return $false }
+    return ($Message -match 'Logon failure|unknown user name|bad password|password is incorrect|password has expired|account.*locked|8009030C|0x8007052E|0x80070775|52e|775|1326|1907|1909')
+}
+
+function Get-ADAccountMetadataViaAmbientKerberosSafe {
+    param(
+        [string]$TargetDomain,
+        [string]$Username
+    )
+    $metaOut = @{
+        Queried           = $false
+        Found             = $false
+        PwdLastSetUtc     = ''
+        BadPwdCount       = 0
+        LockoutTime       = 0
+        LockoutThreshold  = 0
+        Error             = ''
+    }
+    if (-not $script:isDomainJoined -or [string]::IsNullOrWhiteSpace($Username)) { return $metaOut }
+    if (-not [string]::IsNullOrWhiteSpace($TargetDomain) -and (-not [string]::Equals($TargetDomain.Trim(), $script:detectedDomain.Trim(), [StringComparison]::OrdinalIgnoreCase))) {
+        return $metaOut
+    }
+
+    try {
+        $root = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$($script:detectedDomain)/RootDSE")
+        $nc = [string]$root.Properties["defaultNamingContext"].Value
+        $root.Dispose()
+        if ([string]::IsNullOrWhiteSpace($nc)) { return $metaOut }
+
+        $domEntry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$nc")
+        try {
+            $threshRaw = $domEntry.Properties["lockoutThreshold"].Value
+            if ($null -ne $threshRaw) { $metaOut.LockoutThreshold = [int]$threshRaw }
+        } catch {}
+
+        $cleanUser = $Username.Trim()
+        if ($cleanUser -match '^[^\\]+\\(.+)$') { $cleanUser = $Matches[1] }
+        $samCandidate = $(if ($cleanUser -match '^([^@]+)@') { $Matches[1] } else { $cleanUser })
+        $escFull = $Username.Trim().Replace('\', '\5c').Replace('*', '\2a').Replace('(', '\28').Replace(')', '\29')
+        $escSam = $samCandidate.Replace('\', '\5c').Replace('*', '\2a').Replace('(', '\28').Replace(')', '\29')
+
+        $ds = New-Object System.DirectoryServices.DirectorySearcher($domEntry)
+        $ds.Filter = "(&(objectCategory=person)(objectClass=user)(|(userPrincipalName=$escFull)(sAMAccountName=$escSam)))"
+        [void]$ds.PropertiesToLoad.Add("pwdLastSet")
+        [void]$ds.PropertiesToLoad.Add("badPwdCount")
+        [void]$ds.PropertiesToLoad.Add("lockoutTime")
+        $ds.PageSize = 1
+        $sr = $ds.FindOne()
+        $metaOut.Queried = $true
+        if ($sr) {
+            $metaOut.Found = $true
+            if ($sr.Properties["pwdlastset"] -and $sr.Properties["pwdlastset"].Count -gt 0) {
+                $ft = [int64]$sr.Properties["pwdlastset"][0]
+                if ($ft -gt 0) {
+                    $metaOut.PwdLastSetUtc = ([DateTime]::FromFileTimeUtc($ft)).ToString('o')
+                }
+            }
+            if ($sr.Properties["badpwdcount"] -and $sr.Properties["badpwdcount"].Count -gt 0) {
+                $metaOut.BadPwdCount = [int]$sr.Properties["badpwdcount"][0]
+            }
+            if ($sr.Properties["lockouttime"] -and $sr.Properties["lockouttime"].Count -gt 0) {
+                $metaOut.LockoutTime = [int64]$sr.Properties["lockouttime"][0]
+            }
+        }
+        $ds.Dispose()
+        $domEntry.Dispose()
+    } catch {
+        $metaOut.Error = $_.Exception.Message
+    }
+    return $metaOut
+}
+
+function Test-ADAccountPreBindMetadataSafe {
+    param(
+        $ProfileObj,
+        [string]$Username,
+        [string]$SavedAtUtc,
+        [string]$SavedPwdLastSetUtc = ""
+    )
+    $out = @{
+        SafeToBind       = $true
+        PreBindMode      = 'CrossDomainOneStrike'
+        Status           = 'HEALTHY'
+        Reason           = 'Cross-domain or workgroup target: 1-strike circuit breaker armed.'
+        BadPwdCount      = 0
+        LockoutThreshold = 0
+        PwdLastSetUtc    = ''
+    }
+
+    $kMeta = Get-ADAccountMetadataViaAmbientKerberosSafe -TargetDomain ([string]$ProfileObj.TargetDomain) -Username $Username
+    if (-not $kMeta.Queried -or (-not $kMeta.Found)) {
+        return $out
+    }
+
+    $out.PreBindMode = 'AmbientKerberos'
+    $out.BadPwdCount = $kMeta.BadPwdCount
+    $out.LockoutThreshold = $kMeta.LockoutThreshold
+    $out.PwdLastSetUtc = $kMeta.PwdLastSetUtc
+
+    if ($kMeta.LockoutTime -gt 0) {
+        $out.SafeToBind = $false
+        $out.Status = 'LOCKED'
+        $out.Reason = "Account '$Username' is currently locked out in AD (lockoutTime=$($kMeta.LockoutTime)). Saved secret purged with 0 logon attempts."
+        return $out
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($kMeta.PwdLastSetUtc)) {
+        try {
+            $adPwdTime = [DateTime]::Parse($kMeta.PwdLastSetUtc).ToUniversalTime()
+            if (-not [string]::IsNullOrWhiteSpace($SavedPwdLastSetUtc)) {
+                $savedPwdTime = [DateTime]::Parse($SavedPwdLastSetUtc).ToUniversalTime()
+                if ([Math]::Abs(($adPwdTime - $savedPwdTime).TotalSeconds) -gt 5) {
+                    $out.SafeToBind = $false
+                    $out.Status = 'PASSWORD_CHANGED'
+                    $out.Reason = "AD password was rotated at $($adPwdTime.ToString('yyyy-MM-dd HH:mm')) UTC (newer than vault). Auto-purged with 0 failed binds."
+                    return $out
+                }
+            } elseif (-not [string]::IsNullOrWhiteSpace($SavedAtUtc)) {
+                $savedAtTime = [DateTime]::Parse($SavedAtUtc).ToUniversalTime()
+                if ($adPwdTime -gt $savedAtTime.AddSeconds(5)) {
+                    $out.SafeToBind = $false
+                    $out.Status = 'PASSWORD_CHANGED'
+                    $out.Reason = "AD pwdLastSet ($($adPwdTime.ToString('yyyy-MM-dd HH:mm')) UTC) is newer than saved vault. Auto-purged with 0 failed binds."
+                    return $out
+                }
+            }
+        } catch {}
+    }
+
+    $riskLimit = $(if ($kMeta.LockoutThreshold -gt 2) { $kMeta.LockoutThreshold - 2 } else { 2 })
+    if ($kMeta.BadPwdCount -ge $riskLimit) {
+        $out.SafeToBind = $false
+        $out.Status = 'AT_RISK'
+        $out.Reason = "Account '$Username' already has badPwdCount=$($kMeta.BadPwdCount) (threshold=$($kMeta.LockoutThreshold)). Refusing automated bind to avoid lockout."
+        return $out
+    }
+
+    $out.Reason = "Pre-bind Kerberos check passed (badPwdCount=$($kMeta.BadPwdCount), pwdLastSet unchanged)."
+    return $out
+}
+
+function Invoke-ValidateStoredADCredentialHealthSafe {
+    param(
+        $ProfileObj = $script:activeProfile,
+        [switch]$TestBind,
+        [string]$Passphrase = "",
+        $PrecomputedProbe = $null
+    )
+
+    $out = @{
+        Status         = 'NONE'
+        Healthy        = $false
+        DomainReachable = $false
+        ShouldPurge    = $false
+        NeedsPassphrase = $false
+        Detail         = ''
+        NetworkDetail  = ''
+        ProtectionMode = 'None'
+        Credential     = $null
+        Domain         = ''
+    }
+    if (-not $ProfileObj) { return $out }
+
+    $meta = Get-ADCredentialHealthMetaSafe -ProfileObj $ProfileObj
+    $out.ProtectionMode = $meta.ProtectionMode
+
+    if ($meta.CircuitBreakerTripped) {
+        $out.Status = 'TRIPPED'
+        $out.Detail = "CIRCUIT BREAKER TRIPPED: $($meta.FailureReason) Re-save valid credentials in 'Configure Saved AD Creds...'."
+        $script:lastCredHealthResult = $out
+        return $out
+    }
+
+    if (-not $meta.HasSavedCred) {
+        if (-not [bool]$ProfileObj.UseExplicitCreds) {
+            $domTarget = $(if (-not [string]::IsNullOrWhiteSpace([string]$ProfileObj.TargetDomain)) { [string]$ProfileObj.TargetDomain } else { $script:detectedDomain })
+            $probe = $(if ($PrecomputedProbe) { $PrecomputedProbe } else { Test-ADDomainNetworkReachableSafe -TargetDomain $domTarget -TargetServer ([string]$ProfileObj.TargetServer) })
+            $out.DomainReachable = [bool]$probe.Reachable
+            $out.NetworkDetail = [string]$probe.Reason
+            $out.Status = $(if ($probe.Reachable) { 'INTEGRATED' } else { 'NONE' })
+            $out.Healthy = [bool]$probe.Reachable
+            $out.Detail = $(if ($probe.Reachable) {
+                "Using integrated Windows domain sign-in for '$domTarget' (no stored password needed)."
+            } else {
+                "No saved AD credentials stored for this profile ($($probe.Reason))."
+            })
+        } else {
+            $out.Status = 'NONE'
+            $out.Detail = "No encrypted AD credentials stored for '$($ProfileObj.Name)'. Click 'Configure Saved AD Creds...' to save securely."
+        }
+        $script:lastCredHealthResult = $out
+        return $out
+    }
+
+    # 1. Zero-credential network reachability check BEFORE decryption or DC bind
+    $probe = $(if ($PrecomputedProbe) { $PrecomputedProbe } else { Test-ADDomainNetworkReachableSafe -TargetDomain ([string]$meta.TargetDomain) -TargetServer ([string]$meta.TargetServer) })
+    $out.DomainReachable = [bool]$probe.Reachable
+    $out.NetworkDetail = [string]$probe.Reason
+    if (-not $probe.Reachable) {
+        $out.Status = 'OFFLINE'
+        $out.Detail = "Domain '$($meta.TargetDomain)' unreachable ($($probe.Reason)). Zero AD logon attempts sent."
+        $meta.LastStatus = 'OFFLINE'
+        $meta.LastDetail = $out.Detail
+        $meta.LastValidatedUtc = (Get-Date).ToUniversalTime().ToString('o')
+        Save-ADCredentialHealthMetaSafe -ProfileObj $ProfileObj -MetaObj $meta
+        $script:lastCredHealthResult = $out
+        return $out
+    }
+
+    # 2. Unwrap local DPAPI vault (and optional AES passphrase envelope, auto-using unlocked session Master Passphrase)
+    $effectivePassphrase = $(if (-not [string]::IsNullOrEmpty($Passphrase)) { $Passphrase } elseif (-not [string]::IsNullOrEmpty($script:sessionMasterPassphrase)) { $script:sessionMasterPassphrase } else { "" })
+    $unwrapped = Unprotect-ProfileADCredentialSafe -ProfileObj $ProfileObj -MasterPassphrase $effectivePassphrase
+    if (-not $unwrapped.Success) {
+        if ($unwrapped.NeedsPassphrase) {
+            $out.Status = 'PASSPHRASE_REQUIRED'
+            $out.NeedsPassphrase = $true
+            $out.Detail = "Saved AD vault is locked with the Master Passphrase. Use 'Master Passphrase' or relaunch to unlock."
+        } elseif ($unwrapped.Corrupt) {
+            Remove-SavedADCredentialVaultSafe -ProfileObj $ProfileObj -TripCircuitBreaker -StatusCode 'CORRUPT' -FailureReason $unwrapped.Error
+            $out.Status = 'CORRUPT'
+            $out.ShouldPurge = $true
+            $out.Detail = "Saved AD vault could not be decrypted on this machine/user and was purged: $($unwrapped.Error)"
+        } else {
+            $out.Status = 'NONE'
+            $out.Detail = $unwrapped.Error
+        }
+        $script:lastCredHealthResult = $out
+        return $out
+    }
+
+    # 3. Pre-bind Kerberos metadata check (pwdLastSet / badPwdCount / lockoutTime)
+    $preBind = Test-ADAccountPreBindMetadataSafe -ProfileObj $ProfileObj -Username $unwrapped.Username -SavedAtUtc $unwrapped.SavedAtUtc -SavedPwdLastSetUtc $meta.SavedPwdLastSetUtc
+    if (-not $preBind.SafeToBind) {
+        Remove-SavedADCredentialVaultSafe -ProfileObj $ProfileObj -TripCircuitBreaker -StatusCode $preBind.Status -FailureReason $preBind.Reason
+        $out.Status = $preBind.Status
+        $out.ShouldPurge = $true
+        $out.Detail = $preBind.Reason
+        $script:lastCredHealthResult = $out
+        return $out
+    }
+
+    if (-not $TestBind) {
+        $out.Status = 'HEALTHY'
+        $out.Healthy = $true
+        $out.Credential = $unwrapped.Credential
+        $out.Domain = $unwrapped.TargetDomain
+        $out.Detail = "Pre-flight HEALTHY: Domain reachable ($($probe.Reason)) | $($preBind.Reason)"
+        $meta.LastStatus = 'HEALTHY'
+        $meta.LastDetail = $out.Detail
+        $meta.LastValidatedUtc = (Get-Date).ToUniversalTime().ToString('o')
+        if (-not [string]::IsNullOrWhiteSpace($preBind.PwdLastSetUtc)) {
+            $meta.SavedPwdLastSetUtc = $preBind.PwdLastSetUtc
+        }
+        Save-ADCredentialHealthMetaSafe -ProfileObj $ProfileObj -MetaObj $meta
+        $script:lastCredHealthResult = $out
+        return $out
+    }
+
+    # 4. At most ONE live RootDSE bind attempt (1-Strike Circuit Breaker)
+    try {
+        $srvToUse = $(if (-not [string]::IsNullOrWhiteSpace($unwrapped.TargetServer)) { $unwrapped.TargetServer } else { $unwrapped.TargetDomain })
+        $verifiedDom = Get-ADDomainSafe -Server $srvToUse -Cred $unwrapped.Credential
+        $out.Status = 'HEALTHY'
+        $out.Healthy = $true
+        $out.Credential = $unwrapped.Credential
+        $out.Domain = $verifiedDom
+        $out.Detail = "HEALTHY: Validated against '$verifiedDom' ($($probe.Reason))."
+        $meta.LastStatus = 'HEALTHY'
+        $meta.LastDetail = $out.Detail
+        $meta.LastValidatedUtc = (Get-Date).ToUniversalTime().ToString('o')
+        if (-not [string]::IsNullOrWhiteSpace($preBind.PwdLastSetUtc)) {
+            $meta.SavedPwdLastSetUtc = $preBind.PwdLastSetUtc
+        }
+        Save-ADCredentialHealthMetaSafe -ProfileObj $ProfileObj -MetaObj $meta
+    } catch {
+        $bindErr = $_.Exception.Message
+        if (Test-IsADBadCredentialError $bindErr) {
+            Remove-SavedADCredentialVaultSafe -ProfileObj $ProfileObj -TripCircuitBreaker -StatusCode 'TRIPPED' -FailureReason "1-Strike bind rejected ($bindErr)"
+            $out.Status = 'TRIPPED'
+            $out.ShouldPurge = $true
+            $out.Detail = "1-STRIKE CIRCUIT BREAKER TRIPPED: DC rejected saved credentials ($bindErr). Vault wiped immediately to prevent AD lockout."
+        } else {
+            $out.Status = 'OFFLINE'
+            $out.Detail = "Transient DC error during validation ($bindErr). Saved credentials kept intact."
+        }
+    }
+
+    $script:lastCredHealthResult = $out
+    return $out
+}
+
+function Get-OrderedProbeCandidateProfilesSafe {
+    $nicSuffixes = Get-ActiveNetworkDnsSuffixesSafe
+    $ordered = [System.Collections.Generic.List[psobject]]::new()
+    $seenIds = @{}
+    $addIfReady = {
+        param($p)
+        if (-not $p -or $seenIds.ContainsKey([string]$p.Id)) { return }
+        $dom = [string]$p.TargetDomain
+        $srv = [string]$p.TargetServer
+        if ([string]::IsNullOrWhiteSpace($dom) -and [string]::IsNullOrWhiteSpace($srv)) { return }
+        $seenIds[[string]$p.Id] = $true
+        $ordered.Add($p)
+    }
+
+    # Priority 1: Profiles matching an active plugged-in network adapter's DNS suffix (even if not joined!)
+    if ($script:domainProfilesData -and $script:domainProfilesData.Profiles -and $nicSuffixes.Count -gt 0) {
+        foreach ($pr in $script:domainProfilesData.Profiles) {
+            $dLow = $(if ($pr.TargetDomain) { ([string]$pr.TargetDomain).Trim().ToLowerInvariant() } else { '' })
+            foreach ($suf in $nicSuffixes) {
+                if ($dLow -and ($dLow -eq $suf -or $dLow.EndsWith(".$suf") -or $suf.EndsWith(".$dLow"))) {
+                    & $addIfReady $pr
+                    break
+                }
+            }
+        }
+    }
+    # Priority 2: Active profile, Primary profile, then remaining profiles
+    & $addIfReady $script:activeProfile
+    & $addIfReady (Get-PrimaryDomainProfileSafe)
+    if ($script:domainProfilesData -and $script:domainProfilesData.Profiles) {
+        foreach ($pr in $script:domainProfilesData.Profiles) { & $addIfReady $pr }
+    }
+    return @{ Profiles = $ordered; NicSuffixes = $nicSuffixes }
+}
+
+function Find-ReachableADProfileSafe {
+    $prep = Get-OrderedProbeCandidateProfilesSafe
+    $ordered = $prep.Profiles
+    $nicSuffixes = $prep.NicSuffixes
+    if (-not $ordered -or $ordered.Count -eq 0) {
+        return @{ Found = $false; Profile = $null; Probe = $null; Summary = 'No configured domain targets on any profile.' }
+    }
+
+    $pool = $null
+    $jobs = [System.Collections.Generic.List[psobject]]::new()
+    $probed = [System.Collections.Generic.List[string]]::new()
+    try {
+        $maxThreads = [Math]::Min(6, [Math]::Max(1, $ordered.Count))
+        $pool = [runspacefactory]::CreateRunspacePool(1, $maxThreads)
+        $pool.Open()
+        foreach ($pr in $ordered) {
+            $ps = [System.Management.Automation.PowerShell]::Create()
+            $ps.RunspacePool = $pool
+            [void]$ps.AddScript($script:StartupSingleProfileProbeWorker.ToString()).AddArgument([string]$pr.Id).AddArgument([string]$pr.Name).AddArgument([string]$pr.TargetDomain).AddArgument([string]$pr.TargetServer).AddArgument($nicSuffixes).AddArgument($script:ZeroCredNetworkProbeScript.ToString())
+            $jobs.Add([PSCustomObject]@{ Profile = $pr; Ps = $ps; Handle = $ps.BeginInvoke() })
+        }
+
+        $swWait = [System.Diagnostics.Stopwatch]::StartNew()
+        while ($swWait.ElapsedMilliseconds -lt 7000) {
+            $allDone = $true
+            foreach ($j in $jobs) {
+                if (-not $j.Handle.IsCompleted) { $allDone = $false }
+            }
+            if ($allDone) { break }
+            Start-Sleep -Milliseconds 60
+        }
+
+        $matchedJob = $null
+        $matchedProbe = $null
+        foreach ($j in $jobs) {
+            if ($j.Handle.IsCompleted) {
+                try {
+                    $res = $j.Ps.EndInvoke($j.Handle) | Select-Object -First 1
+                    $domLbl = $(if ($j.Profile.TargetDomain) { [string]$j.Profile.TargetDomain } else { [string]$j.Profile.TargetServer })
+                    if ($res -and $res.Probe -and $res.Probe.Reachable) {
+                        $probed.Add("$domLbl => REACHABLE")
+                        if (-not $matchedJob) {
+                            $matchedJob = $j.Profile
+                            $matchedProbe = $res.Probe
+                        }
+                    } else {
+                        $probed.Add("$domLbl => UNREACHABLE")
+                    }
+                } catch {}
+            } else {
+                $domLbl = $(if ($j.Profile.TargetDomain) { [string]$j.Profile.TargetDomain } else { [string]$j.Profile.TargetServer })
+                $probed.Add("$domLbl => TIMEOUT")
+            }
+        }
+        if ($matchedJob) {
+            return @{ Found = $true; Profile = $matchedJob; Probe = $matchedProbe; Summary = ($probed -join '; ') }
+        }
+    } finally {
+        foreach ($j in $jobs) { try { $j.Ps.Dispose() } catch {} }
+        if ($pool) { try { $pool.Dispose() } catch {} }
+    }
+
+    return @{
+        Found   = $false
+        Profile = $null
+        Probe   = $null
+        Summary = $(if ($probed.Count -gt 0) { $probed -join '; ' } else { 'No configured domain targets on any profile.' })
+    }
+}
+
+$script:startupADProbeJobs = $null
+$script:startupADProbePool = $null
+$script:startupADProbeTimer = $null
+$script:startupADProbeStartedAt = $null
+
+function Stop-StartupADAutoConnectAsync {
+    try {
+        if ($script:startupADProbeTimer) {
+            $script:startupADProbeTimer.Stop()
+            $script:startupADProbeTimer.Dispose()
+            $script:startupADProbeTimer = $null
+        }
+    } catch {}
+    if ($script:startupADProbeJobs) {
+        foreach ($j in $script:startupADProbeJobs) {
+            try { if ($j.Ps) { try { $j.Ps.Stop() } catch {}; $j.Ps.Dispose() } } catch {}
+        }
+        $script:startupADProbeJobs = $null
+    }
+    if ($script:startupADProbePool) {
+        try { $script:startupADProbePool.Dispose() } catch {}
+        $script:startupADProbePool = $null
+    }
+}
+
+$script:StartupSingleProfileProbeWorker = {
+    param(
+        [string]$ProfileId,
+        [string]$Name,
+        [string]$TargetDomain,
+        [string]$TargetServer,
+        [string[]]$ActiveNicSuffixes,
+        [string]$ProbeFnBody
+    )
+    $probeBlock = [scriptblock]::Create($ProbeFnBody)
+    $prRes = (& $probeBlock $TargetDomain $TargetServer 700 $ActiveNicSuffixes)
+    return [PSCustomObject]@{
+        ProfileId = $ProfileId
+        Name      = $Name
+        Probe     = $prRes
+    }
+}
+
+$script:startupADOnDiscoveryComplete = $null
+
+function Invoke-ApplyStartupDiscoveryResultSafe {
+    param($ProbeRows)
+    $connectedNow = $false
+    if ($ProbeRows -and @($ProbeRows).Count -gt 0) {
+        $matchedRow = $ProbeRows | Where-Object { $_.Probe -and $_.Probe.Reachable } | Sort-Object -Property @{ Expression = { [bool]$_.Probe.MatchesNicSuffix }; Descending = $true } | Select-Object -First 1
+        $summaryParts = @($ProbeRows | ForEach-Object { "$($_.Name): $(if($_.Probe -and $_.Probe.Reachable){'REACHABLE'}else{'OFFLINE'})" })
+        $script:lastNetworkProbeSummary = $summaryParts -join ' | '
+
+        if ($matchedRow) {
+            $matchedProfile = Get-ProfileByIdSafe -ProfileId ([string]$matchedRow.ProfileId)
+            if ($matchedProfile) {
+                $meta = Get-ADCredentialHealthMetaSafe -ProfileObj $matchedProfile
+                $needSwitch = (-not $script:activeProfile) -or (-not [string]::Equals([string]$script:activeProfile.Id, [string]$matchedProfile.Id, [StringComparison]::OrdinalIgnoreCase))
+
+                if ($meta.CircuitBreakerTripped) {
+                    Write-AppLog "Network Auto-Detect: Found domain '$($matchedRow.Probe.Domain)' ($($matchedProfile.Name)), but saved AD vault circuit breaker is TRIPPED ($($meta.FailureReason)). Skipping auto-login to protect account." "WARN"
+                } elseif ($meta.HasSavedCred -and $meta.RequirePassphrase -and [string]::IsNullOrEmpty($script:sessionMasterPassphrase)) {
+                    if ($needSwitch) {
+                        Switch-ActiveDomainProfileSafe -TargetProfile $matchedProfile -UseExplicitAdCreds $true -SkipAdVerify $true
+                    }
+                    Write-AppLog "Network Auto-Detect: Matched profile '$($matchedProfile.Name)', but Master Passphrase session key is missing." "WARN"
+                } elseif ($meta.HasSavedCred) {
+                    $val = Invoke-ValidateStoredADCredentialHealthSafe -ProfileObj $matchedProfile -TestBind -Passphrase $script:sessionMasterPassphrase -PrecomputedProbe $matchedRow.Probe
+                    if ($val.Healthy -and $val.Credential) {
+                        Switch-ActiveDomainProfileSafe -TargetProfile $matchedProfile -AdCredential $val.Credential -UseExplicitAdCreds $true -SkipAdVerify $false
+                        $connectedNow = $true
+                        Write-AppLog "Network Auto-Detect: Auto-connected AD + Cloud profile '$($matchedProfile.Name)' via encrypted vault ($($matchedRow.Probe.Reason))." "SUCCESS"
+                    } else {
+                        if ($needSwitch) {
+                            Switch-ActiveDomainProfileSafe -TargetProfile $matchedProfile -UseExplicitAdCreds $true -SkipAdVerify $true
+                        }
+                        Write-AppLog "Network Auto-Detect: Pre-flight blocked auto-connect for '$($matchedProfile.Name)': $($val.Detail)" "WARN"
+                    }
+                } elseif (-not [bool]$matchedProfile.UseExplicitCreds) {
+                    if ($needSwitch -or (-not $script:adCredential -and ($lblStatusAD.Text -match 'NOT CONNECTED'))) {
+                        Switch-ActiveDomainProfileSafe -TargetProfile $matchedProfile -UseExplicitAdCreds $false -SkipAdVerify $false
+                        $connectedNow = $true
+                        Write-AppLog "Network Auto-Detect: Switched & connected integrated Windows AD profile '$($matchedProfile.Name)' ($($matchedRow.Probe.Reason))." "SUCCESS"
+                    }
+                } else {
+                    if ($needSwitch) {
+                        Switch-ActiveDomainProfileSafe -TargetProfile $matchedProfile -UseExplicitAdCreds $true -SkipAdVerify $true
+                    }
+                    Write-AppLog "Network Auto-Detect: Domain '$($matchedRow.Probe.Domain)' ($($matchedProfile.Name)) is reachable on this network, but no saved AD password exists. Use Tab 1 ('Switch AD Account / Domain') to save creds." "INFO"
+                }
+            }
+        }
+    }
+    if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) {
+        Refresh-CredHealthPanelSafe
+    }
+    if ($script:startupADOnDiscoveryComplete) {
+        $cb = $script:startupADOnDiscoveryComplete
+        $script:startupADOnDiscoveryComplete = $null
+        & $cb $connectedNow
+    }
+}
+
+function Start-StartupADAutoConnectAsync {
+    param([scriptblock]$OnDiscoveryComplete = $null)
+    Stop-StartupADAutoConnectAsync
+    $script:startupADOnDiscoveryComplete = $OnDiscoveryComplete
+    if (-not $script:domainProfilesData -or -not $script:domainProfilesData.Profiles) {
+        if ($script:startupADOnDiscoveryComplete) {
+            $cb = $script:startupADOnDiscoveryComplete
+            $script:startupADOnDiscoveryComplete = $null
+            & $cb $false
+        }
+        return
+    }
+
+    $prep = Get-OrderedProbeCandidateProfilesSafe
+    $ordered = $prep.Profiles
+    $nicSuffixes = $prep.NicSuffixes
+    if (-not $ordered -or $ordered.Count -eq 0) {
+        if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
+        if ($script:startupADOnDiscoveryComplete) {
+            $cb = $script:startupADOnDiscoveryComplete
+            $script:startupADOnDiscoveryComplete = $null
+            & $cb $false
+        }
+        return
+    }
+
+    try {
+        $maxThreads = [Math]::Min(6, [Math]::Max(1, $ordered.Count))
+        $pool = [runspacefactory]::CreateRunspacePool(1, $maxThreads)
+        $pool.Open()
+        $jobs = [System.Collections.Generic.List[psobject]]::new()
+        foreach ($pr in $ordered) {
+            $ps = [System.Management.Automation.PowerShell]::Create()
+            $ps.RunspacePool = $pool
+            [void]$ps.AddScript($script:StartupSingleProfileProbeWorker.ToString()).AddArgument([string]$pr.Id).AddArgument([string]$pr.Name).AddArgument([string]$pr.TargetDomain).AddArgument([string]$pr.TargetServer).AddArgument($nicSuffixes).AddArgument($script:ZeroCredNetworkProbeScript.ToString())
+            $jobs.Add([PSCustomObject]@{ ProfileId = [string]$pr.Id; Name = [string]$pr.Name; Ps = $ps; Handle = $ps.BeginInvoke() })
+        }
+
+        $script:startupADProbePool = $pool
+        $script:startupADProbeJobs = $jobs
+        $script:startupADProbeStartedAt = [DateTime]::UtcNow
+
+        $script:startupADProbeTimer = New-Object System.Windows.Forms.Timer
+        $script:startupADProbeTimer.Interval = 120
+        $script:startupADProbeTimer.Add_Tick({
+            try {
+                if ($null -eq $form -or $form.IsDisposed -or $null -eq $script:startupADProbeJobs) {
+                    Stop-StartupADAutoConnectAsync
+                    return
+                }
+                $allCompleted = $true
+                foreach ($j in $script:startupADProbeJobs) {
+                    if (-not $j.Handle.IsCompleted) { $allCompleted = $false; break }
+                }
+                $timedOut = ($script:startupADProbeStartedAt -and (([DateTime]::UtcNow - $script:startupADProbeStartedAt).TotalSeconds -ge 15))
+                if ($allCompleted -or $timedOut) {
+                    $rows = [System.Collections.Generic.List[psobject]]::new()
+                    foreach ($j in $script:startupADProbeJobs) {
+                        if ($j.Handle.IsCompleted) {
+                            try {
+                                $item = $j.Ps.EndInvoke($j.Handle) | Select-Object -First 1
+                                if ($item) { $rows.Add($item) }
+                            } catch {}
+                        } else {
+                            $rows.Add([PSCustomObject]@{
+                                ProfileId = $j.ProfileId
+                                Name      = $j.Name
+                                Probe     = [PSCustomObject]@{ Reachable = $false; MatchesNicSuffix = $false; Domain = ''; Reason = 'Timed out' }
+                            })
+                        }
+                    }
+                    Stop-StartupADAutoConnectAsync
+                    Invoke-ApplyStartupDiscoveryResultSafe -ProbeRows ($rows.ToArray())
+                }
+            } catch {
+                Stop-StartupADAutoConnectAsync
+                if ($script:startupADOnDiscoveryComplete) {
+                    $cb = $script:startupADOnDiscoveryComplete
+                    $script:startupADOnDiscoveryComplete = $null
+                    & $cb $false
+                }
+            }
+        })
+        $script:startupADProbeTimer.Start()
+    } catch {
+        Stop-StartupADAutoConnectAsync
+        if ($script:startupADOnDiscoveryComplete) {
+            $cb = $script:startupADOnDiscoveryComplete
+            $script:startupADOnDiscoveryComplete = $null
+            & $cb $false
+        }
     }
 }
 
@@ -1824,8 +3871,13 @@ function Restore-GraphProfileContextSafe {
             }
             Copy-Item -LiteralPath $mgCtxSnap -Destination $mgCtxLive -Force -ErrorAction SilentlyContinue
 
-            # Silently re-attach cached MSAL refresh token for this tenant when module is already loaded/available
+            # Silently re-attach cached MSAL refresh token for this tenant when module is installed
             try {
+                if (-not (Get-Module -Name 'Microsoft.Graph.Authentication')) {
+                    if (Get-Module -ListAvailable -Name 'Microsoft.Graph.Authentication') {
+                        Import-Module -Name 'Microsoft.Graph.Authentication' -DisableNameChecking -ErrorAction SilentlyContinue
+                    }
+                }
                 if (Get-Module -Name 'Microsoft.Graph.Authentication') {
                     if (Get-Command -Name 'Set-MgGraphOption' -ErrorAction SilentlyContinue) {
                         Set-MgGraphOption -DisableLoginByWAM $true -ErrorAction SilentlyContinue
@@ -3464,6 +5516,23 @@ function Get-MultiDCUserNonReplicatedTelemetrySafe {
     return $result
 }
 
+function ConvertTo-LdapFilterValueSafe {
+    param([string]$Value)
+    if ([string]::IsNullOrEmpty($Value)) { return "" }
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($ch in $Value.ToCharArray()) {
+        switch ($ch) {
+            '\' { [void]$sb.Append('\5c') }
+            '*' { [void]$sb.Append('\2a') }
+            '(' { [void]$sb.Append('\28') }
+            ')' { [void]$sb.Append('\29') }
+            ([char]0) { [void]$sb.Append('\00') }
+            default { [void]$sb.Append($ch) }
+        }
+    }
+    return $sb.ToString()
+}
+
 function Query-ADUsersSafe {
     param([string]$LdapFilter, [string]$Server, [System.Management.Automation.PSCredential]$Cred)
 
@@ -3764,7 +5833,8 @@ function Set-ADAccountEnableSafe {
     }
 
     # Re-query AD to verify the account's Enabled state actually changed
-    $recheck = @(Query-ADUsersSafe -LdapFilter "(&(objectCategory=person)(objectClass=user)(sAMAccountName=$SamAccount))" -Server $Server -Cred $Cred)
+    $escSam = ConvertTo-LdapFilterValueSafe -Value $SamAccount
+    $recheck = @(Query-ADUsersSafe -LdapFilter "(&(objectCategory=person)(objectClass=user)(sAMAccountName=$escSam))" -Server $Server -Cred $Cred)
     if (-not $recheck -or $recheck.Count -eq 0 -or [bool]$recheck[0].Enabled -ne $Enable) {
         throw "Verification failed after CommitChanges: Active Directory did not confirm Enabled=$Enable for '$SamAccount'."
     }
@@ -4431,6 +6501,8 @@ function Ensure-GraphMailboxAuditorAppSafe {
         }
         $auditorJson = $auditorObj | ConvertTo-Json -Depth 4
         Set-Content -LiteralPath $configPath -Value $auditorJson -Encoding UTF8 -ErrorAction Stop
+        Set-StrictUserFileAclSafe -FilePath $configPath
+        $secretText = $null
         return $auditorObj
     } finally {
         [System.Threading.SynchronizationContext]::SetSynchronizationContext($prevSyncCtx)
@@ -4482,7 +6554,12 @@ function Get-GraphMailboxAppTokenSafe {
         grant_type    = 'client_credentials'
     }
 
-    $tokResp = Invoke-RestMethod -Method POST -Uri $tokenUri -Body $tokenBody -ContentType 'application/x-www-form-urlencoded' -TimeoutSec 10 -ErrorAction Stop
+    try {
+        $tokResp = Invoke-RestMethod -Method POST -Uri $tokenUri -Body $tokenBody -ContentType 'application/x-www-form-urlencoded' -TimeoutSec 10 -ErrorAction Stop
+    } finally {
+        $plainSecret = $null
+        $tokenBody['client_secret'] = $null
+    }
 
     if (-not $tokResp -or [string]::IsNullOrWhiteSpace([string]$tokResp.access_token)) {
         throw "Microsoft Entra ID did not return an App-Only access token."
@@ -5147,7 +7224,8 @@ function Set-ADExtendedLockdownSafe {
     }
 
     # Re-query AD to verify changes committed
-    $recheck = @(Query-ADUsersSafe -LdapFilter "(&(objectCategory=person)(objectClass=user)(sAMAccountName=$SamAccount))" -Server $Server -Cred $Cred)
+    $escSamLock = ConvertTo-LdapFilterValueSafe -Value $SamAccount
+    $recheck = @(Query-ADUsersSafe -LdapFilter "(&(objectCategory=person)(objectClass=user)(sAMAccountName=$escSamLock))" -Server $Server -Cred $Cred)
     if (-not $recheck -or $recheck.Count -eq 0) {
         throw "Failed to re-query Active Directory user '$SamAccount' after updating lockdown attributes."
     }
@@ -5596,7 +7674,8 @@ function Get-UserSecurityEventsSafe {
         # 1A. Query live LDAP security telemetry + multi-DC non-replicated attributes (lastLogon, badPwdCount, badPasswordTime)
         try {
             $multiDc = Get-MultiDCUserNonReplicatedTelemetrySafe -SamAccountName $sam -Server $Server -Cred $Cred
-            $adSnap = @(Query-ADUsersSafe -LdapFilter "(&(objectCategory=person)(objectClass=user)(sAMAccountName=$sam))" -Server $Server -Cred $Cred)
+            $escSamEv = ConvertTo-LdapFilterValueSafe -Value $sam
+            $adSnap = @(Query-ADUsersSafe -LdapFilter "(&(objectCategory=person)(objectClass=user)(sAMAccountName=$escSamEv))" -Server $Server -Cred $Cred)
             if ($adSnap -and $adSnap.Count -gt 0) {
                 $uSnap = $adSnap[0]
                 $isLockedAny = ([bool]$uSnap.LockedOut) -or ([bool]$multiDc.IsLockedOutAnyDC)
@@ -5979,7 +8058,7 @@ $lblTitle.Text = "Security Incident Response Console"
 $lblTitle.Font = New-Object System.Drawing.Font("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
 $lblTitle.ForeColor = [System.Drawing.Color]::White
 $lblTitle.Location = New-Object System.Drawing.Point(18, 7)
-$lblTitle.Size = New-Object System.Drawing.Size(510, 26)
+$lblTitle.Size = New-Object System.Drawing.Size(400, 26)
 $lblTitle.AutoSize = $false
 $lblTitle.UseMnemonic = $false
 $headerPanel.Controls.Add($lblTitle)
@@ -5998,18 +8077,18 @@ $lblSub.Text = "${profPrefix}Domain: $activeDom$activeServerStr | Operator: $($s
 $lblSub.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
 $lblSub.ForeColor = [System.Drawing.Color]::FromArgb(148, 163, 184)
 $lblSub.Location = New-Object System.Drawing.Point(20, 35)
-$lblSub.Size = New-Object System.Drawing.Size(510, 22)
+$lblSub.Size = New-Object System.Drawing.Size(400, 22)
 $lblSub.AutoSize = $false
 $lblSub.UseMnemonic = $false
 $headerPanel.Controls.Add($lblSub)
 
-# Clickable Update Status ("v<version>" / "Update Available"), Theme Toggle, and GitHub Repository buttons on the top right
+# Clickable Update Status ("v<version>" / "Update Available"), Theme Toggle, GitHub Repository, and Master Passphrase buttons on the top right
 $btnCheckUpdates = New-Object System.Windows.Forms.Button
 $btnCheckUpdates.Text = "v$($script:AppVersion)"
 $btnCheckUpdates.AccessibleName = "Check for Updates (Installed v$($script:AppVersion))"
 $btnCheckUpdates.UseMnemonic = $false
-$btnCheckUpdates.Location = New-Object System.Drawing.Point(538, 15)
-$btnCheckUpdates.Size = New-Object System.Drawing.Size(140, 32)
+$btnCheckUpdates.Location = New-Object System.Drawing.Point(424, 15)
+$btnCheckUpdates.Size = New-Object System.Drawing.Size(124, 32)
 $btnCheckUpdates.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnCheckUpdates.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
 $btnCheckUpdates.ForeColor = [System.Drawing.Color]::FromArgb(56, 189, 248)
@@ -6021,8 +8100,8 @@ $headerPanel.Controls.Add($btnCheckUpdates)
 $btnThemeToggle = New-Object System.Windows.Forms.Button
 $btnThemeToggle.Text = "[ Light Mode ]"
 $btnThemeToggle.UseMnemonic = $false
-$btnThemeToggle.Location = New-Object System.Drawing.Point(686, 15)
-$btnThemeToggle.Size = New-Object System.Drawing.Size(130, 32)
+$btnThemeToggle.Location = New-Object System.Drawing.Point(554, 15)
+$btnThemeToggle.Size = New-Object System.Drawing.Size(114, 32)
 $btnThemeToggle.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnThemeToggle.BackColor = [System.Drawing.Color]::FromArgb(51, 65, 85)
 $btnThemeToggle.ForeColor = [System.Drawing.Color]::FromArgb(250, 204, 21)
@@ -6033,8 +8112,8 @@ $btnGitHub = New-Object System.Windows.Forms.Button
 $btnGitHub.Text = ""
 $btnGitHub.AccessibleName = "Open GitHub Repository"
 $btnGitHub.UseMnemonic = $false
-$btnGitHub.Location = New-Object System.Drawing.Point(824, 15)
-$btnGitHub.Size = New-Object System.Drawing.Size(36, 32)
+$btnGitHub.Location = New-Object System.Drawing.Point(674, 15)
+$btnGitHub.Size = New-Object System.Drawing.Size(34, 32)
 $btnGitHub.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
 $btnGitHub.ForeColor = [System.Drawing.Color]::FromArgb(226, 232, 240)
 $btnGitHub.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -6112,11 +8191,29 @@ $btnGitHub.Add_Click({
     }
 })
 $headerPanel.Controls.Add($btnGitHub)
+
+$btnMasterPassphrase = New-Object System.Windows.Forms.Button
+$btnMasterPassphrase.Text = "Master Passphrase"
+$btnMasterPassphrase.AccessibleName = "Configure Global Master Passphrase"
+$btnMasterPassphrase.UseMnemonic = $false
+$btnMasterPassphrase.Location = New-Object System.Drawing.Point(714, 15)
+$btnMasterPassphrase.Size = New-Object System.Drawing.Size(146, 32)
+$btnMasterPassphrase.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+$btnMasterPassphrase.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
+$btnMasterPassphrase.ForeColor = [System.Drawing.Color]::FromArgb(226, 232, 240)
+$btnMasterPassphrase.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$btnMasterPassphrase.FlatAppearance.BorderSize = 1
+$btnMasterPassphrase.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
+$btnMasterPassphrase.Cursor = [System.Windows.Forms.Cursors]::Hand
+$btnMasterPassphrase.Add_Click({ Show-MasterPassphraseDialogSafe -OwnerForm $form })
+$headerPanel.Controls.Add($btnMasterPassphrase)
+
 $headerToolTip = New-Object System.Windows.Forms.ToolTip
 $headerToolTip.AutoPopDelay = 8000
 $headerToolTip.InitialDelay = 250
 $headerToolTip.SetToolTip($btnCheckUpdates, "Installed: v$($script:AppVersion) - Checking GitHub for updates... Click to open updater & changelog.")
 $headerToolTip.SetToolTip($btnGitHub, "Open GitHub Repository (mkstewart88/Security-Incident-Helper)")
+Update-HeaderMasterPassphraseButtonState
 
 # TabControl for 5 tabs: All 5 fit side-by-side without horizontal scrolling
 $tabControl = New-Object System.Windows.Forms.TabControl
@@ -6534,6 +8631,10 @@ function Format-CsvSafeField {
     param([string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return "" }
     $clean = $Value.Replace("`r`n", " | ").Replace("`n", " | ").Replace("`r", " | ").Trim()
+    # Neutralize CSV/Excel formula injection (DDE / formula prefixes)
+    if ($clean.Length -gt 0 -and $clean -match '^[=+\-@\t]') {
+        $clean = "'" + $clean
+    }
     return $clean.Replace('"', '""')
 }
 
@@ -6860,6 +8961,9 @@ function Switch-ActiveDomainProfileSafe {
     Update-HeaderSubLabelSafe
     Sync-DiagProfileControls
     Refresh-IntegrationStatusLabelsSafe -Quick:($SkipAdVerify)
+    if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) {
+        Refresh-CredHealthPanelSafe
+    }
 
     Write-AppLog "Switched active Domain Profile to '$($TargetProfile.Name)' (GAM: $($env:GAMCFGDIR) | Graph: $($env:IR_GRAPH_SETUP_DIR))." "SUCCESS"
 }
@@ -7211,7 +9315,7 @@ function Show-DomainSwitcher {
 
     $dlg = New-Object System.Windows.Forms.Form
     $dlg.Text = "Domain Profile & Active Directory Switcher"
-    $dlg.ClientSize = New-Object System.Drawing.Size(600, 540)
+    $dlg.ClientSize = New-Object System.Drawing.Size(600, 622)
     $dlg.StartPosition = "CenterParent"
     $dlg.FormBorderStyle = "FixedDialog"
     $dlg.MaximizeBox = $false
@@ -7347,40 +9451,70 @@ function Show-DomainSwitcher {
     $dlg.Controls.Add($chkUseAlt)
 
     $grpCreds = New-Object System.Windows.Forms.GroupBox
-    $grpCreds.Text = " Domain Administrator Credentials (Password is never written to disk) "
+    $grpCreds.Text = " Domain Administrator Credentials (Encrypted Per-PC DPAPI Vault) "
     $grpCreds.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
     $grpCreds.Location = New-Object System.Drawing.Point(18, 272)
-    $grpCreds.Size = New-Object System.Drawing.Size(564, 140)
+    $grpCreds.Size = New-Object System.Drawing.Size(564, 224)
     $grpCreds.BackColor = $bgCard
     $grpCreds.ForeColor = $fgMain
     $dlg.Controls.Add($grpCreds)
 
     $lblDlgUser = New-Object System.Windows.Forms.Label
     $lblDlgUser.Text = "Username (DOMAIN\admin or admin@domain.com):"
-    $lblDlgUser.Location = New-Object System.Drawing.Point(15, 22)
+    $lblDlgUser.Location = New-Object System.Drawing.Point(15, 20)
     $lblDlgUser.Size = New-Object System.Drawing.Size(534, 20)
     $grpCreds.Controls.Add($lblDlgUser)
 
     $txtDlgUser = New-Object System.Windows.Forms.TextBox
-    $txtDlgUser.Location = New-Object System.Drawing.Point(15, 44)
+    $txtDlgUser.Location = New-Object System.Drawing.Point(15, 41)
     $txtDlgUser.Size = New-Object System.Drawing.Size(534, 24)
     $txtDlgUser.BackColor = $bgInput
     $txtDlgUser.ForeColor = $fgMain
     $grpCreds.Controls.Add($txtDlgUser)
 
     $lblDlgPass = New-Object System.Windows.Forms.Label
-    $lblDlgPass.Text = "Password:"
-    $lblDlgPass.Location = New-Object System.Drawing.Point(15, 76)
+    $lblDlgPass.Text = "Password (leave blank to unlock saved DPAPI credential if stored):"
+    $lblDlgPass.Location = New-Object System.Drawing.Point(15, 70)
     $lblDlgPass.Size = New-Object System.Drawing.Size(534, 20)
     $grpCreds.Controls.Add($lblDlgPass)
 
     $txtDlgPass = New-Object System.Windows.Forms.TextBox
     $txtDlgPass.PasswordChar = '*'
-    $txtDlgPass.Location = New-Object System.Drawing.Point(15, 98)
+    $txtDlgPass.Location = New-Object System.Drawing.Point(15, 91)
     $txtDlgPass.Size = New-Object System.Drawing.Size(534, 24)
     $txtDlgPass.BackColor = $bgInput
     $txtDlgPass.ForeColor = $fgMain
     $grpCreds.Controls.Add($txtDlgPass)
+
+    $chkSaveCred = New-Object System.Windows.Forms.CheckBox
+    $chkSaveCred.Text = "Save AD credentials securely on this PC (DPAPI CurrentUser encrypted, zero-lockout)"
+    $chkSaveCred.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
+    $chkSaveCred.ForeColor = $fgMain
+    $chkSaveCred.Location = New-Object System.Drawing.Point(15, 121)
+    $chkSaveCred.Size = New-Object System.Drawing.Size(534, 24)
+    $chkSaveCred.AutoSize = $false
+    $chkSaveCred.UseMnemonic = $false
+    $grpCreds.Controls.Add($chkSaveCred)
+
+    $btnPurgeDlgCred = New-Object System.Windows.Forms.Button
+    $btnPurgeDlgCred.Text = "Purge Saved"
+    $btnPurgeDlgCred.UseMnemonic = $false
+    $btnPurgeDlgCred.Location = New-Object System.Drawing.Point(432, 148)
+    $btnPurgeDlgCred.Size = New-Object System.Drawing.Size(117, 28)
+    $btnPurgeDlgCred.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
+    $btnPurgeDlgCred.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(127, 29, 29) } else { [System.Drawing.Color]::FromArgb(254, 226, 226) })
+    $btnPurgeDlgCred.ForeColor = $(if ($isDark) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(153, 27, 27) })
+    $btnPurgeDlgCred.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $grpCreds.Controls.Add($btnPurgeDlgCred)
+
+    $lblCredVaultHint = New-Object System.Windows.Forms.Label
+    $lblCredVaultHint.Text = "No saved AD credentials yet for this profile."
+    $lblCredVaultHint.UseMnemonic = $false
+    $lblCredVaultHint.Font = New-Object System.Drawing.Font("Segoe UI", 7.75)
+    $lblCredVaultHint.ForeColor = $fgMuted
+    $lblCredVaultHint.Location = New-Object System.Drawing.Point(15, 150)
+    $lblCredVaultHint.Size = New-Object System.Drawing.Size(410, 64)
+    $grpCreds.Controls.Add($lblCredVaultHint)
 
     $chkUseAlt.Add_CheckedChanged({
         $grpCreds.Enabled = $chkUseAlt.Checked
@@ -7390,14 +9524,14 @@ function Show-DomainSwitcher {
     $lblDlgStatus.Text = ""
     $lblDlgStatus.Font = New-Object System.Drawing.Font("Segoe UI", 8.25)
     $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
-    $lblDlgStatus.Location = New-Object System.Drawing.Point(18, 420)
+    $lblDlgStatus.Location = New-Object System.Drawing.Point(18, 502)
     $lblDlgStatus.Size = New-Object System.Drawing.Size(564, 52)
     $dlg.Controls.Add($lblDlgStatus)
 
     $btnConnect = New-Object System.Windows.Forms.Button
     $btnConnect.Text = "Connect & Switch Profile"
     $btnConnect.UseMnemonic = $false
-    $btnConnect.Location = New-Object System.Drawing.Point(110, 484)
+    $btnConnect.Location = New-Object System.Drawing.Point(110, 566)
     $btnConnect.Size = New-Object System.Drawing.Size(192, 38)
     $btnConnect.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
     $btnConnect.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
@@ -7408,7 +9542,7 @@ function Show-DomainSwitcher {
     $btnCloudOnly = New-Object System.Windows.Forms.Button
     $btnCloudOnly.Text = "Switch Cloud Only (Skip AD)"
     $btnCloudOnly.UseMnemonic = $false
-    $btnCloudOnly.Location = New-Object System.Drawing.Point(310, 484)
+    $btnCloudOnly.Location = New-Object System.Drawing.Point(310, 566)
     $btnCloudOnly.Size = New-Object System.Drawing.Size(184, 38)
     $btnCloudOnly.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
     $btnCloudOnly.BackColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
@@ -7419,7 +9553,7 @@ function Show-DomainSwitcher {
     $btnCancelDlg = New-Object System.Windows.Forms.Button
     $btnCancelDlg.Text = "Cancel"
     $btnCancelDlg.UseMnemonic = $false
-    $btnCancelDlg.Location = New-Object System.Drawing.Point(502, 484)
+    $btnCancelDlg.Location = New-Object System.Drawing.Point(502, 566)
     $btnCancelDlg.Size = New-Object System.Drawing.Size(80, 38)
     $btnCancelDlg.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
     $btnCancelDlg.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
@@ -7484,6 +9618,23 @@ function Show-DomainSwitcher {
         })
         $txtDlgPass.Text = ""
 
+        $vaultMeta = Get-ADCredentialHealthMetaSafe -ProfileObj $pr
+        $globalMv = Get-GlobalMasterVaultMetaSafe
+        $chkSaveCred.Checked = [bool]$vaultMeta.HasSavedCred
+        $btnPurgeDlgCred.Enabled = [bool]$vaultMeta.HasSavedCred -or [bool]$vaultMeta.CircuitBreakerTripped
+        if ($vaultMeta.CircuitBreakerTripped) {
+            $lblCredVaultHint.Text = "CIRCUIT BREAKER TRIPPED: $($vaultMeta.FailureReason)"
+            $lblCredVaultHint.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
+        } elseif ($vaultMeta.HasSavedCred) {
+            $passModeNote = $(if ($globalMv.Enabled) { "Protected by DPAPI CurrentUser + Global Master Passphrase (auto-connects on launch)." } else { "Protected by Windows DPAPI CurrentUser (auto-connects on launch)." })
+            $lblCredVaultHint.Text = "Saved Vault ($($vaultMeta.LastStatus)): $passModeNote Leave Password blank to reuse."
+            $lblCredVaultHint.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(74, 222, 128) } else { [System.Drawing.Color]::FromArgb(21, 128, 61) })
+        } else {
+            $globalHint = $(if ($globalMv.Enabled) { "App-wide Master Passphrase is ACTIVE (applied automatically when saving)." } else { "Configure an optional startup passphrase via the top-right 'Master Passphrase' button." })
+            $lblCredVaultHint.Text = "No saved AD credentials for this profile. $globalHint"
+            $lblCredVaultHint.ForeColor = $fgMuted
+        }
+
         $summary = Get-DomainProfileStatusSummary -ProfileObj $pr
         $gStat = $(if ($summary.GraphReady) { "Verified ($($summary.GraphLabel))" } else { "Not linked yet" })
         $gamStat = $summary.GamLabel
@@ -7495,6 +9646,16 @@ function Show-DomainSwitcher {
         })
         $lblDlgStatus.Text = ""
     }
+
+    $btnPurgeDlgCred.Add_Click({
+        $pr = $dlgState.SelectedProfile
+        if (-not $pr) { return }
+        Remove-SavedADCredentialVaultSafe -ProfileObj $pr
+        & $loadSelectedProfileFields
+        if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
+        $lblDlgStatus.Text = "Purged encrypted AD credentials and reset circuit breaker for '$($pr.Name)'."
+        $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(56, 189, 248) } else { [System.Drawing.Color]::FromArgb(2, 132, 199) })
+    })
 
     $cmbProf.Add_SelectedIndexChanged({ & $loadSelectedProfileFields })
 
@@ -7640,17 +9801,43 @@ function Show-DomainSwitcher {
 
         try {
             $testServer = $target
-            $testCred = $(if ($chkUseAlt.Checked) {
-                if ([string]::IsNullOrEmpty($txtDlgUser.Text) -or [string]::IsNullOrEmpty($txtDlgPass.Text)) {
-                    $lblDlgStatus.Text = "Username and password are required when using alternate AD credentials."
+            $vaultMeta = Get-ADCredentialHealthMetaSafe -ProfileObj $pr
+            $testCred = $null
+            $usedSavedVault = $false
+
+            if ($chkUseAlt.Checked) {
+                if ([string]::IsNullOrWhiteSpace($txtDlgUser.Text)) {
+                    $lblDlgStatus.Text = "Username is required when using alternate AD credentials."
                     $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
                     return
                 }
-                $sec = ConvertTo-SecureString $txtDlgPass.Text -AsPlainText -Force
-                New-Object System.Management.Automation.PSCredential($txtDlgUser.Text.Trim(), $sec)
-            } else {
-                $null
-            })
+                if ([string]::IsNullOrEmpty($txtDlgPass.Text)) {
+                    if ($vaultMeta.HasSavedCred -and (-not $vaultMeta.CircuitBreakerTripped)) {
+                        $passInput = $script:sessionMasterPassphrase
+                        if ($vaultMeta.RequirePassphrase -and [string]::IsNullOrEmpty($passInput)) {
+                            if (-not (Show-StartupMasterPassphraseGateSafe -OwnerForm $dlg)) { return }
+                            $passInput = $script:sessionMasterPassphrase
+                        }
+                        $valCheck = Invoke-ValidateStoredADCredentialHealthSafe -ProfileObj $pr -TestBind -Passphrase $passInput
+                        if (-not $valCheck.Healthy -or (-not $valCheck.Credential)) {
+                            $lblDlgStatus.Text = "Saved AD Credential Health blocked bind: $($valCheck.Detail)"
+                            $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
+                            & $loadSelectedProfileFields
+                            if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
+                            return
+                        }
+                        $testCred = $valCheck.Credential
+                        $usedSavedVault = $true
+                    } else {
+                        $lblDlgStatus.Text = "Password is required (no active saved AD credential is available for this profile)."
+                        $lblDlgStatus.ForeColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
+                        return
+                    }
+                } else {
+                    $sec = ConvertTo-SecureString $txtDlgPass.Text -AsPlainText -Force
+                    $testCred = New-Object System.Management.Automation.PSCredential($txtDlgUser.Text.Trim(), $sec)
+                }
+            }
 
             $adDomainName = Get-ADDomainSafe -Server $testServer -Cred $testCred
 
@@ -7659,8 +9846,25 @@ function Show-DomainSwitcher {
             $pr.UseExplicitCreds = [bool]$chkUseAlt.Checked
             if ($chkUseAlt.Checked) {
                 $pr.AdminUsername = $txtDlgUser.Text.Trim()
+                if ($chkSaveCred.Checked -and (-not $usedSavedVault)) {
+                    $pwdMetaNow = Get-ADAccountMetadataViaAmbientKerberosSafe -TargetDomain $adDomainName -Username $pr.AdminUsername
+                    $globalMvNow = Get-GlobalMasterVaultMetaSafe
+                    $vaultPassToSave = $(if ($globalMvNow.Enabled) {
+                        if ([string]::IsNullOrEmpty($script:sessionMasterPassphrase)) {
+                            if (-not (Show-StartupMasterPassphraseGateSafe -OwnerForm $dlg)) { return }
+                        }
+                        $script:sessionMasterPassphrase
+                    } else { "" })
+                    [void](Protect-ProfileADCredentialSafe -ProfileObj $pr -TargetDomain $adDomainName -TargetServer $target -Username $pr.AdminUsername -PasswordPlain $txtDlgPass.Text -MasterPassphrase $vaultPassToSave -SavedPwdLastSetUtc $pwdMetaNow.PwdLastSetUtc)
+                    Write-AppLog "Encrypted AD credential saved to local DPAPI CurrentUser vault for profile '$($pr.Name)'." "SUCCESS"
+                } elseif (-not $chkSaveCred.Checked -and ($vaultMeta.HasSavedCred -or $vaultMeta.CircuitBreakerTripped)) {
+                    Remove-SavedADCredentialVaultSafe -ProfileObj $pr
+                }
             } else {
                 $pr.AdminUsername = "$env:USERNAME"
+                if ($vaultMeta.HasSavedCred -or $vaultMeta.CircuitBreakerTripped) {
+                    Remove-SavedADCredentialVaultSafe -ProfileObj $pr
+                }
             }
 
             Switch-ActiveDomainProfileSafe -TargetProfile $pr -AdCredential $testCred -UseExplicitAdCreds ([bool]$chkUseAlt.Checked) -SkipAdVerify $false
@@ -7678,7 +9882,7 @@ function Show-DomainSwitcher {
         }
     })
 
-    Invoke-ApplyModalResponsiveScale -ModalForm $dlg -BaseWidth 600 -BaseHeight 540 -Owner $form
+    Invoke-ApplyModalResponsiveScale -ModalForm $dlg -BaseWidth 600 -BaseHeight 622 -Owner $form
     [void]$dlg.ShowDialog($form)
 }
 
@@ -7737,6 +9941,22 @@ function Show-ChangelogWindow {
             "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
             "===========================================================`r`n" +
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+            "## [1.1.62] - 2026-11-18`r`n" +
+            "### Added & Fixed`r`n" +
+            "  * Fixed Startup Domain Auto-Connect Race & Unjoined Plug-In Detection: Parallel RunspacePool probing + active NIC DNS-suffix prioritization now detects reachable configured domains on startup (even when the laptop is not joined to that domain), unlocks saved DPAPI credentials automatically, and logs directly into Active Directory, Microsoft Graph, and Google GAM7 while remaining on Tab 1.`r`n" +
+            "  * Application-Wide Master Passphrase (Header Config + 2-Attempt Startup Gate): Added the 'Master Passphrase' button to the right of the GitHub button in the top-right header. Includes Set/Change (requires current passphrase), 'Remove Passphrase' (requires current passphrase and warns why you should keep one while preserving saved credentials), and break-glass 'Remove Passphrase & All Creds' (requires no passphrase; wipes all stored credentials and resets to default if forgotten).`r`n`r`n" +
+            "## [1.1.61] - 2026-11-18`r`n" +
+            "### Added & Security Hardened`r`n" +
+            "  * Full Tab 4 Event Triage Search & Highlighting: Search now matches across result rows AND clicked log details (Recommended Decision + Raw Telemetry), dynamically highlighting matches inside both the results table and the clicked log RichTextBox panel.`r`n" +
+            "  * Security Audit Hardening: Enforced strict HTTPS-only RichTextBox URL opening, trusted GitHub domain/ref validation in the self-updater, RFC 4515 LDAP filter escaping, single-user NTFS ACL enforcement on MailboxAuditorApp.json, zeroed decrypted buffers, and CSV formula injection neutralization.`r`n`r`n" +
+            "## [1.1.60] - 2026-11-18`r`n" +
+            "### Added & Improved`r`n" +
+            "  * Tab 4 ('4. Event Triage') Dynamic Search & Summary Column Highlighting: Added a live Filter search box to Tab 4 that dynamically filters both pulled logs and the built-in Event Guide catalog as you type and highlights all matched substrings directly inside the Plain-English Summary column.`r`n`r`n" +
+            "## [1.1.59] - 2026-11-18`r`n" +
+            "### Added & Improved`r`n" +
+            "  * Encrypted Per-Profile AD Credential Vault: Stores domain admin credentials per profile encrypted with Windows DPAPI (CurrentUser scope, hardware/user-locked to the configured PC) plus optional Vault Master Passphrase (AES-256-CBC + PBKDF2 + HMAC-SHA256) and strict single-user NTFS ACLs.`r`n" +
+            "  * Zero-Credential Network Domain Detection & Profile Auto-Connect: Background non-blocking DNS SRV (_ldap._tcp.dc._msdcs.<domain>) + 700ms async TCP 389/636 pre-checks detect which configured domain is reachable on the current network and auto-connect the matching profile.`r`n" +
+            "  * Tab 1 ('1. Setup') Credential Health Diagnostic Panel: Live health indicator, network probe telemetry, pre-bind Kerberos metadata check (pwdLastSet/badPwdCount/lockoutTime), and a strict 1-Strike Circuit Breaker that auto-purges saved secrets on password rotation or logon failure so reopening the app never locks out accounts.`r`n`r`n" +
             "## [1.1.58] - 2026-11-17`r`n" +
             "### Changed & Improved`r`n" +
             "  * Added automatic background GitHub update check on application load.`r`n" +
@@ -8171,7 +10391,12 @@ function Show-UpdateCheckWindow {
     $txtLogUpd.Add_LinkClicked({
         param($sender, $e)
         if ($e -and (-not [string]::IsNullOrWhiteSpace($e.LinkText))) {
-            try { Start-Process $e.LinkText } catch {}
+            try {
+                $linkUri = $null
+                if ([Uri]::TryCreate($e.LinkText.Trim(), [UriKind]::Absolute, [ref]$linkUri) -and $linkUri.Scheme -eq 'https') {
+                    Start-Process $linkUri.AbsoluteUri
+                }
+            } catch {}
         }
     })
     $dlgUpd.Controls.Add($txtLogUpd)
@@ -8353,6 +10578,17 @@ function Show-UpdateCheckWindow {
             } else {
                 $updState.LatestTag
             })
+            if ($refName -notmatch '^[A-Za-z0-9._/-]+$' -or $refName.Contains('..')) {
+                throw "Rejected unsafe git reference tag '$refName'."
+            }
+
+            $testGitHubDlUrl = {
+                param([string]$CandidateUrl)
+                $dlUri = $null
+                if (-not [Uri]::TryCreate($CandidateUrl, [UriKind]::Absolute, [ref]$dlUri)) { return $false }
+                if ($dlUri.Scheme -ne 'https') { return $false }
+                return ($dlUri.Host -match '(^|\.)github\.com$|(^|\.)githubusercontent\.com$')
+            }
 
             $psExe = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
             if (-not (Test-Path -LiteralPath $psExe)) { $psExe = "powershell.exe" }
@@ -8388,6 +10624,9 @@ function Show-UpdateCheckWindow {
                 }
 
                 if ($exeAsset -and (-not [string]::IsNullOrWhiteSpace($exeAsset.browser_download_url))) {
+                    if (-not (& $testGitHubDlUrl ([string]$exeAsset.browser_download_url))) {
+                        throw "Blocked untrusted download host for executable update."
+                    }
                     Invoke-WebRequest -Uri $exeAsset.browser_download_url -Headers $dlHeaders -OutFile $stagedExe -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
                     $prgUpd.Value = 75
                     $dlgUpd.Refresh()
@@ -8404,6 +10643,9 @@ function Show-UpdateCheckWindow {
                     }
                     if ([string]::IsNullOrWhiteSpace($ps1Url)) {
                         $ps1Url = "https://raw.githubusercontent.com/$repoTarget/$refName/IncidentResponse-Automator.ps1"
+                    }
+                    if (-not (& $testGitHubDlUrl $ps1Url)) {
+                        throw "Blocked untrusted download URL for script update."
                     }
 
                     $stagedPs1 = Join-Path $buildWorkDir "IncidentResponse-Automator.ps1"
@@ -8529,6 +10771,9 @@ if (Test-Path -LiteralPath '__SWAP_PS1__') { Remove-Item -LiteralPath '__SWAP_PS
                 }
                 if ([string]::IsNullOrWhiteSpace($ps1Url)) {
                     $ps1Url = "https://raw.githubusercontent.com/$repoTarget/$refName/IncidentResponse-Automator.ps1"
+                }
+                if (-not (& $testGitHubDlUrl $ps1Url)) {
+                    throw "Blocked untrusted download URL for script update."
                 }
 
                 $stagedPs1 = Join-Path $stageDir "IncidentResponse-Automator.ps1"
@@ -9283,21 +11528,21 @@ $script:suppressDiagProfileSync = $false
 $grpDiagProfile = New-Object System.Windows.Forms.GroupBox
 $grpDiagProfile.Text = " Active Domain Profile (Single-Domain Seamless / Multi-Domain Ready) "
 $grpDiagProfile.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-$grpDiagProfile.Location = New-Object System.Drawing.Point(10, 6)
-$grpDiagProfile.Size = New-Object System.Drawing.Size(820, 52)
+$grpDiagProfile.Location = New-Object System.Drawing.Point(10, 4)
+$grpDiagProfile.Size = New-Object System.Drawing.Size(820, 48)
 $tabDiag.Controls.Add($grpDiagProfile)
 
 $lblDiagProfile = New-Object System.Windows.Forms.Label
 $lblDiagProfile.Text = "Profile:"
 $lblDiagProfile.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
-$lblDiagProfile.Location = New-Object System.Drawing.Point(14, 21)
+$lblDiagProfile.Location = New-Object System.Drawing.Point(14, 18)
 $lblDiagProfile.Size = New-Object System.Drawing.Size(52, 22)
 $lblDiagProfile.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
 $grpDiagProfile.Controls.Add($lblDiagProfile)
 
 $cmbDiagProfile = New-Object System.Windows.Forms.ComboBox
 $cmbDiagProfile.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-$cmbDiagProfile.Location = New-Object System.Drawing.Point(68, 19)
+$cmbDiagProfile.Location = New-Object System.Drawing.Point(68, 16)
 $cmbDiagProfile.Size = New-Object System.Drawing.Size(344, 24)
 $cmbDiagProfile.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
 $grpDiagProfile.Controls.Add($cmbDiagProfile)
@@ -9305,8 +11550,8 @@ $grpDiagProfile.Controls.Add($cmbDiagProfile)
 $btnDiagSwitchProfile = New-Object System.Windows.Forms.Button
 $btnDiagSwitchProfile.Text = "Switch Profile"
 $btnDiagSwitchProfile.UseMnemonic = $false
-$btnDiagSwitchProfile.Location = New-Object System.Drawing.Point(420, 18)
-$btnDiagSwitchProfile.Size = New-Object System.Drawing.Size(124, 26)
+$btnDiagSwitchProfile.Location = New-Object System.Drawing.Point(420, 15)
+$btnDiagSwitchProfile.Size = New-Object System.Drawing.Size(124, 25)
 $btnDiagSwitchProfile.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
 $btnDiagSwitchProfile.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
 $btnDiagSwitchProfile.ForeColor = [System.Drawing.Color]::White
@@ -9316,8 +11561,8 @@ $grpDiagProfile.Controls.Add($btnDiagSwitchProfile)
 $btnDiagNewProfile = New-Object System.Windows.Forms.Button
 $btnDiagNewProfile.Text = "+ New Profile"
 $btnDiagNewProfile.UseMnemonic = $false
-$btnDiagNewProfile.Location = New-Object System.Drawing.Point(552, 18)
-$btnDiagNewProfile.Size = New-Object System.Drawing.Size(124, 26)
+$btnDiagNewProfile.Location = New-Object System.Drawing.Point(552, 15)
+$btnDiagNewProfile.Size = New-Object System.Drawing.Size(124, 25)
 $btnDiagNewProfile.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
 $btnDiagNewProfile.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnDiagNewProfile.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -9326,8 +11571,8 @@ $grpDiagProfile.Controls.Add($btnDiagNewProfile)
 $btnDiagManageProfiles = New-Object System.Windows.Forms.Button
 $btnDiagManageProfiles.Text = "Manage / AD..."
 $btnDiagManageProfiles.UseMnemonic = $false
-$btnDiagManageProfiles.Location = New-Object System.Drawing.Point(684, 18)
-$btnDiagManageProfiles.Size = New-Object System.Drawing.Size(122, 26)
+$btnDiagManageProfiles.Location = New-Object System.Drawing.Point(684, 15)
+$btnDiagManageProfiles.Size = New-Object System.Drawing.Size(122, 25)
 $btnDiagManageProfiles.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
 $btnDiagManageProfiles.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnDiagManageProfiles.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -9338,48 +11583,48 @@ Sync-DiagProfileControls
 $grpDiagStatus = New-Object System.Windows.Forms.GroupBox
 $grpDiagStatus.Text = " Directory && Cloud Integration Status "
 $grpDiagStatus.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-$grpDiagStatus.Location = New-Object System.Drawing.Point(10, 62)
-$grpDiagStatus.Size = New-Object System.Drawing.Size(820, 138)
+$grpDiagStatus.Location = New-Object System.Drawing.Point(10, 56)
+$grpDiagStatus.Size = New-Object System.Drawing.Size(820, 116)
 $tabDiag.Controls.Add($grpDiagStatus)
 
 $lblStatusAD = New-Object System.Windows.Forms.Label
 $lblStatusAD.Text = "Active Directory: Checking connection mode..."
 $lblStatusAD.UseMnemonic = $false
 $lblStatusAD.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-$lblStatusAD.Location = New-Object System.Drawing.Point(15, 20)
-$lblStatusAD.Size = New-Object System.Drawing.Size(790, 34)
+$lblStatusAD.Location = New-Object System.Drawing.Point(15, 18)
+$lblStatusAD.Size = New-Object System.Drawing.Size(790, 28)
 $grpDiagStatus.Controls.Add($lblStatusAD)
 
 $lblStatusGraph = New-Object System.Windows.Forms.Label
 $lblStatusGraph.Text = "Microsoft Graph SDK & Auth: Checking..."
 $lblStatusGraph.UseMnemonic = $false
 $lblStatusGraph.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-$lblStatusGraph.Location = New-Object System.Drawing.Point(15, 56)
-$lblStatusGraph.Size = New-Object System.Drawing.Size(790, 34)
+$lblStatusGraph.Location = New-Object System.Drawing.Point(15, 48)
+$lblStatusGraph.Size = New-Object System.Drawing.Size(790, 28)
 $grpDiagStatus.Controls.Add($lblStatusGraph)
 
 $lblStatusGAM = New-Object System.Windows.Forms.Label
 $lblStatusGAM.Text = "Google Apps Manager (GAM7): Checking..."
 $lblStatusGAM.UseMnemonic = $false
 $lblStatusGAM.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-$lblStatusGAM.Location = New-Object System.Drawing.Point(15, 92)
-$lblStatusGAM.Size = New-Object System.Drawing.Size(790, 42)
+$lblStatusGAM.Location = New-Object System.Drawing.Point(15, 78)
+$lblStatusGAM.Size = New-Object System.Drawing.Size(790, 34)
 $grpDiagStatus.Controls.Add($lblStatusGAM)
 
 # Diagnostic Action Buttons (Aligned by Service Column: Col 1 = Active Directory, Col 2 = Microsoft Graph, Col 3 = Google GAM7)
 $grpDiagActions = New-Object System.Windows.Forms.GroupBox
 $grpDiagActions.Text = " Live Integration Verification && Account Setup / Switching (Active Profile) "
 $grpDiagActions.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-$grpDiagActions.Location = New-Object System.Drawing.Point(10, 204)
-$grpDiagActions.Size = New-Object System.Drawing.Size(820, 158)
+$grpDiagActions.Location = New-Object System.Drawing.Point(10, 176)
+$grpDiagActions.Size = New-Object System.Drawing.Size(820, 138)
 $tabDiag.Controls.Add($grpDiagActions)
 
 # Row 1: Test Buttons (Col 1 = AD | Col 2 = Graph | Col 3 = GAM7)
 $btnTestAD = New-Object System.Windows.Forms.Button
 $btnTestAD.Text = "Test Active Directory"
 $btnTestAD.UseMnemonic = $false
-$btnTestAD.Location = New-Object System.Drawing.Point(15, 20)
-$btnTestAD.Size = New-Object System.Drawing.Size(250, 34)
+$btnTestAD.Location = New-Object System.Drawing.Point(15, 18)
+$btnTestAD.Size = New-Object System.Drawing.Size(250, 32)
 $btnTestAD.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnTestAD.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnTestAD.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -9388,8 +11633,8 @@ $grpDiagActions.Controls.Add($btnTestAD)
 $btnTestM365 = New-Object System.Windows.Forms.Button
 $btnTestM365.Text = "Test Microsoft Graph"
 $btnTestM365.UseMnemonic = $false
-$btnTestM365.Location = New-Object System.Drawing.Point(278, 20)
-$btnTestM365.Size = New-Object System.Drawing.Size(255, 34)
+$btnTestM365.Location = New-Object System.Drawing.Point(278, 18)
+$btnTestM365.Size = New-Object System.Drawing.Size(255, 32)
 $btnTestM365.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnTestM365.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnTestM365.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -9398,8 +11643,8 @@ $grpDiagActions.Controls.Add($btnTestM365)
 $btnTestGoogle = New-Object System.Windows.Forms.Button
 $btnTestGoogle.Text = "Test Google GAM7"
 $btnTestGoogle.UseMnemonic = $false
-$btnTestGoogle.Location = New-Object System.Drawing.Point(546, 20)
-$btnTestGoogle.Size = New-Object System.Drawing.Size(258, 34)
+$btnTestGoogle.Location = New-Object System.Drawing.Point(546, 18)
+$btnTestGoogle.Size = New-Object System.Drawing.Size(258, 32)
 $btnTestGoogle.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnTestGoogle.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnTestGoogle.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -9409,8 +11654,8 @@ $grpDiagActions.Controls.Add($btnTestGoogle)
 $btnRunRsatSetup = New-Object System.Windows.Forms.Button
 $btnRunRsatSetup.Text = "Install RSAT (Optional)"
 $btnRunRsatSetup.UseMnemonic = $false
-$btnRunRsatSetup.Location = New-Object System.Drawing.Point(15, 62)
-$btnRunRsatSetup.Size = New-Object System.Drawing.Size(250, 34)
+$btnRunRsatSetup.Location = New-Object System.Drawing.Point(15, 56)
+$btnRunRsatSetup.Size = New-Object System.Drawing.Size(250, 32)
 $btnRunRsatSetup.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnRunRsatSetup.BackColor = [System.Drawing.Color]::FromArgb(124, 58, 237)
 $btnRunRsatSetup.ForeColor = [System.Drawing.Color]::White
@@ -9420,8 +11665,8 @@ $grpDiagActions.Controls.Add($btnRunRsatSetup)
 $btnRunGraphSetup = New-Object System.Windows.Forms.Button
 $btnRunGraphSetup.Text = "1. Setup Microsoft Graph"
 $btnRunGraphSetup.UseMnemonic = $false
-$btnRunGraphSetup.Location = New-Object System.Drawing.Point(278, 62)
-$btnRunGraphSetup.Size = New-Object System.Drawing.Size(255, 34)
+$btnRunGraphSetup.Location = New-Object System.Drawing.Point(278, 56)
+$btnRunGraphSetup.Size = New-Object System.Drawing.Size(255, 32)
 $btnRunGraphSetup.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnRunGraphSetup.BackColor = [System.Drawing.Color]::FromArgb(2, 132, 199)
 $btnRunGraphSetup.ForeColor = [System.Drawing.Color]::White
@@ -9431,8 +11676,8 @@ $grpDiagActions.Controls.Add($btnRunGraphSetup)
 $btnRunGamSetup = New-Object System.Windows.Forms.Button
 $btnRunGamSetup.Text = "2. Setup Google GAM7"
 $btnRunGamSetup.UseMnemonic = $false
-$btnRunGamSetup.Location = New-Object System.Drawing.Point(546, 62)
-$btnRunGamSetup.Size = New-Object System.Drawing.Size(258, 34)
+$btnRunGamSetup.Location = New-Object System.Drawing.Point(546, 56)
+$btnRunGamSetup.Size = New-Object System.Drawing.Size(258, 32)
 $btnRunGamSetup.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnRunGamSetup.BackColor = [System.Drawing.Color]::FromArgb(5, 150, 105)
 $btnRunGamSetup.ForeColor = [System.Drawing.Color]::White
@@ -9443,8 +11688,8 @@ $grpDiagActions.Controls.Add($btnRunGamSetup)
 $btnSwitchAdAcct = New-Object System.Windows.Forms.Button
 $btnSwitchAdAcct.Text = "Switch AD Account / Domain"
 $btnSwitchAdAcct.UseMnemonic = $false
-$btnSwitchAdAcct.Location = New-Object System.Drawing.Point(15, 104)
-$btnSwitchAdAcct.Size = New-Object System.Drawing.Size(250, 34)
+$btnSwitchAdAcct.Location = New-Object System.Drawing.Point(15, 94)
+$btnSwitchAdAcct.Size = New-Object System.Drawing.Size(250, 32)
 $btnSwitchAdAcct.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnSwitchAdAcct.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnSwitchAdAcct.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -9453,8 +11698,8 @@ $grpDiagActions.Controls.Add($btnSwitchAdAcct)
 $btnSwitchGraphAcct = New-Object System.Windows.Forms.Button
 $btnSwitchGraphAcct.Text = "Switch Graph Account"
 $btnSwitchGraphAcct.UseMnemonic = $false
-$btnSwitchGraphAcct.Location = New-Object System.Drawing.Point(278, 104)
-$btnSwitchGraphAcct.Size = New-Object System.Drawing.Size(255, 34)
+$btnSwitchGraphAcct.Location = New-Object System.Drawing.Point(278, 94)
+$btnSwitchGraphAcct.Size = New-Object System.Drawing.Size(255, 32)
 $btnSwitchGraphAcct.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnSwitchGraphAcct.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnSwitchGraphAcct.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -9463,30 +11708,220 @@ $grpDiagActions.Controls.Add($btnSwitchGraphAcct)
 $btnSwitchGamAcct = New-Object System.Windows.Forms.Button
 $btnSwitchGamAcct.Text = "Switch GAM Account"
 $btnSwitchGamAcct.UseMnemonic = $false
-$btnSwitchGamAcct.Location = New-Object System.Drawing.Point(546, 104)
-$btnSwitchGamAcct.Size = New-Object System.Drawing.Size(258, 34)
+$btnSwitchGamAcct.Location = New-Object System.Drawing.Point(546, 94)
+$btnSwitchGamAcct.Size = New-Object System.Drawing.Size(258, 32)
 $btnSwitchGamAcct.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $btnSwitchGamAcct.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
 $btnSwitchGamAcct.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $grpDiagActions.Controls.Add($btnSwitchGamAcct)
 
+# CREDENTIAL HEALTH & ENCRYPTED AD VAULT DIAGNOSTIC PANEL
+$grpCredHealth = New-Object System.Windows.Forms.GroupBox
+$grpCredHealth.Text = " Credential Health && Encrypted AD Vault (Zero-Lockout Pre-Flight) "
+$grpCredHealth.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$grpCredHealth.Location = New-Object System.Drawing.Point(10, 318)
+$grpCredHealth.Size = New-Object System.Drawing.Size(820, 118)
+$tabDiag.Controls.Add($grpCredHealth)
+
+$lblCredHealthStatus = New-Object System.Windows.Forms.Label
+$lblCredHealthStatus.Text = "AD Vault Status: Checking local DPAPI vault & zero-lockout metadata..."
+$lblCredHealthStatus.UseMnemonic = $false
+$lblCredHealthStatus.Font = New-Object System.Drawing.Font("Segoe UI", 8.75, [System.Drawing.FontStyle]::Bold)
+$lblCredHealthStatus.Location = New-Object System.Drawing.Point(15, 18)
+$lblCredHealthStatus.Size = New-Object System.Drawing.Size(790, 22)
+$grpCredHealth.Controls.Add($lblCredHealthStatus)
+
+$lblCredNetworkDetail = New-Object System.Windows.Forms.Label
+$lblCredNetworkDetail.Text = "Network Domain Probe: Pending (zero-credential DNS SRV + async TCP 389/636 pre-check)."
+$lblCredNetworkDetail.UseMnemonic = $false
+$lblCredNetworkDetail.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+$lblCredNetworkDetail.Location = New-Object System.Drawing.Point(15, 42)
+$lblCredNetworkDetail.Size = New-Object System.Drawing.Size(790, 30)
+$grpCredHealth.Controls.Add($lblCredNetworkDetail)
+
+$btnValidateCredHealth = New-Object System.Windows.Forms.Button
+$btnValidateCredHealth.Text = "Validate Credential Health"
+$btnValidateCredHealth.UseMnemonic = $false
+$btnValidateCredHealth.Location = New-Object System.Drawing.Point(15, 76)
+$btnValidateCredHealth.Size = New-Object System.Drawing.Size(208, 32)
+$btnValidateCredHealth.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
+$btnValidateCredHealth.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+$btnValidateCredHealth.ForeColor = [System.Drawing.Color]::White
+$btnValidateCredHealth.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$grpCredHealth.Controls.Add($btnValidateCredHealth)
+
+$btnAutoConnectProfile = New-Object System.Windows.Forms.Button
+$btnAutoConnectProfile.Text = "Detect Network & Auto-Connect"
+$btnAutoConnectProfile.UseMnemonic = $false
+$btnAutoConnectProfile.Location = New-Object System.Drawing.Point(231, 76)
+$btnAutoConnectProfile.Size = New-Object System.Drawing.Size(216, 32)
+$btnAutoConnectProfile.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
+$btnAutoConnectProfile.BackColor = [System.Drawing.Color]::FromArgb(5, 150, 105)
+$btnAutoConnectProfile.ForeColor = [System.Drawing.Color]::White
+$btnAutoConnectProfile.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$grpCredHealth.Controls.Add($btnAutoConnectProfile)
+
+$btnManageSavedCred = New-Object System.Windows.Forms.Button
+$btnManageSavedCred.Text = "Configure Saved AD Creds..."
+$btnManageSavedCred.UseMnemonic = $false
+$btnManageSavedCred.Location = New-Object System.Drawing.Point(455, 76)
+$btnManageSavedCred.Size = New-Object System.Drawing.Size(194, 32)
+$btnManageSavedCred.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
+$btnManageSavedCred.BackColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
+$btnManageSavedCred.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$grpCredHealth.Controls.Add($btnManageSavedCred)
+
+$btnPurgeSavedCred = New-Object System.Windows.Forms.Button
+$btnPurgeSavedCred.Text = "Purge Saved Creds"
+$btnPurgeSavedCred.UseMnemonic = $false
+$btnPurgeSavedCred.Location = New-Object System.Drawing.Point(657, 76)
+$btnPurgeSavedCred.Size = New-Object System.Drawing.Size(147, 32)
+$btnPurgeSavedCred.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
+$btnPurgeSavedCred.BackColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
+$btnPurgeSavedCred.ForeColor = [System.Drawing.Color]::White
+$btnPurgeSavedCred.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$grpCredHealth.Controls.Add($btnPurgeSavedCred)
+
+function Refresh-CredHealthPanelSafe {
+    if (-not $lblCredHealthStatus -or $lblCredHealthStatus.IsDisposed) { return }
+    $isDark = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    $meta = Get-ADCredentialHealthMetaSafe -ProfileObj $script:activeProfile
+    $lastRes = $script:lastCredHealthResult
+    $statusKey = $(if ($meta.CircuitBreakerTripped) { 'TRIPPED' } elseif ($lastRes -and $lastRes.Status -and $meta.HasSavedCred) { $lastRes.Status } elseif ($meta.HasSavedCred) { $meta.LastStatus } elseif ($script:adCredential -or ($lblStatusAD -and $lblStatusAD.Text -match 'VERIFIED')) { 'INTEGRATED' } else { 'NONE' })
+
+    $greenC = $(if ($isDark) { [System.Drawing.Color]::FromArgb(74, 222, 128) } else { [System.Drawing.Color]::FromArgb(21, 128, 61) })
+    $amberC = $(if ($isDark) { [System.Drawing.Color]::FromArgb(251, 191, 36) } else { [System.Drawing.Color]::FromArgb(217, 119, 6) })
+    $redC   = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
+    $mutedC = $(if ($isDark) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
+
+    if ($statusKey -in @('TRIPPED', 'LOCKED', 'PASSWORD_CHANGED', 'AT_RISK', 'CORRUPT')) {
+        $lblCredHealthStatus.Text = "AD Vault Health: [$statusKey] - Auto-connect blocked to prevent account lockout"
+        $lblCredHealthStatus.ForeColor = $redC
+        $lblCredNetworkDetail.Text = $(if ($meta.FailureReason) { $meta.FailureReason } else { $meta.LastDetail })
+        $lblCredNetworkDetail.ForeColor = $redC
+    } elseif ($statusKey -in @('HEALTHY', 'INTEGRATED')) {
+        $modeText = $(if ($meta.HasSavedCred) { "Encrypted Vault: $($meta.ProtectionMode) ($($meta.Username)@$($meta.TargetDomain))" } else { "Windows Integrated Auth ($($script:targetDomain))" })
+        $lblCredHealthStatus.Text = "AD Vault Health: [HEALTHY] - $modeText"
+        $lblCredHealthStatus.ForeColor = $greenC
+        $probeTxt = $(if (-not [string]::IsNullOrWhiteSpace($script:lastNetworkProbeSummary)) { "Network Probe: $($script:lastNetworkProbeSummary)" } elseif (-not [string]::IsNullOrWhiteSpace($meta.LastDetail)) { $meta.LastDetail } else { "Ready for zero-lockout single-attempt bind." })
+        $lblCredNetworkDetail.Text = $probeTxt
+        $lblCredNetworkDetail.ForeColor = $mutedC
+    } elseif ($statusKey -eq 'OFFLINE') {
+        $lblCredHealthStatus.Text = "AD Vault Health: [OFFLINE] - Target DC unreachable (0 logon attempts made)"
+        $lblCredHealthStatus.ForeColor = $amberC
+        $lblCredNetworkDetail.Text = $(if ($meta.LastDetail) { $meta.LastDetail } else { "Domain controller unreachable on current network; vault kept safe." })
+        $lblCredNetworkDetail.ForeColor = $mutedC
+    } elseif ($statusKey -eq 'PASSPHRASE_REQUIRED' -or ($meta.HasSavedCred -and $meta.RequirePassphrase -and [string]::IsNullOrEmpty($script:sessionMasterPassphrase))) {
+        $lblCredHealthStatus.Text = "AD Vault Health: [LOCKED BY MASTER PASSPHRASE] - $($meta.Username)@$($meta.TargetDomain)"
+        $lblCredHealthStatus.ForeColor = $amberC
+        $lblCredNetworkDetail.Text = "Protected by DPAPI CurrentUser + Global Master Passphrase. Relaunch or use top-right 'Master Passphrase' button."
+        $lblCredNetworkDetail.ForeColor = $mutedC
+    } elseif ($meta.HasSavedCred) {
+        $lblCredHealthStatus.Text = "AD Vault Health: [SAVED] - $($meta.ProtectionMode) ($($meta.Username)@$($meta.TargetDomain))"
+        $lblCredHealthStatus.ForeColor = $amberC
+        $lblCredNetworkDetail.Text = $(if (-not [string]::IsNullOrWhiteSpace($script:lastNetworkProbeSummary)) { "Network Probe: $($script:lastNetworkProbeSummary)" } else { $meta.LastDetail })
+        $lblCredNetworkDetail.ForeColor = $mutedC
+    } else {
+        $lblCredHealthStatus.Text = "AD Vault Health: [NONE] - No encrypted AD credentials stored for active profile"
+        $lblCredHealthStatus.ForeColor = $amberC
+        $lblCredNetworkDetail.Text = $(if (-not [string]::IsNullOrWhiteSpace($script:lastNetworkProbeSummary)) { "Network Probe: $($script:lastNetworkProbeSummary)" } else { "Click 'Configure Saved AD Creds...' to encrypt Domain Admin credentials strictly to this PC & Windows user." })
+        $lblCredNetworkDetail.ForeColor = $mutedC
+    }
+}
+
+$btnValidateCredHealth.Add_Click({
+    if (-not $script:activeProfile) { return }
+    $meta = Get-ADCredentialHealthMetaSafe -ProfileObj $script:activeProfile
+    $passIn = $script:sessionMasterPassphrase
+    if ($meta.HasSavedCred -and $meta.RequirePassphrase -and [string]::IsNullOrEmpty($passIn) -and (-not $meta.CircuitBreakerTripped)) {
+        if (-not (Show-StartupMasterPassphraseGateSafe -OwnerForm $form)) { return }
+        $passIn = $script:sessionMasterPassphrase
+    }
+    Write-DiagLog "=== RUNNING AD CREDENTIAL HEALTH DIAGNOSTIC (ZERO-LOCKOUT PRE-FLIGHT) ==="
+    $res = Invoke-ValidateStoredADCredentialHealthSafe -ProfileObj $script:activeProfile -TestBind -Passphrase $passIn
+    if ($res.Healthy -and $res.Credential) {
+        $script:adCredential = $res.Credential
+        $script:useExplicitCreds = $true
+        Refresh-IntegrationStatusLabelsSafe -Quick:$false
+    }
+    Refresh-CredHealthPanelSafe
+    $logLvl = $(if ($res.Healthy) { "[PASS]" } elseif ($res.Status -in @('OFFLINE','NONE')) { "[WARN]" } else { "[FAIL]" })
+    Write-DiagLog "$logLvl Credential Health [$($res.Status)]: $($res.Detail)"
+    Show-ActionPopup -ActionTitle "Credential Health Diagnostic ($($res.Status))" -Succeeded $res.Healthy -Details $res.Detail
+})
+
+$btnAutoConnectProfile.Add_Click({
+    Write-DiagLog "=== PROBING CURRENT NETWORK FOR CONFIGURED AD DOMAINS ==="
+    $found = Find-ReachableADProfileSafe
+    $script:lastNetworkProbeSummary = $found.Summary
+    if (-not $found.Found) {
+        Refresh-CredHealthPanelSafe
+        Write-DiagLog "[WARN] Network probe finished with no reachable domain controller: $($found.Summary)"
+        Show-ActionPopup -ActionTitle "Network Domain Auto-Detect" -Succeeded $false -Details "No configured AD domain was reachable on the current network:`n$($found.Summary)`n`nZero login attempts were made."
+        return
+    }
+    $targetPr = $found.Profile
+    $meta = Get-ADCredentialHealthMetaSafe -ProfileObj $targetPr
+    $passIn = $script:sessionMasterPassphrase
+    if ($meta.HasSavedCred -and $meta.RequirePassphrase -and [string]::IsNullOrEmpty($passIn) -and (-not $meta.CircuitBreakerTripped)) {
+        if (-not (Show-StartupMasterPassphraseGateSafe -OwnerForm $form)) { return }
+        $passIn = $script:sessionMasterPassphrase
+    }
+    if ($meta.HasSavedCred) {
+        $val = Invoke-ValidateStoredADCredentialHealthSafe -ProfileObj $targetPr -TestBind -Passphrase $passIn -PrecomputedProbe $found.Probe
+        if ($val.Healthy -and $val.Credential) {
+            Switch-ActiveDomainProfileSafe -TargetProfile $targetPr -AdCredential $val.Credential -UseExplicitAdCreds $true -SkipAdVerify $false
+            Write-DiagLog "[PASS] Auto-connected profile '$($targetPr.Name)' (AD + Graph + GAM7) via $($found.Probe.Reason)."
+            Show-ActionPopup -ActionTitle "Network Domain Auto-Connect" -Succeeded $true -Details "Matched & connected profile '$($targetPr.Name)' ($($val.Domain) + Cloud Graph/GAM7).`n`n$($found.Probe.Reason)"
+        } else {
+            Switch-ActiveDomainProfileSafe -TargetProfile $targetPr -UseExplicitAdCreds $true -SkipAdVerify $true
+            Refresh-CredHealthPanelSafe
+            Write-DiagLog "[WARN] Found '$($targetPr.Name)' on network, but Credential Health blocked bind [$($val.Status)]: $($val.Detail)"
+            Show-ActionPopup -ActionTitle "Auto-Connect Blocked ($($val.Status))" -Succeeded $false -Details $val.Detail
+        }
+    } elseif (-not [bool]$targetPr.UseExplicitCreds) {
+        Switch-ActiveDomainProfileSafe -TargetProfile $targetPr -UseExplicitAdCreds $false -SkipAdVerify $false
+        Write-DiagLog "[PASS] Switched & verified integrated profile '$($targetPr.Name)' ($($found.Probe.Reason))."
+        Show-ActionPopup -ActionTitle "Network Domain Auto-Connect" -Succeeded $true -Details "Switched to integrated profile '$($targetPr.Name)'.`n`n$($found.Probe.Reason)"
+    } else {
+        Switch-ActiveDomainProfileSafe -TargetProfile $targetPr -UseExplicitAdCreds $true -SkipAdVerify $true
+        Refresh-CredHealthPanelSafe
+        Write-DiagLog "[INFO] Matched '$($targetPr.Name)' on network ($($found.Probe.Reason)), but no saved AD vault exists. Opening Domain Switcher..."
+        Show-DomainSwitcher -PreselectProfileId $targetPr.Id
+    }
+})
+
+$btnManageSavedCred.Add_Click({
+    $preId = $(if ($script:activeProfile) { [string]$script:activeProfile.Id } else { "" })
+    Show-DomainSwitcher -PreselectProfileId $preId
+    Refresh-CredHealthPanelSafe
+})
+
+$btnPurgeSavedCred.Add_Click({
+    if (-not $script:activeProfile) { return }
+    Remove-SavedADCredentialVaultSafe -ProfileObj $script:activeProfile
+    Refresh-IntegrationStatusLabelsSafe -Quick:$true
+    Refresh-CredHealthPanelSafe
+    Write-DiagLog "[INFO] Purged encrypted AD credential vault and reset circuit breaker for '$($script:activeProfile.Name)'."
+    Show-ActionPopup -ActionTitle "Purge Saved AD Credentials" -Succeeded $true -Details "Removed local DPAPI credential file and cleared in-memory session for '$($script:activeProfile.Name)'."
+})
+
 # Setup Readiness & Architecture Reference Card (Fits cleanly above the shared global log)
 $grpDiagGuide = New-Object System.Windows.Forms.GroupBox
 $grpDiagGuide.Text = " Integration Setup && Multi-Domain Switching Reference "
-$grpDiagGuide.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-$grpDiagGuide.Location = New-Object System.Drawing.Point(10, 366)
-$grpDiagGuide.Size = New-Object System.Drawing.Size(820, 152)
+$grpDiagGuide.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+$grpDiagGuide.Location = New-Object System.Drawing.Point(10, 440)
+$grpDiagGuide.Size = New-Object System.Drawing.Size(820, 82)
 $tabDiag.Controls.Add($grpDiagGuide)
 
 $lblDiagGuide = New-Object System.Windows.Forms.Label
 $lblDiagGuide.UseMnemonic = $false
-$lblDiagGuide.Location = New-Object System.Drawing.Point(16, 18)
-$lblDiagGuide.Size = New-Object System.Drawing.Size(788, 128)
-$lblDiagGuide.Font = New-Object System.Drawing.Font("Segoe UI", 8.0)
-$lblDiagGuide.Text = "1. ACTIVE DIRECTORY: Uses native .NET LDAP/ADSI (or RSAT). Use 'Switch AD Account / Domain' (or 'Manage / AD...') to connect to another domain or enter separate Admin credentials.`r`n" +
-                     "2. MICROSOFT GRAPH: Click '1. Setup Microsoft Graph' (or 'Switch Graph Account') and complete device-code sign-in in an Admin/InPrivate browser.`r`n" +
-                     "3. GOOGLE GAM7: Click '2. Setup Google GAM7' (or 'Switch GAM Account') to authorize Google Workspace Admin OAuth for the active profile.`r`n" +
-                     "4. MULTI-DOMAIN WORKFLOW: Single-domain technicians stay on their Primary profile. To manage multiple domains/tenants, click '+ New Profile', switch to it, and link its Graph/GAM/AD once."
+$lblDiagGuide.Location = New-Object System.Drawing.Point(16, 16)
+$lblDiagGuide.Size = New-Object System.Drawing.Size(788, 60)
+$lblDiagGuide.Font = New-Object System.Drawing.Font("Segoe UI", 7.75)
+$lblDiagGuide.Text = "1. ENCRYPTED AD VAULT & MASTER PASSPHRASE: Saved credentials lock strictly to this PC+User via DPAPI. Use the top-right 'Master Passphrase' button to require an app-wide startup unlock across all profiles.`r`n" +
+                     "2. STARTUP PLUG-IN AUTO-CONNECT: On launch, active NIC DNS-suffix & parallel 700ms TCP probes detect reachable domains (even if unjoined) and auto-connect AD + Graph + GAM7 cleanly.`r`n" +
+                     "3. ZERO-LOCKOUT SAFETY: Pre-bind Kerberos checks (pwdLastSet/badPwdCount) & the 1-strike circuit breaker purge stale secrets immediately so expired passwords never lock out Domain Admin accounts."
 $grpDiagGuide.Controls.Add($lblDiagGuide)
 
 $btnDiagSwitchProfile.Add_Click({
@@ -9495,10 +11930,19 @@ $btnDiagSwitchProfile.Add_Click({
     $targetPr = $script:domainProfilesData.Profiles[$idx]
     if ($script:activeProfile -and ($targetPr.Id -eq $script:activeProfile.Id)) {
         Refresh-IntegrationStatusLabelsSafe -Quick:$false
+        Refresh-CredHealthPanelSafe
         return
     }
+    $targetMeta = Get-ADCredentialHealthMetaSafe -ProfileObj $targetPr
+    if ([bool]$targetPr.UseExplicitCreds -and $targetMeta.HasSavedCred -and (-not $targetMeta.CircuitBreakerTripped) -and ((-not $targetMeta.RequirePassphrase) -or (-not [string]::IsNullOrEmpty($script:sessionMasterPassphrase)))) {
+        $val = Invoke-ValidateStoredADCredentialHealthSafe -ProfileObj $targetPr -TestBind -Passphrase $script:sessionMasterPassphrase
+        if ($val.Healthy -and $val.Credential) {
+            Switch-ActiveDomainProfileSafe -TargetProfile $targetPr -AdCredential $val.Credential -UseExplicitAdCreds $true -SkipAdVerify $false
+            return
+        }
+    }
     if ([bool]$targetPr.UseExplicitCreds -and (-not [string]::IsNullOrWhiteSpace([string]$targetPr.TargetDomain))) {
-        # Switch Cloud immediately, and open Domain Switcher pre-selected so operator can enter AD password (or skip AD)
+        # Switch Cloud immediately, and open Domain Switcher pre-selected so operator can unlock/enter AD password (or skip AD)
         Switch-ActiveDomainProfileSafe -TargetProfile $targetPr -UseExplicitAdCreds $true -SkipAdVerify $true
         Show-DomainSwitcher -PreselectProfileId $targetPr.Id
     } else {
@@ -10682,8 +13126,23 @@ $lblEventStats.Text = "Deciphers AD (4624/4625/4740/4768/4769/4771/4776/4720-473
 $lblEventStats.UseMnemonic = $false
 $lblEventStats.Font = New-Object System.Drawing.Font("Segoe UI", 7.75)
 $lblEventStats.Location = New-Object System.Drawing.Point(14, 76)
-$lblEventStats.Size = New-Object System.Drawing.Size(792, 32)
+$lblEventStats.Size = New-Object System.Drawing.Size(514, 32)
 $grpEventHeader.Controls.Add($lblEventStats)
+
+$lblEventSearch = New-Object System.Windows.Forms.Label
+$lblEventSearch.Text = "Filter:"
+$lblEventSearch.UseMnemonic = $false
+$lblEventSearch.Font = New-Object System.Drawing.Font("Segoe UI", 8.25, [System.Drawing.FontStyle]::Bold)
+$lblEventSearch.Location = New-Object System.Drawing.Point(536, 82)
+$lblEventSearch.Size = New-Object System.Drawing.Size(44, 18)
+$grpEventHeader.Controls.Add($lblEventSearch)
+
+$txtEventSearch = New-Object System.Windows.Forms.TextBox
+$txtEventSearch.Location = New-Object System.Drawing.Point(582, 79)
+$txtEventSearch.Size = New-Object System.Drawing.Size(224, 22)
+$txtEventSearch.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
+$grpEventHeader.Controls.Add($txtEventSearch)
+$script:activeEventSearchTerm = ""
 
 $gridEvents = New-Object System.Windows.Forms.DataGridView
 $gridEvents.Location = New-Object System.Drawing.Point(10, 124)
@@ -10719,10 +13178,11 @@ $grpEventDecision.Location = New-Object System.Drawing.Point(10, 382)
 $grpEventDecision.Size = New-Object System.Drawing.Size(820, 136)
 $tabEvents.Controls.Add($grpEventDecision)
 
-$txtEventDecision = New-Object System.Windows.Forms.TextBox
-$txtEventDecision.Multiline = $true
+$txtEventDecision = New-Object System.Windows.Forms.RichTextBox
 $txtEventDecision.ReadOnly = $true
-$txtEventDecision.ScrollBars = "Vertical"
+$txtEventDecision.ScrollBars = [System.Windows.Forms.RichTextBoxScrollBars]::Vertical
+$txtEventDecision.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
+$txtEventDecision.DetectUrls = $false
 $txtEventDecision.Location = New-Object System.Drawing.Point(14, 20)
 $txtEventDecision.Size = New-Object System.Drawing.Size(792, 108)
 $txtEventDecision.Font = New-Object System.Drawing.Font("Consolas", 8.5)
@@ -10734,6 +13194,48 @@ $grpEventDecision.Controls.Add($txtEventDecision)
 $script:allPulledEvents = @()
 $script:filteredEvents = @()
 $script:savedUserPulledEvents = @()
+
+function Update-EventDecisionDetailBox {
+    try {
+        if ($null -eq $txtEventDecision) { return }
+        if ($null -eq $gridEvents -or $null -eq $gridEvents.SelectedRows -or $gridEvents.SelectedRows.Count -le 0) {
+            return
+        }
+        $selRow = $gridEvents.SelectedRows[0]
+        if ($null -eq $selRow) { return }
+        $idx = $selRow.Index
+        if ($idx -lt 0 -or $idx -ge $script:filteredEvents.Count) { return }
+        $ev = $script:filteredEvents[$idx]
+        if ($null -eq $ev) { return }
+
+        $nl = [System.Environment]::NewLine
+        $detailText = "EVENT CODE   : [$($ev.Source)] $($ev.EventCode)  |  SEVERITY: $($ev.Severity)  |  TIME: $($ev.Timestamp)$nl" +
+                      "HOST / IP    : $($ev.HostOrIP)$nl" +
+                      "WHAT IT MEANS: $($ev.Meaning)$nl" +
+                      "RECOMMENDED DECISION: $($ev.Decision)$nl" +
+                      "RAW TELEMETRY: $($ev.RawDetail)"
+        $txtEventDecision.Text = $detailText
+        $txtEventDecision.SelectAll()
+        $txtEventDecision.SelectionBackColor = $txtEventDecision.BackColor
+        $txtEventDecision.SelectionColor = $txtEventDecision.ForeColor
+
+        $q = $script:activeEventSearchTerm
+        if (-not [string]::IsNullOrWhiteSpace($q)) {
+            $rtText = $txtEventDecision.Text
+            $qLen = $q.Length
+            $pos = 0
+            while ($pos -lt $rtText.Length) {
+                $hit = $rtText.IndexOf($q, $pos, [System.StringComparison]::OrdinalIgnoreCase)
+                if ($hit -lt 0) { break }
+                $txtEventDecision.Select($hit, $qLen)
+                $txtEventDecision.SelectionBackColor = [System.Drawing.Color]::FromArgb(253, 224, 71)
+                $txtEventDecision.SelectionColor = [System.Drawing.Color]::FromArgb(15, 23, 42)
+                $pos = $hit + $qLen
+            }
+        }
+        $txtEventDecision.Select(0, 0)
+    } catch {}
+}
 
 function Clear-SecurityEventsResults {
     if ($gridEvents) { $gridEvents.Rows.Clear() }
@@ -10749,6 +13251,10 @@ function Clear-SecurityEventsResults {
     }
     if ($txtEventDecision) {
         $txtEventDecision.Text = "Select a user on Tab 2 ('2. Containment') and click 'Pull Events (AD + Entra + Google)', or click 'View Event Guide' to browse all deciphered Windows AD, Entra ID, and Google Workspace security event codes and recommended actions."
+        $txtEventDecision.SelectAll()
+        $txtEventDecision.SelectionBackColor = $txtEventDecision.BackColor
+        $txtEventDecision.SelectionColor = $txtEventDecision.ForeColor
+        $txtEventDecision.Select(0, 0)
     }
 }
 
@@ -10774,6 +13280,8 @@ function Render-SecurityEventsGrid {
     $script:filteredEvents = @()
     $srcFilter = $(if ($cmbEventSourceFilter -and $cmbEventSourceFilter.SelectedIndex -gt 0) { [string]$cmbEventSourceFilter.SelectedItem } else { "All Sources" })
     $sevFilter = $(if ($cmbEventSeverityFilter -and $cmbEventSeverityFilter.SelectedIndex -gt 0) { [string]$cmbEventSeverityFilter.SelectedItem } else { "All Severities" })
+    $searchQ = $(if ($txtEventSearch -and -not [string]::IsNullOrWhiteSpace($txtEventSearch.Text)) { $txtEventSearch.Text.Trim() } else { "" })
+    $script:activeEventSearchTerm = $searchQ
 
     $critCount = 0
     $warnCount = 0
@@ -10784,6 +13292,10 @@ function Render-SecurityEventsGrid {
 
         if ($srcFilter -ne "All Sources" -and $ev.Source -ne $srcFilter) { continue }
         if ($sevFilter -ne "All Severities" -and $ev.Severity -ne $sevFilter) { continue }
+        if (-not [string]::IsNullOrWhiteSpace($searchQ)) {
+            $hay = "$($ev.Timestamp) $($ev.Source) $($ev.EventCode) $($ev.Severity) $($ev.HostOrIP) $($ev.Meaning) $($ev.Decision) $($ev.RawDetail)"
+            if ($hay.IndexOf($searchQ, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) { continue }
+        }
 
         $script:filteredEvents += $ev
         $rIdx = $gridEvents.Rows.Add()
@@ -10807,29 +13319,86 @@ function Render-SecurityEventsGrid {
         }
     }
     $lblEventStats.Text = "Showing $($script:filteredEvents.Count) of $($script:allPulledEvents.Count) event(s) | CRITICAL: $critCount | WARNING: $warnCount. Click any row to decipher."
+    if ($gridEvents) {
+        $gridEvents.Invalidate()
+        if ($gridEvents.Rows.Count -gt 0 -and ($null -eq $gridEvents.SelectedRows -or $gridEvents.SelectedRows.Count -eq 0)) {
+            $gridEvents.Rows[0].Selected = $true
+        } elseif ($gridEvents.Rows.Count -eq 0 -and $txtEventDecision -and $script:allPulledEvents.Count -gt 0) {
+            $txtEventDecision.Text = "No security events match '$searchQ'."
+        }
+    }
+    Update-EventDecisionDetailBox
 }
 
 $cmbEventSourceFilter.Add_SelectedIndexChanged({ Render-SecurityEventsGrid })
 $cmbEventSeverityFilter.Add_SelectedIndexChanged({ Render-SecurityEventsGrid })
+$txtEventSearch.Add_TextChanged({ Render-SecurityEventsGrid })
+
+$gridEvents.Add_CellPainting({
+    param($sender, $e)
+    try {
+        if ($e.RowIndex -lt 0 -or $e.ColumnIndex -lt 1 -or $e.ColumnIndex -gt 5) { return }
+        $q = $script:activeEventSearchTerm
+        if ([string]::IsNullOrWhiteSpace($q)) { return }
+        $cellText = [string]$e.FormattedValue
+        if ([string]::IsNullOrEmpty($cellText)) { return }
+        if ($cellText.IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) { return }
+
+        $e.PaintBackground($e.CellBounds, $true)
+        $isSelected = (($e.State -band [System.Windows.Forms.DataGridViewElementStates]::Selected) -eq [System.Windows.Forms.DataGridViewElementStates]::Selected)
+        $baseFore = $(if ($isSelected) { $e.CellStyle.SelectionForeColor } else { $e.CellStyle.ForeColor })
+        $hiBack = [System.Drawing.Color]::FromArgb(253, 224, 71)
+        $hiFore = [System.Drawing.Color]::FromArgb(15, 23, 42)
+        $fontUse = $(if ($e.CellStyle.Font) { $e.CellStyle.Font } else { $gridEvents.Font })
+        $flags = [System.Windows.Forms.TextFormatFlags]::NoPadding -bor [System.Windows.Forms.TextFormatFlags]::NoPrefix
+
+        $clipRect = New-Object System.Drawing.Rectangle(($e.CellBounds.X + 4), ($e.CellBounds.Y + 2), [Math]::Max(4, $e.CellBounds.Width - 8), [Math]::Max(4, $e.CellBounds.Height - 4))
+        $gState = $e.Graphics.Save()
+        try {
+            $e.Graphics.SetClip($clipRect)
+
+            $lineH = [System.Windows.Forms.TextRenderer]::MeasureText($e.Graphics, "Ag", $fontUse, [System.Drawing.Size]::new(32767, 32767), $flags).Height
+            $drawY = $e.CellBounds.Y + [Math]::Max(2, [int](($e.CellBounds.Height - $lineH) / 2))
+            $curX = $e.CellBounds.X + 4
+            $pos = 0
+            $qLen = $q.Length
+
+            while ($pos -lt $cellText.Length) {
+                $hit = $cellText.IndexOf($q, $pos, [System.StringComparison]::OrdinalIgnoreCase)
+                if ($hit -lt 0) {
+                    $tail = $cellText.Substring($pos)
+                    if ($tail.Length -gt 0) {
+                        [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, $tail, $fontUse, [System.Drawing.Point]::new($curX, $drawY), $baseFore, $flags)
+                    }
+                    break
+                }
+                if ($hit -gt $pos) {
+                    $prefix = $cellText.Substring($pos, $hit - $pos)
+                    $preSz = [System.Windows.Forms.TextRenderer]::MeasureText($e.Graphics, $prefix, $fontUse, [System.Drawing.Size]::new(32767, 32767), $flags)
+                    [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, $prefix, $fontUse, [System.Drawing.Point]::new($curX, $drawY), $baseFore, $flags)
+                    $curX += $preSz.Width
+                }
+                $matchTxt = $cellText.Substring($hit, $qLen)
+                $matSz = [System.Windows.Forms.TextRenderer]::MeasureText($e.Graphics, $matchTxt, $fontUse, [System.Drawing.Size]::new(32767, 32767), $flags)
+                $hiBrush = New-Object System.Drawing.SolidBrush($hiBack)
+                try {
+                    $e.Graphics.FillRectangle($hiBrush, $curX, $drawY, [Math]::Max(2, $matSz.Width), [Math]::Max(10, $matSz.Height))
+                } finally {
+                    $hiBrush.Dispose()
+                }
+                [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, $matchTxt, $fontUse, [System.Drawing.Point]::new($curX, $drawY), $hiFore, $flags)
+                $curX += $matSz.Width
+                $pos = $hit + $qLen
+            }
+        } finally {
+            $e.Graphics.Restore($gState)
+        }
+        $e.Handled = $true
+    } catch {}
+})
 
 $gridEvents.Add_SelectionChanged({
-    try {
-        if ($null -eq $gridEvents.SelectedRows -or $gridEvents.SelectedRows.Count -le 0) { return }
-        $selRow = $gridEvents.SelectedRows[0]
-        if ($null -eq $selRow) { return }
-        $idx = $selRow.Index
-        if ($idx -ge 0 -and $idx -lt $script:filteredEvents.Count) {
-            $ev = $script:filteredEvents[$idx]
-            if ($null -ne $ev) {
-                $nl = [System.Environment]::NewLine
-                $txtEventDecision.Text = "EVENT CODE   : [$($ev.Source)] $($ev.EventCode)  |  SEVERITY: $($ev.Severity)  |  TIME: $($ev.Timestamp)$nl" +
-                                         "HOST / IP    : $($ev.HostOrIP)$nl" +
-                                         "WHAT IT MEANS: $($ev.Meaning)$nl" +
-                                         "RECOMMENDED DECISION: $($ev.Decision)$nl" +
-                                         "RAW TELEMETRY: $($ev.RawDetail)"
-            }
-        }
-    } catch {}
+    Update-EventDecisionDetailBox
 })
 
 $btnPullSecurityEvents.Add_Click({
@@ -11247,7 +13816,7 @@ function Apply-AppTheme {
     $tabEvents.BackColor = $bgForm
     $tabAudit.BackColor = $bgForm
 
-    $allGrps = @($grpSearch, $grpIdentity, $grpActions, $grpLog, $grpDiagProfile, $grpDiagStatus, $grpDiagActions, $grpDiagGuide, $grpLockHeader, $grpExtControls, $grpRulesAudit, $grpEventHeader, $grpEventDecision)
+    $allGrps = @($grpSearch, $grpIdentity, $grpActions, $grpLog, $grpDiagProfile, $grpDiagStatus, $grpDiagActions, $grpCredHealth, $grpDiagGuide, $grpLockHeader, $grpExtControls, $grpRulesAudit, $grpEventHeader, $grpEventDecision)
     foreach ($grp in $allGrps) {
         if ($grp) {
             $grp.BackColor = $bgCard
@@ -11258,6 +13827,9 @@ function Apply-AppTheme {
     if ($lblDiagProfile) { $lblDiagProfile.ForeColor = $fgLabel }
     if ($cmbDiagProfile) { $cmbDiagProfile.BackColor = $bgInput; $cmbDiagProfile.ForeColor = $fgText }
     if ($lblDiagGuide) { $lblDiagGuide.ForeColor = $fgLabel }
+    if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) {
+        Refresh-CredHealthPanelSafe
+    }
 
     if ($headerPanel) {
         $headerPanel.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
@@ -11289,9 +13861,16 @@ function Apply-AppTheme {
     if ($cmbAuditStatus) { $cmbAuditStatus.BackColor = $bgInput; $cmbAuditStatus.ForeColor = $fgText }
     if ($cmbEventSourceFilter) { $cmbEventSourceFilter.BackColor = $bgInput; $cmbEventSourceFilter.ForeColor = $fgText }
     if ($cmbEventSeverityFilter) { $cmbEventSeverityFilter.BackColor = $bgInput; $cmbEventSeverityFilter.ForeColor = $fgText }
+    if ($txtEventSearch) { $txtEventSearch.BackColor = $bgInput; $txtEventSearch.ForeColor = $fgText }
     if ($txtLog) { $txtLog.BackColor = $bgLogBox; $txtLog.ForeColor = $fgLogBox }
     if ($txtRuleDecision) { $txtRuleDecision.BackColor = $bgLogBox; $txtRuleDecision.ForeColor = $fgLogBox }
-    if ($txtEventDecision) { $txtEventDecision.BackColor = $bgLogBox; $txtEventDecision.ForeColor = $fgLogBox }
+    if ($txtEventDecision) {
+        $txtEventDecision.BackColor = $bgLogBox
+        $txtEventDecision.ForeColor = $fgLogBox
+        if (Get-Command Update-EventDecisionDetailBox -ErrorAction SilentlyContinue) {
+            Update-EventDecisionDetailBox
+        }
+    }
 
     if ($lblIdName) { $lblIdName.ForeColor = $fgText }
     if ($lblIdDept) { $lblIdDept.ForeColor = $fgLabel }
@@ -11302,6 +13881,7 @@ function Apply-AppTheme {
     if ($lblLockdownADMeta) { $lblLockdownADMeta.ForeColor = $fgSub }
     if ($lblWksRestrict) { $lblWksRestrict.ForeColor = $fgLabel }
     if ($lblEventsTarget) { $lblEventsTarget.ForeColor = $fgText }
+    if ($lblEventSearch) { $lblEventSearch.ForeColor = $fgLabel }
     if ($lblEventStats) { $lblEventStats.ForeColor = $fgSub }
 
     $metricPanels = @($pnlCardPass, $pnlCard365, $pnlCardGoogle, $pnlCardAcct)
@@ -11328,7 +13908,7 @@ function Apply-AppTheme {
         Update-IntegrationAlertBanner
     }
 
-    $testBtns = @($btnDiagNewProfile, $btnDiagManageProfiles, $btnTestAD, $btnTestM365, $btnTestGoogle, $btnSwitchGraphAcct, $btnSwitchGamAcct, $btnSwitchAdAcct, $btnRefreshAudit, $btnExportAudit, $btnOpenAuditFolder, $btnViewAuditDetail, $btnClearAuditFilter, $btnRefreshUserSessions, $btnClearRules, $btnLoadReferenceCatalog, $btnRestorePulledEvents, $btnClearEvents)
+    $testBtns = @($btnDiagNewProfile, $btnDiagManageProfiles, $btnTestAD, $btnTestM365, $btnTestGoogle, $btnSwitchGraphAcct, $btnSwitchGamAcct, $btnSwitchAdAcct, $btnManageSavedCred, $btnRefreshAudit, $btnExportAudit, $btnOpenAuditFolder, $btnViewAuditDetail, $btnClearAuditFilter, $btnRefreshUserSessions, $btnClearRules, $btnLoadReferenceCatalog, $btnRestorePulledEvents, $btnClearEvents)
     foreach ($b in $testBtns) {
         if ($b) {
             $b.BackColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(241, 245, 249) })
@@ -11362,6 +13942,7 @@ function Apply-AppTheme {
         $btnGitHub.FlatAppearance.BorderColor = $(if ($Dark) { [System.Drawing.Color]::FromArgb(71, 85, 105) } else { [System.Drawing.Color]::FromArgb(148, 163, 184) })
         $btnGitHub.Invalidate()
     }
+    Update-HeaderMasterPassphraseButtonState
 }
 
 $btnThemeToggle.Add_Click({
@@ -11493,6 +14074,74 @@ $form.Add_Resize({
     Update-ResponsiveLayout
 })
 
+function Invoke-StartupUnifiedPreflightSafe {
+    param([bool]$AutoConnected = $false)
+    if ($null -eq $form -or $form.IsDisposed) { return }
+    $unlinkedIntegrations = [System.Collections.Generic.List[string]]::new()
+
+    # 1. Verify Active Directory Connectivity (using auto-connected profile/credential when available)
+    $adCheck = Invoke-VerifyAD -QuickStartup
+    if ($adCheck.Verified) {
+        $script:targetDomain = $adCheck.Domain
+        Update-HeaderSubLabelSafe
+        $lblStatusAD.Text = "Active Directory: VERIFIED ($($adCheck.Domain) via $($adCheck.Engine))"
+        $lblStatusAD.ForeColor = [System.Drawing.Color]::FromArgb(21, 128, 61)
+        Write-AppLog "Pre-Flight [1/3]: Active Directory [VERIFIED: $($adCheck.Domain) ($($adCheck.Engine))]" "SUCCESS"
+    } else {
+        $lblStatusAD.Text = "Active Directory: NOT CONNECTED ($($adCheck.Error))"
+        $lblStatusAD.ForeColor = [System.Drawing.Color]::FromArgb(217, 119, 6)
+        Update-HeaderSubLabelSafe
+        if ($script:targetDomain) {
+            Write-AppLog "Pre-Flight [1/3]: Loaded profile '$($script:activeProfile.Name)' domain '$($script:targetDomain)' (Admin: '$($script:adminAccount)'). Password authentication or saved vault required. Open Tab 1 and click 'Switch AD Account / Domain'." "INFO"
+        } else {
+            Write-AppLog "Pre-Flight [1/3]: Active Directory not connected ($($adCheck.Error)). Open Tab 1 ('1. Setup') and click 'Switch AD Account / Domain'." "WARN"
+        }
+        $unlinkedIntegrations.Add("Active Directory: $($adCheck.Error)")
+    }
+    [System.Windows.Forms.Application]::DoEvents()
+
+    # 2. Verify Microsoft Graph SDK & Scopes
+    $graphCheck = Invoke-VerifyGraph -QuickStartup
+    if ($graphCheck.Verified) {
+        $lblStatusGraph.Text = "Microsoft Graph SDK & Auth: VERIFIED ($($graphCheck.Account))"
+        $lblStatusGraph.ForeColor = [System.Drawing.Color]::FromArgb(21, 128, 61)
+        Write-AppLog "Pre-Flight [2/3]: Microsoft Graph [VERIFIED: $($graphCheck.Account)]" "SUCCESS"
+    } else {
+        $lblStatusGraph.Text = "Microsoft Graph SDK & Auth: NOT VERIFIED ($($graphCheck.Error))"
+        $lblStatusGraph.ForeColor = [System.Drawing.Color]::FromArgb(217, 119, 6)
+        Write-AppLog "Pre-Flight [2/3]: Microsoft Graph not ready: $($graphCheck.Error)" "WARN"
+        $unlinkedIntegrations.Add("Microsoft Graph (365/Entra): $($graphCheck.Error)")
+    }
+    [System.Windows.Forms.Application]::DoEvents()
+
+    # 3. Verify GAM7 Installation & Google OAuth
+    $gamCheck = Invoke-VerifyGAM -QuickStartup
+    if ($gamCheck.Verified) {
+        $lblStatusGAM.Text = "Google Apps Manager (GAM7): VERIFIED (v$($gamCheck.Version) & OAuth Ready)"
+        $lblStatusGAM.ForeColor = [System.Drawing.Color]::FromArgb(21, 128, 61)
+        Write-AppLog "Pre-Flight [3/3]: Google GAM7 [VERIFIED: v$($gamCheck.Version) at $($gamCheck.Executable)]" "SUCCESS"
+    } else {
+        $lblStatusGAM.Text = "Google Apps Manager (GAM7): NOT VERIFIED ($($gamCheck.Error))"
+        $lblStatusGAM.ForeColor = [System.Drawing.Color]::FromArgb(217, 119, 6)
+        Write-AppLog "Pre-Flight [3/3]: Google GAM7 not ready: $($gamCheck.Error)" "WARN"
+        $unlinkedIntegrations.Add("Google Workspace (GAM7): $($gamCheck.Error)")
+    }
+
+    if (Get-Command Update-IntegrationAlertBanner -ErrorAction SilentlyContinue) {
+        Update-IntegrationAlertBanner
+    }
+    if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) {
+        Refresh-CredHealthPanelSafe
+    }
+
+    if ($unlinkedIntegrations.Count -gt 0) {
+        Write-AppLog "NOTICE: $($unlinkedIntegrations.Count) integration(s) not ready. Use Tab 1 ('1. Setup') to link accounts or switch Domain Profiles." "WARN"
+        $tabControl.SelectedTab = $tabDiag
+    } else {
+        Write-AppLog "All 3 integrations verified (Active Directory, Microsoft Graph, Google GAM7). Ready on Tab 1 ('1. Setup') - switch to Tab 2 ('2. Containment') whenever ready to look up a user." "SUCCESS"
+    }
+}
+
 # Pre-Flight Checks run asynchronously via WinForms Timer after window renders
 $form.Add_Shown({
     $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
@@ -11515,85 +14164,36 @@ $form.Add_Shown({
 
     Apply-AppTheme $true
     Load-AuditGrid
-    Write-AppLog "Incident Response Automator GUI loaded. Running Pre-Flight Verification..." "INFO"
+
+    # Application-Wide Master Passphrase Gate BEFORE any domain probing or auto-login
+    $mvGate = Get-GlobalMasterVaultMetaSafe
+    if ($mvGate.Enabled) {
+        $unlockedGate = Show-StartupMasterPassphraseGateSafe -OwnerForm $form
+        if (-not $unlockedGate) {
+            $script:masterGateFailedClose = $true
+            $form.Close()
+            return
+        }
+    }
+
+    Write-AppLog "Incident Response Automator GUI loaded. Probing current network & running Pre-Flight Verification..." "INFO"
     $form.Refresh()
     [System.Windows.Forms.Application]::DoEvents()
 
     Hide-ConsoleWindowSafe
 
+    if ($script:domainProfilesData -and (-not [bool]$script:domainProfilesData.PrimaryConfigured) -and ($null -eq (Get-PrimaryDomainProfileSafe))) {
+        Show-PrimaryProfilePromptSafe -OwnerForm $form
+    }
+
     $script:startupTimer = New-Object System.Windows.Forms.Timer
-    $script:startupTimer.Interval = 150
+    $script:startupTimer.Interval = 120
     $script:startupTimer.Add_Tick({
         $script:startupTimer.Stop()
         $script:startupTimer.Dispose()
-
-        $unlinkedIntegrations = [System.Collections.Generic.List[string]]::new()
-
-        # 1. Verify Active Directory Connectivity
-        $adCheck = Invoke-VerifyAD -QuickStartup
-        if ($adCheck.Verified) {
-            $script:targetDomain = $adCheck.Domain
-            Update-HeaderSubLabelSafe
-            $lblStatusAD.Text = "Active Directory: VERIFIED ($($adCheck.Domain) via $($adCheck.Engine))"
-            $lblStatusAD.ForeColor = [System.Drawing.Color]::FromArgb(21, 128, 61)
-            Write-AppLog "Pre-Flight [1/3]: Active Directory [VERIFIED: $($adCheck.Domain) ($($adCheck.Engine))]" "SUCCESS"
-        } else {
-            $lblStatusAD.Text = "Active Directory: NOT CONNECTED ($($adCheck.Error))"
-            $lblStatusAD.ForeColor = [System.Drawing.Color]::FromArgb(217, 119, 6)
-            Update-HeaderSubLabelSafe
-            if ($script:targetDomain) {
-                Write-AppLog "Pre-Flight [1/3]: Loaded profile '$($script:activeProfile.Name)' domain '$($script:targetDomain)' (Admin: '$($script:adminAccount)'). Password authentication required. Open Tab 1 and click 'Switch AD Account / Domain' to connect." "INFO"
-            } else {
-                Write-AppLog "Pre-Flight [1/3]: Active Directory not connected ($($adCheck.Error)). Open Tab 1 ('1. Setup') and click 'Switch AD Account / Domain'." "WARN"
-            }
-            $unlinkedIntegrations.Add("Active Directory: $($adCheck.Error)")
-        }
-        [System.Windows.Forms.Application]::DoEvents()
-
-        # 2. Verify Microsoft Graph SDK & Scopes
-        $graphCheck = Invoke-VerifyGraph -QuickStartup
-        if ($graphCheck.Verified) {
-            $lblStatusGraph.Text = "Microsoft Graph SDK & Auth: VERIFIED ($($graphCheck.Account))"
-            $lblStatusGraph.ForeColor = [System.Drawing.Color]::FromArgb(21, 128, 61)
-            Write-AppLog "Pre-Flight [2/3]: Microsoft Graph [VERIFIED: $($graphCheck.Account)]" "SUCCESS"
-        } else {
-            $lblStatusGraph.Text = "Microsoft Graph SDK & Auth: NOT VERIFIED ($($graphCheck.Error))"
-            $lblStatusGraph.ForeColor = [System.Drawing.Color]::FromArgb(217, 119, 6)
-            Write-AppLog "Pre-Flight [2/3]: Microsoft Graph not ready: $($graphCheck.Error)" "WARN"
-            $unlinkedIntegrations.Add("Microsoft Graph (365/Entra): $($graphCheck.Error)")
-        }
-        [System.Windows.Forms.Application]::DoEvents()
-
-        # 3. Verify GAM7 Installation & Google OAuth
-        $gamCheck = Invoke-VerifyGAM -QuickStartup
-        if ($gamCheck.Verified) {
-            $lblStatusGAM.Text = "Google Apps Manager (GAM7): VERIFIED (v$($gamCheck.Version) & OAuth Ready)"
-            $lblStatusGAM.ForeColor = [System.Drawing.Color]::FromArgb(21, 128, 61)
-            Write-AppLog "Pre-Flight [3/3]: Google GAM7 [VERIFIED: v$($gamCheck.Version) at $($gamCheck.Executable)]" "SUCCESS"
-        } else {
-            $lblStatusGAM.Text = "Google Apps Manager (GAM7): NOT VERIFIED ($($gamCheck.Error))"
-            $lblStatusGAM.ForeColor = [System.Drawing.Color]::FromArgb(217, 119, 6)
-            Write-AppLog "Pre-Flight [3/3]: Google GAM7 not ready: $($gamCheck.Error)" "WARN"
-            $unlinkedIntegrations.Add("Google Workspace (GAM7): $($gamCheck.Error)")
-        }
-
-        if (Get-Command Update-IntegrationAlertBanner -ErrorAction SilentlyContinue) {
-            Update-IntegrationAlertBanner
-        }
-
-        if ($unlinkedIntegrations.Count -gt 0) {
-            Write-AppLog "NOTICE: $($unlinkedIntegrations.Count) integration(s) not ready. Use Tab 1 ('1. Setup') to link accounts or switch Domain Profiles." "WARN"
-            $tabControl.SelectedTab = $tabDiag
-        } else {
-            Write-AppLog "All 3 integrations verified. Opening Tab 2 ('2. Containment'). Enter at least 3 characters above and click 'Find Users'." "SUCCESS"
-            $tabControl.SelectedTab = $tabIncident
-        }
-
-        if ($script:domainProfilesData -and (-not [bool]$script:domainProfilesData.PrimaryConfigured) -and ($null -eq (Get-PrimaryDomainProfileSafe))) {
-            Show-PrimaryProfilePromptSafe -OwnerForm $form
-            if ($tabControl -and $script:activeProfile -and (-not [bool]$script:activeProfile.IsDefault)) {
-                $tabControl.SelectedTab = $tabDiag
-            }
+        Start-StartupADAutoConnectAsync -OnDiscoveryComplete {
+            param($autoConnected)
+            Invoke-StartupUnifiedPreflightSafe -AutoConnected:([bool]$autoConnected)
         }
     })
     $script:startupTimer.Start()
@@ -11602,6 +14202,7 @@ $form.Add_Shown({
 
 $form.Add_FormClosing({
     Stop-StartupUpdateCheckAsync
+    Stop-StartupADAutoConnectAsync
 })
 
 try {

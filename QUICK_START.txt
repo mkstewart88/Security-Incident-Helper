@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.58)
+SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.62)
 ================================================================================
 
 Security Incident Response Automator can be launched or compiled in seconds
@@ -29,8 +29,18 @@ To package the script and its embedded setup scripts into a single standalone bi
    into "IncidentResponse.exe" using PS2EXE.
 
 --------------------------------------------------------------------------------
-4. PRE-FLIGHT INTEGRATION SETUP & DOMAIN PROFILES
+4. PRE-FLIGHT INTEGRATION SETUP, DOMAIN PROFILES & MASTER PASSPHRASE
 --------------------------------------------------------------------------------
+- Global Master Passphrase (Optional): Click "Master Passphrase" in the top-right
+  header (to the right of the GitHub icon) to set an app-wide passphrase across
+  all saved Domain Profiles, change it (requires current passphrase), "Remove
+  Passphrase" (requires current passphrase + confirms why to keep one while
+  keeping saved creds), or break-glass "Remove Passphrase & All Creds" (no
+  passphrase needed if forgotten; wipes all saved creds back to default).
+- Automatic Plugged-In Domain Detection: On startup, the console detects any
+  configured domain reachable on your active network (even on non-joined PCs),
+  switches to its Domain Profile, unlocks saved DPAPI AD credentials, and logs
+  into Active Directory + Microsoft Graph + Google GAM7 automatically on Tab 1.
 - On first launch, if no Primary Domain Profile is configured yet, choose
   whether this environment is your Primary (Home) Domain Profile or if you are
   temporarily assisting another domain.
@@ -38,9 +48,7 @@ To package the script and its embedded setup scripts into a single standalone bi
   Microsoft Graph, and Google Workspace (GAM7), and run the 1-click setup
   scripts if any modules or CLI tools need to be installed.
 - Use "Switch Graph Account", "Switch GAM Account", or "Switch AD Account /
-  Domain" on Tab 1 when using separate elevated admin accounts.
-- For multi-domain environments, use the Tab 1 Profile bar ("Switch Profile",
-  "+ New Profile", "Manage / AD...") or "Switch AD Account / Domain" to
-  create/switch isolated Domain Profiles or run "Switch Cloud Only (Skip AD)"
-  when off-VPN.
+  Domain" on Tab 1 when using separate elevated admin accounts, or use
+  "Validate Credential Health" and "Detect Network & Auto-Connect" on Tab 1
+  for zero-lockout AD diagnostics.
 ================================================================================

@@ -26,9 +26,10 @@ To package the script and its embedded setup scripts into a single standalone bi
 
 ---
 
-## 4. Pre-Flight Integration Setup & Domain Profiles
+## 4. Pre-Flight Integration Setup, Domain Profiles & Master Passphrase
+* **Global Master Passphrase (Optional):** Click **`Master Passphrase`** in the top-right header (to the right of the GitHub icon) to set an app-wide passphrase across all saved Domain Profiles, change it (requires current passphrase), **Remove Passphrase** (requires current passphrase + confirms why you should keep one while keeping saved credentials), or run break-glass **Remove Passphrase & All Creds** (no passphrase needed if forgotten; wipes all saved credentials back to default). When configured, opening the console prompts for the passphrase (closing automatically after 2 failed attempts); when unset, the console skips the prompt and auto-connects immediately while staying on Tab 1.
+* **Automatic Plugged-In Domain Detection & Login:** On launch, the automator detects reachable domains on your active network adapter (even if the PC is not domain-joined), switches to the matching Domain Profile, unlocks its saved DPAPI AD credentials, and automatically connects **Active Directory + Microsoft Graph + Google GAM7**.
 * On first launch, if no **Primary Domain Profile** is set yet, choose whether this environment is your **Primary (Home) Domain Profile** or if you are temporarily assisting another domain (keeping your Primary slot clean until you return home).
 * Open **Tab 1 (`1. Setup`)** to verify connectivity with Active Directory, Microsoft Graph, and Google Workspace (GAM7), and run the 1-click setup scripts if modules or CLI tools need to be installed.
-* Use **Switch Graph Account**, **Switch GAM Account**, or **Switch AD Account / Domain** on Tab 1 for separate elevated admin accounts (WAM disabled for Graph).
-* Supporting multiple domains or tenants? Use the Tab 1 **Profile** bar (**Switch Profile**, **+ New Profile**, **Manage / AD...**) or **Switch AD Account / Domain** to create and switch isolated Domain Profiles, or choose **Switch Cloud Only (Skip AD)** when off-VPN.
+* Use **Switch Graph Account**, **Switch GAM Account**, or **Switch AD Account / Domain** on Tab 1 for separate elevated admin accounts (WAM disabled for Graph), and use **Validate Credential Health** or **Detect Network & Auto-Connect** for zero-lockout diagnostics (or **Switch Cloud Only (Skip AD)** when off-VPN).
 

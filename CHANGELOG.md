@@ -6,6 +6,59 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.62] - 2026-11-18
+
+### Added & Improved
+- **Reliable Startup Unjoined-Domain Auto-Detect & Unified AD + Graph + GAM7 Login (`Start-StartupADAutoConnectAsync` / `Invoke-StartupUnifiedPreflightSafe`):**
+  - Fixed a WinForms `Timer.Add_Tick` script-scope closure issue in `Start-StartupADAutoConnectAsync` by elevating completion handling to `Invoke-ApplyStartupDiscoveryResultSafe`.
+  - On launch, the automator probes all configured Domain Profiles in parallel (prioritizing plugged-in active NIC DNS suffixes even on non-domain-joined workstations), silently unseals the matching profile's DPAPI-encrypted AD credentials, connects to Active Directory (`$script:targetDomain` / `$script:adSessionCred`), and runs `Invoke-StartupUnifiedPreflightSafe` to automatically initialize **Active Directory**, **Microsoft Graph**, and **Google GAM7** together while **remaining cleanly on Tab 1 (`1. Setup`)**.
+- **Global Application-Wide `Master Passphrase` Button & 2-Attempt Startup Security Gate (`Show-MasterPassphraseDialogSafe` / `Show-StartupMasterPassphraseGateSafe`):**
+  - **Top-Right Header Placement:** Added the **`Master Passphrase`** button immediately to the right of the GitHub button in the top-right header (`$btnMasterPassphrase` in `IncidentResponse-Automator.ps1`; `Master Passphrase` button + modal in `src/App.tsx` and `MasterPassphraseModal.tsx`).
+  - **Streamlined Global Passphrase Management:** Replaced per-profile vault passphrase checkboxes with a single optional application-wide Master Passphrase covering all Domain Profiles:
+    - **Set / Change:** Configure a new passphrase or update it (requires current passphrase), re-encrypting all saved profile vaults.
+    - **`Remove Passphrase`:** Requires verifying the current passphrase and presents a detailed confirmation warning explaining both what happens (saved vaults revert to machine/user-only DPAPI `CurrentUser` / device Web CryptoKey without a startup prompt) and why you should keep a passphrase protecting Domain Admin credentials.
+    - **`Remove Passphrase & All Creds` (Break-Glass Reset):** Does **not** require the current passphrase—intended for emergency use if forgotten—and presents a full confirmation warning explaining that proceeding permanently wipes all stored AD credentials across every profile and resets saved vault state back to default.
+  - **2-Attempt Startup Gate:** When a Master Passphrase is enabled, opening the application prompts immediately before any domain probing or login; attempt #1 wrong entry warns (`1 attempt remaining before the application closes`), and attempt #2 failure (or Cancel/Exit) cleanly closes the console. When no passphrase is configured, the console opens and auto-connects directly.
+
+## [1.1.61] - 2026-11-18
+
+### Added & Improved
+- **Event Triage Full Search & Highlighting Across Results and Clicked Log Details (Tab 4 / Companion UI):**
+  - **Expanded Search Scope:** Typing into the **Tab 4 (`4. Event Triage`)** search filter now matches across **both** the result grid columns (`Timestamp`, `Source`, `Event Code`, `Severity`, `Host/IP`, `Summary`) **and** the clicked log's detail fields (`Recommended Decision` / `Recommendation`, `What It Means`, and `Raw Telemetry`).
+  - **Result Columns & Clicked Log Detail Highlighting (`IncidentResponse-Automator.ps1`):** Expanded `$gridEvents.Add_CellPainting` across columns `1..5` (`Source`, `Code`, `Severity`, `Host/IP`, `Summary`) and upgraded `$txtEventDecision` to a `RichTextBox` (`DetectUrls = $false`) driven by `Update-EventDecisionDetailBox`, dynamically highlighting every match in both the table cells and the clicked log detail pane in real time (and preserving highlight spans across Dark/Light mode toggles).
+  - **Web Companion Full Highlighting (`src/lib/eventCatalog.ts` & `src/App.tsx`):** Updated `filterSecurityEvents` to include `recommendation` and `severity`, and applied `<HighlightedText>` across every table cell (`Source`, `Code`, `Severity`, `Summary`) and all clicked log detail fields (`Code`, `Summary`, `Meaning`, `Recommendation`).
+
+### Security
+- **Comprehensive Codebase Security Audit & Hardening:**
+  - **Sensitive Memory Buffer Scrubbing:** Zeroed raw DPAPI plaintext byte buffers (`[Array]::Clear`) and secret object strings immediately after `PSCredential` hydration (`Unprotect-ProfileADCredentialSafe`) and cleared client secret variables (`$secretText`, `$plainSecret`, `$tokenBody['client_secret']`) after token exchange in `Ensure-GraphMailboxAuditorAppSafe`.
+  - **Single-User NTFS ACLs for Graph Auditor Secret (`MailboxAuditorApp.json`):** Applied `Set-StrictUserFileAclSafe` when writing `MailboxAuditorApp.json`.
+  - **RFC 4515 LDAP Filter Escaping (`ConvertTo-LdapFilterValueSafe`):** Escaped `\`, `*`, `(`, `)`, and `\0` characters in exact-match `sAMAccountName` LDAP filters inside `Set-ADAccountEnableSafe`, `Set-ADExtendedLockdownSafe`, and `Get-UserSecurityEventsSafe`.
+  - **CSV Formula Injection Neutralization (`Format-CsvSafeField`):** Prefixed leading `=`, `+`, `-`, `@`, and tab characters with a leading single quote (`'`) to prevent spreadsheet DDE/formula execution on export.
+  - **Trusted HTTPS Updater & Link Guards:** Validated `refName` (`^[A-Za-z0-9._/-]+$`, no `..`) and restricted GitHub download URLs to `https://github.com/...` and `https://*.githubusercontent.com/...` in `Show-UpdateCheckWindow`, and enforced `https` URI validation before invoking `Start-Process` on `$txtLogUpd.Add_LinkClicked`.
+  - **Web Companion IndexedDB Key Cleanup:** Updated `CredentialHealthPanel` to delete the IndexedDB AES-GCM `CryptoKey` alongside encrypted vault ciphertext when the 1-strike circuit breaker purges rotated credentials.
+
+## [1.1.60] - 2026-11-18
+
+### Added & Improved
+- **Event Triage Catalog Dynamic Search Highlighting (Tab 4 / Companion UI):**
+  - **Dynamic Summary Highlighting:** Typing into the **Tab 4 (`4. Event Triage`)** search filter dynamically highlights all case-insensitive matched substrings directly within the **Summary** column (`Plain-English Meaning`) in real time, preserving original casing and escaping regex metacharacters cleanly across Dark Mode and Light Mode.
+  - **Windows Console Tab 4 Filter & GDI+ Cell Highlighting (`IncidentResponse-Automator.ps1`):** Added a live `$txtEventSearch` (`Filter:`) textbox to `$grpEventHeader` that filters pulled events and the built-in **View Event Guide** dictionary as you type (`Render-SecurityEventsGrid`), paired with custom GDI+ `CellPainting` match highlighting inside the Summary column (`colEvMeaning`).
+  - **Web Companion Filter Highlighting (`src/lib/eventCatalog.ts` & `src/App.tsx`):** Extracted pure `splitHighlightSegments` helper (with `node:test` coverage) and added live `<mark>` highlight rendering plus a one-click clear button inside Tab 4 Event Triage.
+
+## [1.1.59] - 2026-11-18
+
+### Added & Improved
+- **Encrypted Per-Profile Active Directory Credential Vault (`ad_cred.dpapi.json`):**
+  - **Machine & User Locked Persistence (Windows DPAPI `CurrentUser`):** Domain Admin credentials saved per Domain Profile are encrypted via `System.Security.Cryptography.ProtectedData` (`DataProtectionScope::CurrentUser`) with per-profile + per-user-SID entropy and locked with explicit current-user NTFS ACLs (`Set-StrictUserFileAclSafe`), so encrypted blobs only decrypt on the exact Windows workstation and user account where they were configured.
+  - **Optional Vault Master Passphrase Layer:** Supports wrapping the DPAPI vault with an additional user-defined Master Passphrase derived via PBKDF2 (150,000 iterations) + AES-256-CBC + HMAC-SHA256 authentication (`New-AesPassphraseEnvelopeSafe` / `Open-AesPassphraseEnvelopeSafe`).
+  - **Domain Switcher & Web Vault Companion:** Added save/passphrase/purge controls in `Show-DomainSwitcher`, plus a **Web Crypto API (`window.crypto.subtle`)** AES-GCM-256 + PBKDF2 SHA-256 / non-extractable local `CryptoKey` vault in the browser companion.
+- **Zero-Credential Network Domain Detection & Profile Auto-Connect:**
+  - Non-blocking background DNS SRV (`_ldap._tcp.dc._msdcs.<domain>`) + async 700ms TCP port `389`/`636` pre-checks (`Start-StartupADAutoConnectAsync` / `Test-ADDomainNetworkReachableSafe`) discover which configured Domain Profile is reachable on the current network without freezing the UI or sending any credentials when offline or on another network.
+  - Automatically switches to the matching reachable Domain Profile and connects AD using its saved vault (or integrated Windows auth) when safe.
+- **Tab 1 (`1. Setup`) Credential Health Diagnostic Panel & Zero-Lockout Circuit Breaker:**
+  - Added the **Credential Health & Encrypted AD Vault (`$grpCredHealth`)** diagnostic panel with **Validate Credential Health**, **Detect Network & Auto-Connect**, **Configure Saved AD Creds...**, and **Purge Saved Creds**.
+  - **Anti-Lockout Safeguards (`Invoke-ValidateStoredADCredentialHealthSafe`):** Maintains non-secret health metadata (`ad_cred_health.json`); when domain-joined to the target domain, checks AD `pwdLastSet`, `badPwdCount`, `lockoutTime`, and `lockoutThreshold` over ambient Windows Kerberos *before* ever binding with the stored password—auto-purging stale secrets with **0 failed logon attempts** if the password rotated. Enforces a strict **1-Strike Circuit Breaker** for cross-domain/remote targets so any rejected logon immediately wipes the local secret and prevents lockout loops on relaunch.
+
 ## [1.1.58] - 2026-11-17
 
 ### Changed & Improved

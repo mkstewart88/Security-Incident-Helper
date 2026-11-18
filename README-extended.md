@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.58](https://img.shields.io/badge/Version-1.1.58-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.62](https://img.shields.io/badge/Version-1.1.62-emerald.svg)](CHANGELOG.md)
 
 ### Exhaustive Architectural Specification & Control-by-Control Engineering Reference
 **Target Audience:** Cybersecurity Engineers, SOC Leads, Systems Architects, and Security Developers
@@ -97,11 +97,15 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 
 #### Update Status Button (`v<version>` / `Update Available`, `$btnCheckUpdates`) & `View Changelog` (`$btnViewChangelog`)
 * **Underlying Functions:** `Start-StartupUpdateCheckAsync`, `Get-GitHubUpdateStatusSafe`, `Update-HeaderUpdateButtonState`, `Show-UpdateCheckWindow`, `Show-ChangelogWindow`
-* **Mechanics:** On application load (`$form.Add_Shown`), `Start-StartupUpdateCheckAsync` launches a non-blocking background PowerShell runspace that calls `Get-GitHubUpdateStatusSafe` against GitHub Releases (`releases/latest`) with commit-SHA-busted `VERSION` fallback and UTF-8 byte decoding. `Update-HeaderUpdateButtonState` sets `$btnCheckUpdates` to **`v<version>`** (e.g., `v1.1.58`) when up to date or offline, or **`Update Available`** with theme-aware amber/gold highlight styling (preserved across Dark/Light mode changes by `Apply-AppTheme`) when a newer version is found. Clicking the button opens `Show-UpdateCheckWindow` with full **Check for Updates**, **View Changelog**, and **Update & Restart** (`.ps1` AST validation or local `PS2EXE` `IncidentResponse.exe` rebuild with `MZ` verification) functionality.
+* **Mechanics:** On application load (`$form.Add_Shown`), `Start-StartupUpdateCheckAsync` launches a non-blocking background PowerShell runspace that calls `Get-GitHubUpdateStatusSafe` against GitHub Releases (`releases/latest`) with commit-SHA-busted `VERSION` fallback and UTF-8 byte decoding. `Update-HeaderUpdateButtonState` sets `$btnCheckUpdates` to **`v<version>`** (e.g., `v1.1.62`) when up to date or offline, or **`Update Available`** with theme-aware amber/gold highlight styling (preserved across Dark/Light mode changes by `Apply-AppTheme`) when a newer version is found. Clicking the button opens `Show-UpdateCheckWindow` (enforcing trusted `github.com` / `githubusercontent.com` HTTPS download URLs and safe git ref validation) with full **Check for Updates**, **View Changelog**, and **Update & Restart** (`.ps1` AST validation or local `PS2EXE` `IncidentResponse.exe` rebuild with `MZ` verification) functionality.
 
 #### `GitHub Repository Shortcut` (`$btnGitHub`)
 * **Location:** Top-right header bar immediately to the right of `[ Light Mode ]` / `[ Dark Mode ]`.
 * **Mechanics:** Anti-aliased vector GitHub Octocat icon button (`Add_Paint`) that adapts to Dark and Light themes in `Apply-AppTheme` and opens `https://github.com/mkstewart88/Security-Incident-Helper` in the system browser on click.
+
+#### `Master Passphrase` (`$btnMasterPassphrase`, `Show-MasterPassphraseDialogSafe`, `Show-StartupMasterPassphraseGateSafe`)
+* **Location:** Top-right header bar immediately to the right of `$btnGitHub`.
+* **Mechanics:** Manages a single optional application-wide passphrase (`MasterVault.json`) layered atop Windows DPAPI `CurrentUser` for **all** saved Domain Profiles (PBKDF2 + AES-256-CBC + HMAC-SHA256). Users can **Set** a new passphrase, **Change** the passphrase (requires verifying the current passphrase), **`Remove Passphrase`** (`Remove-GlobalMasterPassphraseKeepCredsSafe`, requires verifying the current passphrase and shows a warning explaining what reverting to DPAPI-only does and why keeping a passphrase matters while retaining saved credentials), or use the emergency break-glass **`Remove Passphrase & All Creds`** button (`Remove-GlobalMasterPassphraseAndPurgeAllSafe`, requires **no** passphrase if forgotten, and warns clearly before wiping every `ad_cred.dpapi.json` / `ad_cred_health.json` across all profiles and resetting to default). When enabled, opening the application invokes `Show-StartupMasterPassphraseGateSafe` before any domain probing or login: attempt #1 mismatch shows an error (`1 attempt remaining`), and attempt #2 failure or Cancel closes the application cleanly. When unset, the console skips the gate and auto-connects directly.
 
 #### Domain Profile & AD Switcher (`Show-DomainSwitcher` via Tab 1 `Manage / AD...` & `Switch AD Account / Domain`) & Startup Prompt (`Show-PrimaryProfilePromptSafe`)
 * **Underlying Functions:** `Show-DomainSwitcher`, `Show-PrimaryProfilePromptSafe`, `Switch-ActiveDomainProfileSafe`
@@ -111,8 +115,8 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
     * **`Domain Profile Selector` (`$cmbProf`):** Lists configured profiles with `[Primary]` and `[Active]` badges persisted to `Profiles.json` under `%LOCALAPPDATA%\IncidentResponse-Automator` (with `%USERPROFILE%\.incident-response` backup).
     * **`+ New` (`$btnNewProf` -> `Show-NewDomainProfileModal`), `Set Primary` (`$btnSetPrimaryProf`), `Rename` (`$btnRenameProf`), `Delete` (`$btnDelProf`):** Creates, designates Primary, renames, or deletes isolated profiles stored under `%LOCALAPPDATA%\IncidentResponse-Automator\Profiles\<id>`.
     * **`Target AD Domain` (`$txtDlgServer`) & `Auto-Detect Domain` (`$btnAutoDetect`):** Runs `Get-DiscoveredLocalDomainSafe` to query local machine domain membership/DNS suffix, or accepts an explicit Domain FQDN or Domain Controller hostname/IP. Last connected domain hints persist to `LastDomainConnection.json`.
-    * **`Alternate Credentials` (`$chkUseAlt`, `$txtDlgUser`, `$txtDlgPass`):** Explicit AD credentials held exclusively in volatile memory as a `System.Management.Automation.PSCredential` object (passwords are never written to disk).
-    * **`Connect & Switch Profile` (`$btnConnect`):** Executes an LDAP RootDSE handshake against the specified domain/DC and activates the profile's isolated AD, Graph, and GAM7 context.
+    * **`Alternate Credentials & Encrypted DPAPI Vault` (`$chkUseAlt`, `$chkSaveCred`, `$btnPurgeDlgCred`):** Supports in-memory explicit credentials or hardware/user-locked persistence (`ad_cred.dpapi.json`) encrypted with `ProtectedData::Protect(..., DataProtectionScope::CurrentUser)` and strict single-user NTFS ACLs—automatically wrapped with the global `Master Passphrase` session key whenever configured in the top-right header.
+    * **`Connect & Switch Profile` (`$btnConnect`):** Executes an LDAP RootDSE handshake against the specified domain/DC, optionally seals the verified credential into the profile's DPAPI vault, and activates the profile's isolated AD, Graph, and GAM7 context.
     * **`Switch Cloud Only (Skip AD)` (`$btnCloudOnly`):** Switches the active profile's cloud directories (`GAMCFGDIR`, `IR_GRAPH_SETUP_DIR`, `MgContext.json`) without requiring on-premises Domain Controller reachability.
 
 ---
@@ -121,6 +125,11 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 
 #### Active Domain Profile Bar (`$cmbDiagProfile`, `$btnDiagSwitchProfile`, `$btnDiagNewProfile`, `$btnDiagManageProfiles`)
 * **Mechanics:** Places **Domain Profile** switching, creation (`+ New Profile`), and full AD/profile configuration (`Manage / AD...`) directly on Tab 1.
+
+#### Credential Health & Encrypted AD Vault (`$grpCredHealth` -> `Invoke-ValidateStoredADCredentialHealthSafe`, `Start-StartupADAutoConnectAsync`)
+* **Zero-Credential Network Domain Detection & Unified AD + Graph + GAM7 Auto-Connect (`Test-ADDomainNetworkReachableSafe`, `Start-StartupADAutoConnectAsync`, `Invoke-ApplyStartupDiscoveryResultSafe`, `Invoke-StartupUnifiedPreflightSafe`):** Inspects active NIC DNS suffixes (even on non-domain-joined workstations), resolves `_ldap._tcp.dc._msdcs.<domain>` DNS SRV records, and performs non-blocking async 700ms TCP `389`/`636` probes before touching authentication—never freezing offline workstations or spamming credentials to unreachable domains. When a configured profile's domain is reachable, startup automatically unlocks its DPAPI/Master-Passphrase vault and runs `Invoke-StartupUnifiedPreflightSafe` to connect **Active Directory + Microsoft Graph + Google GAM7** together while staying on **Tab 1 (`1. Setup`)**.
+* **Anti-Lockout Pre-Flight & 1-Strike Circuit Breaker:** Stores non-secret state in `ad_cred_health.json`; when domain-joined to the target domain, inspects `pwdLastSet`, `badPwdCount`, `lockoutTime`, and `lockoutThreshold` via ambient Kerberos before ever submitting the saved admin password (purging rotated secrets with `0` failed binds). For cross-domain/workgroup binds, enforces a 1-strike circuit breaker that zeroes and deletes `ad_cred.dpapi.json` immediately on any bad-credential error.
+* **Controls:** **`Validate Credential Health`** (`$btnValidateCredHealth`), **`Detect Network & Auto-Connect`** (`$btnAutoConnectProfile`), **`Configure Saved AD Creds...`** (`$btnManageSavedCred`), and **`Purge Saved Creds`** (`$btnPurgeSavedCred`).
 
 #### Service-Column Action Matrix (Columns 1–3)
 * **Column 1 — Active Directory (`X = 15`):**
@@ -226,6 +235,9 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 
 #### `View Event Guide` (`$btnLoadReferenceCatalog`) & `Show Pulled Events` (`$btnRestorePulledEvents`)
 * **Mechanics:** State-preserving view toggle. Loads the complete built-in security dictionary into `$gridEvents` for offline reference. Clicking **Show Pulled Events** restores the previously pulled query cache without initiating network traffic.
+
+#### Live Filter & Full Result / Detail Highlighting (`$txtEventSearch` / `CellPainting` / `Update-EventDecisionDetailBox`)
+* **Mechanics:** Typing into the **Filter:** textbox (`$txtEventSearch`) invokes `Render-SecurityEventsGrid` on every keystroke (`TextChanged`), filtering across `Timestamp`, `Source`, `EventCode`, `Severity`, `HostOrIP`, `Meaning`, `Decision`, and `RawDetail`. Custom GDI+ `CellPainting` highlights matched substrings across result columns `1..5` (`Source`, `Code`, `Severity`, `Host/IP`, `Summary`), while `Update-EventDecisionDetailBox` dynamically applies rich-text highlighting (`$txtEventDecision` `RichTextBox`, `DetectUrls = $false`) across every match inside the clicked log detail view (preserved on `SelectionChanged` and Dark/Light theme switches).
 
 ---
 

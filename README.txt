@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.58)
+SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.62)
 ================================================================================
 
 OVERVIEW:
@@ -66,14 +66,31 @@ STEP 2: DOMAIN PROFILES & SWITCHING TARGET DOMAINS
      "Switch AD Account / Domain" in Column 1).
   2. Select an existing Domain Profile or click "+ New" to create an isolated
      profile (AD, Graph, and GAM7 settings), "Set Primary", "Rename", or "Delete".
-  3. Click "Auto-Detect Domain" to query the local machine's primary domain, or
-     manually enter the target domain FQDN or Domain Controller IP/hostname.
+  3. Click "Auto-Detect Domain" to query the local machine's primary domain or
+     active NIC DNS suffix, or enter a target domain FQDN or DC IP/hostname.
   4. Check "Use alternate Domain Admin credentials" if authenticating with
-     another AD account or from a non-domain workstation (held in memory only).
-  5. Click "Connect & Switch Profile" to run an LDAP RootDSE handshake and switch,
+     another AD account or from a non-domain workstation. Optionally check
+     "Save AD credentials securely on this PC (DPAPI CurrentUser encrypted,
+     zero-lockout)" to enable automatic startup connection across AD, Graph,
+     and GAM7 whenever plugged into that network.
+  5. Optional Global Master Passphrase: Click "Master Passphrase" in the
+     top-right header (to the right of the GitHub button) to Set, Change
+     (requires current passphrase), "Remove Passphrase" (requires current
+     passphrase and explains what it does & why you should keep one while
+     keeping saved credentials under DPAPI CurrentUser), or break-glass
+     "Remove Passphrase & All Creds" (no passphrase required; warns and wipes
+     all saved AD credentials back to default if forgotten). If configured, the
+     console prompts at startup and closes cleanly after 2 failed attempts; if
+     unset, the app opens directly on Tab 1 and auto-connects AD + Graph + GAM7.
+  6. Click "Connect & Switch Profile" to run an LDAP RootDSE handshake and switch,
      or "Switch Cloud Only (Skip AD)" for off-VPN Graph/GAM triage.
-  6. On startup, the app automatically checks GitHub in the background and sets
-     the top-right header button to "v<version>" (e.g., v1.1.58) if up to date
+  7. Use the Tab 1 "Credential Health & Encrypted AD Vault" panel to run
+     "Validate Credential Health", "Detect Network & Auto-Connect" (uses
+     non-blocking DNS SRV + 700ms TCP 389/636 pre-checks and a 1-strike
+     anti-lockout circuit breaker), "Configure Saved AD Creds...", or
+     "Purge Saved Creds".
+  8. On startup, the app automatically checks GitHub in the background and sets
+     the top-right header button to "v<version>" (e.g., v1.1.62) if up to date
      or "Update Available" if a newer release exists. Click it anytime to run
      "Check for Updates", "View Changelog", or "Update & Restart" (auto-recompiles
      .exe when needed).
@@ -134,10 +151,16 @@ STEP 7: TRIAGING MULTI-SOURCE SECURITY EVENTS (TAB 4)
   1. Open Tab 4 ("4. Event Triage").
   2. Click "Pull Events (AD + Entra + Google)" to query Domain Controller security
      logs, Entra sign-in audit logs, and Google login reports.
-  3. Filter results by source or severity using the dropdown selectors.
-  4. Select any event to read its plain-English explanation and recommended decision.
-  5. Click "View Event Guide" to browse the complete built-in dictionary of
-     security event codes. Click "Show Pulled Events" to return to your query results.
+  3. Filter results by source or severity using the dropdown selectors, or type in
+     the live "Filter:" search box to search across both the result table
+     (Source, Event Code, Severity, Host/IP, Summary) and clicked log details
+     (Meaning, Recommended Decision, Raw Telemetry), dynamically highlighting
+     matching text in both the result rows and the clicked log detail box.
+  4. Select any event to read its highlighted plain-English explanation,
+     recommended decision, and raw telemetry.
+  5. Click "View Event Guide" to browse, filter, and highlight the complete
+     built-in dictionary of security event codes. Click "Show Pulled Events" to
+     return to query results.
 
 STEP 8: COMPLIANCE AUDIT TRAIL (TAB 5)
   1. Open Tab 5 ("5. Audit Trail").

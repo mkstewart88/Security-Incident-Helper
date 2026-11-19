@@ -2,63 +2,66 @@
 SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.69)
 ================================================================================
 
-Security Incident Response Automator can be launched or compiled in seconds
-on any Windows workstation or server.
+Get Security Incident Response Automator running on a Windows workstation or
+server in just a few minutes.
 
 --------------------------------------------------------------------------------
-1. QUICK LAUNCH (RECOMMENDED)
+1. PREREQUISITES
 --------------------------------------------------------------------------------
-1. Double-click "Launch-IncidentAutomator.bat" in Windows Explorer.
-   (Or run it from an elevated command prompt).
-2. The batch wrapper automatically unblocks execution, enforces Single-Threaded
-   Apartment (-STA) mode, and opens the 5-tab Windows Forms incident console.
+- OS & Runtime: Windows 10 (1809+), Windows 11, or Windows Server 2016+ with
+  Windows PowerShell 5.1 and .NET Framework 4.8+.
+- Permissions: Appropriate administrative privileges in Active Directory,
+  Microsoft Entra ID, and/or Google Workspace for your planned actions.
+- Network: Direct access to a Domain Controller (TCP 389/636) and outbound
+  HTTPS (TCP 443) for cloud operations.
 
 --------------------------------------------------------------------------------
-2. DIRECT POWERSHELL EXECUTION
+2. LAUNCH OR COMPILE
 --------------------------------------------------------------------------------
-If you prefer running the script directly from Windows PowerShell 5.1:
+Choose any of the three launch methods:
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\IncidentResponse-Automator.ps1
+- Option A (Recommended): Double-click "Launch-IncidentAutomator.bat".
+- Option B (PowerShell):
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\IncidentResponse-Automator.ps1
+- Option C (Standalone .exe): Double-click "Compile-To-EXE.cmd" to build a
+  portable IncidentResponse.exe.
+
+Security Note: Review IncidentResponse-Automator.ps1 and accompanying scripts
+before running them in production. See DISCLAIMER.md.
 
 --------------------------------------------------------------------------------
-3. COMPILE TO STANDALONE PORTABLE .EXE
+3. INITIAL SETUP (TAB 1: 1. SETUP)
 --------------------------------------------------------------------------------
-To package the script and its embedded setup scripts into a single standalone binary:
-1. Double-click "Compile-To-EXE.cmd".
-2. The script validates syntax and compiles "IncidentResponse-Automator.ps1"
-   into "IncidentResponse.exe" using PS2EXE.
+1. Primary Profile Prompt (First Launch): Choose whether this environment is your
+   Primary (Home) Domain Profile or if you are temporarily assisting another
+   domain, then enter a profile name.
+2. Test or Install Integrations: Use the three integration columns on Tab 1:
+   - Active Directory: Click "Test Active Directory" (or "Switch AD Account /
+     Domain" for non-joined workstations or alternate admin credentials).
+   - Microsoft Graph: Run "1. Setup Microsoft Graph" (first time), then use
+     "Test Microsoft Graph" or "Switch Graph Account".
+   - Google GAM7: Run "2. Setup Google GAM7" (first time), then use "Test
+     Google GAM7" or "Switch GAM Account".
+3. Optional Credential Vault & Master Passphrase:
+   - You can optionally save DPAPI-encrypted AD credentials per Domain Profile
+     for automatic startup connection when plugged into that domain network.
+   - Click "Master Passphrase" in the top-right header to require a startup
+     passphrase across saved profiles (includes Change, Remove, and emergency
+     "Remove Passphrase & All Creds" reset).
 
 --------------------------------------------------------------------------------
-4. PRE-FLIGHT INTEGRATION SETUP, DOMAIN PROFILES & MASTER PASSPHRASE
+4. BASIC INCIDENT CONTAINMENT WORKFLOW
 --------------------------------------------------------------------------------
-- Global Master Passphrase (Optional): Click "Master Passphrase" in the top-right
-  header (to the right of the GitHub icon). When active, it opens an action
-  menu (0 textboxes) and shows only the input(s) required for the button you
-  click: Change Passphrase (3 boxes), "Remove Passphrase" (1 box -> "Continue"
-  prompt + why-keep warning while keeping saved creds), or break-glass "Remove
-  Passphrase & All Creds" (0 boxes, no passphrase needed if forgotten; enlarged
-  Box 1 red warning sentence explicitly covering your Master Passphrase, Domain
-  Profiles, AD credentials, Microsoft Graph sessions, and Google GAM7 profiles
-  with "Continue?" beside Yes/No -> enlarged Box 2 "Are you sure?" Yes/No
-  before wiping all data while preserving gam.exe).
-- Automatic Plugged-In Domain Detection: On startup, the console detects any
-  configured domain reachable on your active network (even on non-joined PCs),
-  switches to its Domain Profile, unlocks saved DPAPI AD credentials, and logs
-  into Active Directory + Microsoft Graph + Google GAM7 automatically on Tab 1.
-- On first launch, if no Primary Domain Profile is configured yet, choose
-  whether this environment is your Primary (Home) Domain Profile or if you are
-  temporarily assisting another domain (then enter only the single profile name
-  box for your choice).
-- Open Tab 1 ("1. Setup") to verify connectivity with Active Directory,
-  Microsoft Graph, and Google Workspace (GAM7), and run the 1-click setup
-  scripts if any modules or CLI tools need to be installed. Tab 1 supports
-  vertical scrolling and keeps its Setup Reference box scrollable in smaller
-  windows.
-- Use "Switch Graph Account", "Switch GAM Account", or "Switch AD Account /
-  Domain" on Tab 1 when using separate elevated admin accounts, or use
-  "Validate Credential Health", "Detect Network & Auto-Connect", and "Purge
-  Saved Creds" (protected by an "Are you sure?" dialog) for zero-lockout checks.
-- Theme Cross-Fade & Startup Auto-Updates: Toggle Light/Dark mode with a smooth
-  cross-fade transition, and let startup automatically flag "Update Available"
-  when GitHub Releases or main/VERSION is newer.
+1. Locate & Verify (Tab 2): Search by name, username, or email (3+ chars),
+   select the target user, review the four status cards, and check the identity
+   confirmation box to unlock the action deck.
+2. Contain (Tab 2): Run individual actions (Reset Password, Revoke 365 Sessions,
+   Revoke Google Sessions, Disable Account) or "Run Full Playbook (1-Click)".
+3. Deep Isolation & BEC Check (Tab 3): Block Entra sign-in, suspend Google
+   accounts, wipe persistent MFA/OAuth grants, expire Kerberos tickets, and run
+   "Audit M365 & Gmail Rules" to remediate suspicious forwarding rules.
+4. Triage & Audit (Tabs 4 & 5): Pull and filter security events on Tab 4, and
+   review or export local compliance logs on Tab 5.
+
+For complete operator instructions, see README.txt or README.md.
 ================================================================================

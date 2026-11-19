@@ -1,35 +1,49 @@
 # Quick Start Guide
 
-**Security Incident Response Automator** can be launched or compiled in seconds on any Windows workstation.
+Get **Security Incident Response Automator** running on a Windows workstation or server in just a few minutes.
 
 ---
 
-## 1. Quick Launch (Recommended)
-1. Double-click **`Launch-IncidentAutomator.bat`** in Windows Explorer.
-   *(Or run it from an elevated command prompt).*
-2. The batch wrapper automatically unblocks execution, enforces Single-Threaded Apartment (`-STA`) mode, and opens the 5-tab Windows Forms incident console.
+## 1. Prerequisites
+* **OS & Runtime:** Windows 10 (1809+), Windows 11, or Windows Server 2016+ with Windows PowerShell 5.1 and .NET Framework 4.8+.
+* **Permissions:** Appropriate administrative privileges in **Active Directory**, **Microsoft Entra ID**, and/or **Google Workspace** for the containment actions you plan to run.
+* **Network:** Direct access to a Domain Controller (TCP 389/636) and outbound HTTPS (TCP 443) for cloud operations.
 
 ---
 
-## 2. Direct PowerShell Execution
-If you prefer running the script directly from PowerShell 5.1:
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\IncidentResponse-Automator.ps1
-```
+## 2. Launch or Compile
+
+Choose any of the three launch methods:
+
+* **Option A — Batch Launcher (Recommended):** Double-click **`Launch-IncidentAutomator.bat`** (automatically unblocks files and launches in `-STA` mode).
+* **Option B — Direct PowerShell:**
+  ```powershell
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\IncidentResponse-Automator.ps1
+  ```
+* **Option C — Standalone `.exe`:** Double-click **`Compile-To-EXE.cmd`** to build a portable `IncidentResponse.exe`.
+
+> **Security Note:** Review `IncidentResponse-Automator.ps1` and the accompanying `.bat`/`.cmd` scripts before running them in production. See [`DISCLAIMER.md`](DISCLAIMER.md).
 
 ---
 
-## 3. Compile to Standalone Portable `.exe`
-To package the script and its embedded setup scripts into a single standalone binary:
-1. Double-click **`Compile-To-EXE.cmd`**.
-2. The script validates syntax and compiles `IncidentResponse-Automator.ps1` into `IncidentResponse.exe` using `PS2EXE`.
+## 3. Initial Setup (Tab 1: `1. Setup`)
+
+1. **Primary Profile Prompt (First Launch):** Choose whether this environment is your **Primary (Home) Domain Profile** or if you are **temporarily assisting another domain**, then enter a profile name.
+2. **Test or Install Integrations:** Use the three integration columns on **Tab 1** to verify or install prerequisites:
+   * **Active Directory:** Click **Test Active Directory** (or **Switch AD Account / Domain** if authenticating from a non-joined PC or with alternate Domain Admin credentials).
+   * **Microsoft Graph:** Click **1. Setup Microsoft Graph** (first time), then **Test Microsoft Graph** or **Switch Graph Account** to sign in with an elevated M365 admin account.
+   * **Google GAM7:** Click **2. Setup Google GAM7** (first time), then **Test Google GAM7** or **Switch GAM Account**.
+3. **Optional Credential Vault & Master Passphrase:**
+   * In **Switch AD Account / Domain** or **Credential Health**, you can optionally save encrypted AD credentials (protected by Windows DPAPI `CurrentUser`) so reachable domain profiles auto-connect at startup.
+   * Click **`Master Passphrase`** in the top-right header to require a passphrase on launch across all saved profiles (includes **Change Passphrase**, **Remove Passphrase**, and emergency **`Remove Passphrase & All Creds`** reset).
 
 ---
 
-## 4. Pre-Flight Integration Setup, Domain Profiles & Master Passphrase
-* **Global Master Passphrase (Optional):** Click **`Master Passphrase`** in the top-right header (to the right of the GitHub icon). When active, it opens an action menu with 0 textboxes and reveals only the input(s) needed for your chosen action: **Change Passphrase** (`Current` + `New` + `Confirm`), **Remove Passphrase** (only 1 `Current` field -> **`Continue`** warning keeping saved credentials), or break-glass **Remove Passphrase & All Creds** (0 fields, no passphrase needed if forgotten). Break-glass uses a two-box confirmation with larger text (**Box 1:** single red warning sentence explicitly stating that your Master Passphrase, all Domain Profiles, AD credentials, Microsoft Graph sessions, and Google GAM7 profiles will be wiped from the computer, with `Continue?` aligned beside `Yes`/`No`; **Box 2:** `Are you sure?` `Yes`/`No`) before wiping all data (preserving `gam.exe`). When configured, opening the console prompts for the passphrase (closing automatically after 2 failed attempts); when unset, the console skips the prompt and auto-connects immediately while staying on Tab 1.
-* **Automatic Plugged-In Domain Detection & Login:** On launch, the automator detects reachable domains on your active network adapter (even if the PC is not domain-joined), switches to the matching Domain Profile, unlocks its saved DPAPI AD credentials, and automatically connects **Active Directory + Microsoft Graph + Google GAM7**.
-* On first launch, if no **Primary Domain Profile** is set yet, choose whether this environment is your **Primary (Home) Domain Profile** or if you are temporarily assisting another domain—then enter only the single profile name box shown for your choice.
-* Open **Tab 1 (`1. Setup`)** to verify connectivity with Active Directory, Microsoft Graph, and Google Workspace (GAM7), and run the 1-click setup scripts if modules or CLI tools need to be installed. Tab 1 supports vertical scrolling and includes a scrollable **Integration Setup & Multi-Domain Switching Reference** box so guidance text never clips in smaller windows.
-* Use **Switch Graph Account**, **Switch GAM Account**, or **Switch AD Account / Domain** on Tab 1 for separate elevated admin accounts (WAM disabled for Graph), and use **Validate Credential Health**, **Detect Network & Auto-Connect**, or **Purge Saved Creds** (protected by an **Are you sure?** confirmation modal) for zero-lockout diagnostics.
-* **Theme Cross-Fade & Automatic Updates:** Toggle Light/Dark modes smoothly from the top header, and watch the top-right version badge automatically update to **`Update Available`** on startup whenever a newer release or commit is pushed to GitHub.
+## 4. Basic Incident Containment Workflow
+
+1. **Locate & Verify (`Tab 2: 2. Containment`):** Search by name, username, or email (minimum 3 characters), select the target user, review the four status cards, and check **`I confirm I have selected the correct user`** to unlock containment actions.
+2. **Contain (`Tab 2`):** Run individual actions (**Reset Password**, **Revoke 365 Sessions**, **Revoke Google Sessions**, **Disable Account**) or **Run Full Playbook (1-Click)**.
+3. **Deep Isolation & BEC Check (`Tab 3: 3. Deep Isolation`):** Block Entra sign-in, suspend Google accounts, wipe persistent MFA methods or OAuth grants, expire Kerberos tickets, and run **Audit M365 & Gmail Rules** to disable suspicious forwarding rules.
+4. **Triage & Audit (`Tab 4` & `Tab 5`):** Pull and filter DC, Entra, and Google login events on **Tab 4**, and export local compliance records from **Tab 5**.
+
+For detailed walkthroughs, see [`README.md`](README.md). For engineering details, see [`README-extended.md`](README-extended.md).

@@ -10623,73 +10623,60 @@ function Show-ChangelogWindow {
             "===========================================================`r`n" +
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
             "## [1.1.69] - 2026-11-19`r`n" +
-            "  * testing updater functionality`r`n`r`n" +
+            "### Changed`r`n" +
+            "  * Testing updater functionality.`r`n`r`n" +
             "## [1.1.68] - 2026-11-19`r`n" +
             "### Fixed`r`n" +
-            "  * Instant Startup 'Update Available' Detection: Elevated the WinForms timer completion handler from a local closure variable (`$applyResult`) to a script-level function (Invoke-ApplyStartupUpdateCheckResultSafe), tracked the retry timer at script scope, set `$ProgressPreference = 'SilentlyContinue'` inside the background GitHub worker, and switched release probing to `/releases?per_page=1` so the top-right badge automatically flips to 'Update Available' on launch whenever GitHub is ahead.`r`n`r`n" +
+            "  * Startup Update Detection: Replaced the timer callback's local scriptblock reference with Invoke-ApplyStartupUpdateCheckResultSafe, tracked retry timers at script scope, set `$ProgressPreference = 'SilentlyContinue'`, and switched release queries to /releases?per_page=1 so 'Update Available' renders automatically on launch.`r`n`r`n" +
             "## [1.1.67] - 2026-11-19`r`n" +
-            "### Added, Changed & Fixed`r`n" +
-            "  * Break-Glass Prompt Clarification, Alignment & Typography: Updated Box 1 red text to explicitly state that your Master Passphrase is wiped alongside all Domain Profiles, AD credentials, Microsoft Graph sessions, and Google GAM7 profiles; changed 'Continue' to 'Continue?' right-aligned beside Yes/No; and bumped text size one step larger on both Box 1 and Box 2 ('Are you sure?').`r`n" +
-            "  * Security & Reliability Bug Fixes: Honored the 'Require user to change password at next logon' toggle and RFC 4515 LDAP escaping in Set-ADPasswordSafe; stopped App-Only Graph mailbox 404/403 API errors from triggering spurious delegated prompts; ensured GAM setup scopes & refreshes BaseDefaultGamCfgDir; added Yes/No confirmation to Domain Switcher's 'Purge Saved' button; handled empty CSV audit exports gracefully; and enabled dark/light DataGridView column header styling.`r`n`r`n" +
+            "### Changed & Fixed`r`n" +
+            "  * Break-Glass Reset Dialogs: Updated the warning text to include the Master Passphrase, changed 'Continue' to 'Continue?' beside Yes/No, and increased text and button sizes across both confirmation dialogs.`r`n" +
+            "  * Security & Reliability Fixes: Honored RequireChangeAtLogon with RFC 4515 LDAP escaping in Set-ADPasswordSafe, preserved App-Only Graph 404/403 errors, scoped GAMCFGDIR during setup, added confirmation to Domain Switcher's 'Purge Saved', added empty-log CSV export headers, and themed DataGridView column headers.`r`n`r`n" +
             "## [1.1.66] - 2026-11-19`r`n" +
-            "### Added, Changed & Fixed`r`n" +
-            "  * Tab 1 Purge Confirmation & Scrollable Reference: Added an 'Are you sure?' confirmation modal before 'Purge Saved Creds' executes, enabled Tab 1 AutoScroll, and made the 'Integration Setup & Multi-Domain Switching Reference' box vertically scrollable so text is never clipped in non-fullscreen windows.`r`n" +
-            "  * Break-Glass Full System Wipe & Two-Box Red Warning: 'Remove Passphrase & All Creds' now wipes all Domain Profiles, AD DPAPI vaults, Microsoft Graph sessions/tokens, and Google GAM7 config/OAuth files (preserving gam.exe), behind a two-box confirmation flow (Box 1: single red warning + bottom 'Continue' Yes/No; Box 2: separate 'Are you sure?' Yes/No).`r`n" +
-            "  * Smooth Theme Cross-Fade Transition: Added a bitmap overlay opacity cross-fade animation when toggling between Light and Dark modes.`r`n" +
-            "  * Startup Auto-Update Badge & Reliable Self-Updater Persistence: Startup update checks now compare both GitHub Releases and main/VERSION with extended concurrency resilience so 'Update Available' renders automatically on launch, while 'Update & Restart' uses uncached GitHub Contents API downloads, post-download version validation, and a 30-attempt file-lock retry loop so restarted builds always reflect the updated version.`r`n`r`n" +
-            "## [1.1.65] - 2026-11-18`r`n" +
             "### Added & Fixed`r`n" +
-            "  * Reliable Dual-Channel Update Detection Foundation & Clean 'Continue' Prompt Labels.`r`n`r`n" +
+            "  * Added 'Are you sure?' confirmation before 'Purge Saved Creds' and enabled scrolling on Tab 1 Setup and its reference box.`r`n" +
+            "  * Added smooth Light/Dark theme cross-fade transitions.`r`n" +
+            "  * Expanded 'Remove Passphrase & All Creds' to purge Domain Profiles, AD DPAPI vaults, MasterVault, Microsoft Graph sessions/caches, and Google GAM7 configs behind a two-stage confirmation.`r`n" +
+            "  * Hardened GitHub update probing across Releases and main/VERSION, post-download version validation, and file-lock retries during self-replacement.`r`n`r`n" +
+            "## [1.1.65] - 2026-11-18`r`n" +
+            "### Changed`r`n" +
+            "  * Refined prompt button labels and added dual-channel (Releases + main/VERSION) update detection plumbing.`r`n`r`n" +
             "## [1.1.64] - 2026-11-18`r`n" +
-            "### Added & Improved`r`n" +
-            "  * Smooth View-Transition Cross-Fade & Full Profile/AD/Graph/GAM Wipe Foundation in Companion UI.`r`n`r`n" +
+            "### Added`r`n" +
+            "  * Added CSS View Transitions for Light/Dark theme toggling and multi-provider wipe groundwork in the companion preview.`r`n`r`n" +
             "## [1.1.63] - 2026-11-18`r`n" +
-            "### Changed & Improved`r`n" +
-            "  * Action-First Master Passphrase Dialog: When enabled, opening Master Passphrase now presents an action menu with zero textboxes ('Change Passphrase', 'Remove Passphrase', 'Remove Passphrase & All Creds') and reveals only the exact input field(s) needed for your chosen action (3 for Change, 1 for Remove Passphrase + 'Continue', 0 for Break-Glass Reset, 2 when enabling).`r`n" +
-            "  * Action-First First-Time Primary Profile Setup: Opens with zero textboxes for Yes/No selection and displays only the single contextual profile name box ('Primary Profile Name' or 'Temporary / Assisting Profile Name') after you choose an option.`r`n" +
-            "  * Reliable GAM7 Config Discovery & Profile Affinity: Resolves Default GAM7 credentials across User/Machine GAMCFGDIR, .gam, GAMConfig, GAM7, and gam.exe directory without inheriting stale profile paths or overriding working configs with an empty .gam folder, and clarifies isolated-profile GAM status.`r`n`r`n" +
+            "### Changed & Fixed`r`n" +
+            "  * Converted Master Passphrase and Primary Profile prompts to contextual action-first flows.`r`n" +
+            "  * Improved base GAMCFGDIR discovery across standard install paths and prevented stale profile path inheritance.`r`n`r`n" +
             "## [1.1.62] - 2026-11-18`r`n" +
             "### Added & Fixed`r`n" +
-            "  * Fixed Startup Domain Auto-Connect Race & Unjoined Plug-In Detection: Parallel RunspacePool probing + active NIC DNS-suffix prioritization now detects reachable configured domains on startup (even when the laptop is not joined to that domain), unlocks saved DPAPI credentials automatically, and logs directly into Active Directory, Microsoft Graph, and Google GAM7 while remaining on Tab 1.`r`n" +
-            "  * Application-Wide Master Passphrase (Header Config + 2-Attempt Startup Gate): Added the 'Master Passphrase' button to the right of the GitHub button in the top-right header. Includes Set/Change (requires current passphrase), 'Remove Passphrase' (requires current passphrase and warns why you should keep one while preserving saved credentials), and break-glass 'Remove Passphrase & All Creds' (requires no passphrase; wipes all stored credentials and resets to default if forgotten).`r`n`r`n" +
+            "  * Added an optional app-wide Master Passphrase with a 2-attempt startup lock and break-glass recovery.`r`n" +
+            "  * Fixed startup unjoined-domain auto-connect via parallel RunspacePool probing and NIC DNS-suffix prioritization across AD, Graph, and GAM7.`r`n`r`n" +
             "## [1.1.61] - 2026-11-18`r`n" +
-            "### Added & Security Hardened`r`n" +
-            "  * Full Tab 4 Event Triage Search & Highlighting: Search now matches across result rows AND clicked log details (Recommended Decision + Raw Telemetry), dynamically highlighting matches inside both the results table and the clicked log RichTextBox panel.`r`n" +
-            "  * Security Audit Hardening: Enforced strict HTTPS-only RichTextBox URL opening, trusted GitHub domain/ref validation in the self-updater, RFC 4515 LDAP filter escaping, single-user NTFS ACL enforcement on MailboxAuditorApp.json, zeroed decrypted buffers, and CSV formula injection neutralization.`r`n`r`n" +
+            "### Added & Security`r`n" +
+            "  * Extended Tab 4 live search and highlighting to clicked event detail panels.`r`n" +
+            "  * Hardened HTTPS link validation, trusted GitHub updater URL checks, RFC 4515 LDAP escaping, single-user NTFS ACLs on MailboxAuditorApp.json, decrypted buffer zeroing, and CSV formula sanitization.`r`n`r`n" +
             "## [1.1.60] - 2026-11-18`r`n" +
-            "### Added & Improved`r`n" +
-            "  * Tab 4 ('4. Event Triage') Dynamic Search & Summary Column Highlighting: Added a live Filter search box to Tab 4 that dynamically filters both pulled logs and the built-in Event Guide catalog as you type and highlights all matched substrings directly inside the Plain-English Summary column.`r`n`r`n" +
+            "### Added`r`n" +
+            "  * Added real-time Event Triage search filtering with live Summary-column match highlighting.`r`n`r`n" +
             "## [1.1.59] - 2026-11-18`r`n" +
-            "### Added & Improved`r`n" +
-            "  * Encrypted Per-Profile AD Credential Vault: Stores domain admin credentials per profile encrypted with Windows DPAPI (CurrentUser scope, hardware/user-locked to the configured PC) plus optional Vault Master Passphrase (AES-256-CBC + PBKDF2 + HMAC-SHA256) and strict single-user NTFS ACLs.`r`n" +
-            "  * Zero-Credential Network Domain Detection & Profile Auto-Connect: Background non-blocking DNS SRV (_ldap._tcp.dc._msdcs.<domain>) + 700ms async TCP 389/636 pre-checks detect which configured domain is reachable on the current network and auto-connect the matching profile.`r`n" +
-            "  * Tab 1 ('1. Setup') Credential Health Diagnostic Panel: Live health indicator, network probe telemetry, pre-bind Kerberos metadata check (pwdLastSet/badPwdCount/lockoutTime), and a strict 1-Strike Circuit Breaker that auto-purges saved secrets on password rotation or logon failure so reopening the app never locks out accounts.`r`n`r`n" +
+            "### Added`r`n" +
+            "  * Added Windows DPAPI encrypted per-profile AD credential vaults, zero-credential DNS SRV + TCP 389/636 startup detection, Credential Health diagnostics, and a 1-strike anti-lockout circuit breaker.`r`n`r`n" +
             "## [1.1.58] - 2026-11-17`r`n" +
-            "### Changed & Improved`r`n" +
-            "  * Added automatic background GitHub update check on application load.`r`n" +
-            "  * Top-right updater button now dynamically shows 'v<version>' when up to date (or offline) and 'Update Available' with highlight styling when a newer release exists on GitHub, while keeping full updater & changelog functionality unchanged.`r`n`r`n" +
+            "### Changed`r`n" +
+            "  * Added non-blocking startup GitHub update probing with a dynamic 'v<version>' / 'Update Available' header button.`r`n`r`n" +
             "## [1.1.57] - 2026-11-12`r`n" +
-            "### Changed & Improved`r`n" +
-            "  * Unified Tab 3 ('3. Deep Isolation') red cloud persistence eradication buttons with parallel naming across Microsoft 365 (Entra ID) and Google Workspace (GAM7):`r`n" +
-            "    - Wipe Entra 2FA Methods | Wipe Entra OAuth Grants | Wipe Google 2FA Methods | Wipe Google OAuth Grants | Wipe All (Entra + GAM7).`r`n" +
-            "  * Added Temporary Access Pass (temporaryAccessPassMethods) deletion to 'Wipe Entra 2FA Methods' and descriptive hover tooltips on Tab 3 controls.`r`n" +
-            "  * Fixed wrapped diagnostic/status label clipping in full-screen/high-DPI views, escaped GroupBox ampersands ('&&'), and added high-DPI pixel font scaling across all modal prompts.`r`n" +
-            "  * Refined UI wording, dialog titles, event triage recommendations, and documentation across all 5 tabs.`r`n`r`n" +
+            "### Changed & Fixed`r`n" +
+            "  * Standardized Tab 3 cloud persistence wipe buttons, added Temporary Access Pass deletion and hover tooltips, fixed clipped wrapped labels/ampersands, and added responsive modal font scaling.`r`n`r`n" +
             "## [1.1.56] - 2026-11-12`r`n" +
-            "### Changed & Fixed`r`n" +
-            "  * Aligned Tab 1 ('1. Setup') buttons by service column: Column 1 = Active Directory (Test AD, Install RSAT, Switch AD Account / Domain); Column 2 = Microsoft Graph (Test, 1. Setup, Switch); Column 3 = Google GAM7 (Test, 2. Setup, Switch).`r`n" +
-            "  * Separated Tab 3 cloud persistence eradication into 5 distinct buttons (2 for Entra + 2 for Google + 1 Wipe All).`r`n`r`n" +
+            "### Changed`r`n" +
+            "  * Aligned Tab 1 controls into 3 provider columns and separated Tab 3 cloud wipe actions into 5 controls.`r`n`r`n" +
             "## [1.1.55] - 2026-11-12`r`n" +
-            "### Changed & Fixed`r`n" +
-            "  * Fixed Windows PowerShell 5.1 syntax & runtime subexpression parsing across 293 conditional assignments, eliminated non-ASCII UTF-8 em-dash quotes, and hardened child-script here-string templates.`r`n" +
-            "  * Removed redundant top-bar 'Switch Domain / Profile' button (Domain & Profile management now lives cleanly on Tab 1).`r`n" +
-            "  * Fixed WinForms ampersand mnemonic parsing across buttons and labels (including 'Audit M365 & Gmail Rules' on Tab 3).`r`n`r`n" +
+            "### Fixed`r`n" +
+            "  * Fixed PowerShell 5.1 conditional parsing, stripped non-ASCII characters, removed the redundant top-bar profile button, and escaped WinForms ampersands.`r`n`r`n" +
             "## [1.1.54] - 2026-11-12`r`n" +
-            "### Added & Improved`r`n" +
-            "  * Multi-Domain Profile Manager (isolated AD Domain, Microsoft Graph tenant/app, and Google GAM7 config folder per Domain Profile) while staying zero-step seamless for single-domain users.`r`n" +
-            "  * Primary Profile Prompt on Startup: If no Primary Domain Profile is configured yet, prompts whether the current environment is your Primary (Home) Domain or an assisting/temporary domain.`r`n" +
-            "  * Dual-account WAM/SSO fix + Tab 1 Switch Graph Account, Switch GAM Account, and Switch AD Account / Domain buttons.`r`n" +
-            "  * Switch Cloud Only (Skip AD) option for off-VPN or cloud-only triage."
+            "### Added`r`n" +
+            "  * Added multi-domain profile isolation (AD, Graph, GAM7), first-launch Primary Profile prompt, dual-account WAM disablement, and Cloud-Only triage mode."
     }
 
     $txtNotes = New-Object System.Windows.Forms.TextBox

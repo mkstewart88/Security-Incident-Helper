@@ -59,23 +59,23 @@ TOP HEADER BAR:
   asynchronous background check ($ProgressPreference = 'SilentlyContinue', with
   script-scoped retry timer $script:startupUpdateRetryTimer) via
   Get-GitHubUpdateStatusSafe comparing BOTH GitHub releases?per_page=1 and
-  commit-SHA-busted main/VERSION (picking whichever is higher). When complete,
-  the WinForms timer calls Invoke-ApplyStartupUpdateCheckResultSafe ->
-  Update-HeaderUpdateButtonState, immediately rendering "v<version>"
-  (e.g., v1.1.69) when up to date/offline or "Update Available" automatically on
-  launch whenever a newer version or main commit exists. Clicking opens
-  Show-UpdateCheckWindow (enforcing trusted github.com/githubusercontent.com
-  HTTPS URLs & ref checks) for Check for Updates, View Changelog, and Update &
-  Restart (uncached commit-SHA download, AST + post-download AppVersion check,
-  optional local PS2EXE compilation with MZ header check, and a 30-attempt
-  file-lock retry loop updating sibling files before relaunch).
+  commit-SHA-busted main/VERSION (selecting the higher semantic version). When
+  complete, the WinForms timer calls Invoke-ApplyStartupUpdateCheckResultSafe ->
+  Update-HeaderUpdateButtonState, rendering "v<version>" (e.g., v1.1.69) when
+  current or "Update Available" automatically on launch whenever a newer release
+  or main commit exists. Clicking opens Show-UpdateCheckWindow (enforcing
+  trusted github.com/githubusercontent.com HTTPS URLs and ref checks) for Check
+  for Updates, View Changelog, and Update & Restart (uncached commit-SHA
+  download, AST and post-download AppVersion check, optional local PS2EXE
+  compilation with MZ header check, and a 30-attempt file-lock retry loop
+  updating sibling files before relaunch).
 - [ Light Mode ] / [ Dark Mode ] ($btnThemeToggle -> Invoke-ThemeCrossFadeTransitionSafe):
-  Captures a client snapshot overlay, applies Apply-AppTheme($Dark) cleanly
-  underneath, and smoothly fades overlay opacity (~240ms) across all panels,
-  headers, action logs, decision boxes, inputs, and data grids.
+  Captures a client snapshot overlay, runs Apply-AppTheme($Dark) underneath,
+  and fades overlay opacity (~240 ms) across all panels, headers, action logs,
+  decision boxes, inputs, and data grids (including DataGridView column headers).
 - GitHub Repository Icon ($btnGitHub):
   Positioned immediately to the right of [ Light Mode ] / [ Dark Mode ].
-  Renders a DPI-aware vector GitHub mark and launches
+  Renders a DPI-aware vector GitHub mark and opens
   https://github.com/mkstewart88/Security-Incident-Helper in the default browser.
 - Master Passphrase ($btnMasterPassphrase -> Show-MasterPassphraseDialogSafe /
   Show-StartupMasterPassphraseGateSafe):
@@ -84,13 +84,13 @@ TOP HEADER BAR:
   Domain Profiles using an action-first panel flow: when unset, shows 2 boxes
   (New + Confirm); when active, opens to $pnlMenu (0 boxes) with Change
   Passphrase (3 boxes: Current/New/Confirm), "Remove Passphrase" (1 box: Current
-  -> "Continue" prompt & why-keep warning keeping DPAPI vaults), and break-glass
-  "Remove Passphrase & All Creds" (0 boxes, no passphrase needed if forgotten;
-  enlarged Box 1 single red sentence explicitly covering your Master Passphrase,
-  Domain Profiles, AD creds, Graph sessions, and GAM7 profiles + right-aligned
-  "Continue?" beside Yes/No -> enlarged Box 2 "Are you sure?" Yes/No, calling
-  Remove-GlobalMasterPassphraseAndPurgeAllSafe to permanently wipe
-  MasterVault.dpapi.json, all Domain Profiles, AD DPAPI vaults,
+  -> "Continue" prompt and DPAPI-fallback warning keeping DPAPI vaults), and
+  break-glass "Remove Passphrase & All Creds" (0 boxes, no passphrase needed if
+  forgotten; stage 1 shows a single red warning sentence explicitly covering your
+  Master Passphrase, Domain Profiles, AD creds, Graph sessions, and GAM7
+  profiles with right-aligned "Continue?" beside Yes/No -> stage 2 larger-text
+  "Are you sure?" Yes/No, calling Remove-GlobalMasterPassphraseAndPurgeAllSafe
+  to wipe MasterVault.dpapi.json, all Domain Profiles, AD DPAPI vaults,
   MailboxAuditorApp.json, Microsoft Graph sessions/caches, and Google GAM7
   OAuth/config files while preserving gam.exe). When enabled, startup enforces
   a 2-attempt gate before probing or sign-in.
@@ -99,7 +99,7 @@ TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
 - Scrollability & Reference Box ($tabDiag.AutoScroll = $true, $lblDiagGuide):
   Tab 1 enables AutoScroll and uses a vertically scrollable read-only TextBox
   inside $grpDiagGuide ("Integration Setup & Multi-Domain Switching Reference")
-  so wrapped guidance text is never clipped in non-fullscreen windows.
+  so wrapped guidance text remains accessible at smaller window sizes.
 - Active Profile Bar ($cmbDiagProfile, Switch Profile $btnDiagSwitchProfile,
   + New Profile $btnDiagNewProfile, Manage / AD... $btnDiagManageProfiles) &
   Show-PrimaryProfilePromptSafe:

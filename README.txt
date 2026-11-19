@@ -3,15 +3,14 @@ SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.69)
 ================================================================================
 
 OVERVIEW:
-A high-performance, domain-agnostic administrative incident containment console
-and security forensics triage utility for hybrid enterprise environments
-spanning Active Directory Domain Services (AD DS), Microsoft Entra ID
-(Microsoft 365), and Google Workspace.
+A domain-agnostic incident containment console and forensic security triage
+utility for hybrid enterprise environments spanning Active Directory Domain
+Services (AD DS), Microsoft Entra ID (Microsoft 365), and Google Workspace.
 
-Built for Cybersecurity Analysts, System Administrators, and Incident Responders
-to rapidly isolate compromised user accounts, revoke active authentication
+Engineered for Cybersecurity Analysts, System Administrators, and Incident
+Responders to isolate compromised accounts, revoke active authentication
 sessions, neutralize malicious mailbox forwarding rules, and triage multi-source
-security events from a unified, native Windows interface.
+security events from a unified native Windows interface.
 
 ================================================================================
 SYSTEM REQUIREMENTS:
@@ -29,165 +28,148 @@ DEPLOYMENT & LAUNCH OPTIONS:
 
 OPTION 1: BATCH LAUNCHER (RECOMMENDED)
   Double-click "Launch-IncidentAutomator.bat" in Windows Explorer or execute from
-  an elevated command prompt. Automatically unblocks files and enforces -STA mode.
+  an elevated command prompt. Unblocks files and enforces -STA mode.
 
 OPTION 2: DIRECT POWERSHELL EXECUTION
-  Execute directly via Windows PowerShell 5.1:
   powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\IncidentResponse-Automator.ps1
 
 OPTION 3: COMPILE TO STANDALONE BINARY (.EXE)
-  Double-click "Compile-To-EXE.cmd" to bundle the entire script and its embedded
-  batch payloads into a standalone, portable "IncidentResponse.exe" binary via PS2EXE.
+  Double-click "Compile-To-EXE.cmd" to validate syntax and compile the script
+  and embedded setup payloads into a standalone portable "IncidentResponse.exe".
 
 ================================================================================
-OPERATOR STEP-BY-STEP HOW-TO GUIDE:
+OPERATOR USER GUIDE:
 ================================================================================
 
 STEP 1: PRE-FLIGHT VERIFICATION & INTEGRATION SETUP (TAB 1)
-  0. First-Launch Primary Profile Prompt: If no Primary Domain Profile is
-     configured yet, Step 1 asks whether this environment is your Primary
-     (Home) Domain Profile or if you are temporarily assisting another domain
-     (showing 0 textboxes until you click Yes or No, then revealing only the
-     single profile name box needed for your choice).
+  On first launch, if no Primary Domain Profile is configured yet, a startup
+  prompt lets you designate your environment as your Primary (Home) Domain
+  Profile or configure a temporary assisting profile while keeping your Primary
+  slot reserved.
+
   1. Open Tab 1 ("1. Setup").
   2. Use the top Profile bar ("Switch Profile", "+ New Profile", "Manage / AD...")
-     to switch or create isolated Domain Profiles when supporting multiple domains.
-  3. Inspect the live connectivity indicators for Active Directory, Microsoft
-     Graph, and Google Workspace (GAM7).
-  4. Integration actions are organized into 3 vertical service columns:
-     - Column 1 (Active Directory): "Test Active Directory" (Row 1) |
-       "Install RSAT (Optional)" (Row 2) | "Switch AD Account / Domain" (Row 3)
-     - Column 2 (Microsoft Graph): "Test Microsoft Graph" (Row 1) |
-       "1. Setup Microsoft Graph" (Row 2) | "Switch Graph Account" (Row 3)
-     - Column 3 (Google GAM7): "Test Google GAM7" (Row 1) |
-       "2. Setup Google GAM7" (Row 2) | "Switch GAM Account" (Row 3)
+     to switch between or create isolated Domain Profiles.
+  3. Review the connection badges for Active Directory, Microsoft Graph, and
+     Google Workspace (GAM7).
+  4. Use the three service columns to test, set up, or switch accounts:
+     - Active Directory: "Test Active Directory" | "Install RSAT (Optional)" |
+       "Switch AD Account / Domain"
+     - Microsoft Graph:  "Test Microsoft Graph"  | "1. Setup Microsoft Graph" |
+       "Switch Graph Account"
+     - Google GAM7:      "Test Google GAM7"      | "2. Setup Google GAM7" |
+       "Switch GAM Account"
 
-STEP 2: DOMAIN PROFILES & SWITCHING TARGET DOMAINS
-  1. On Tab 1 ("1. Setup"), click "Manage / AD..." in the top Profile bar (or
-     "Switch AD Account / Domain" in Column 1).
-  2. Select an existing Domain Profile or click "+ New" to create an isolated
-     profile (AD, Graph, and GAM7 settings), "Set Primary", "Rename", or "Delete".
-  3. Click "Auto-Detect Domain" to query the local machine's primary domain or
-     active NIC DNS suffix, or enter a target domain FQDN or DC IP/hostname.
-  4. Check "Use alternate Domain Admin credentials" if authenticating with
-     another AD account or from a non-domain workstation. Optionally check
-     "Save AD credentials securely on this PC (DPAPI CurrentUser encrypted,
-     zero-lockout)" to enable automatic startup connection across AD, Graph,
-     and GAM7 whenever plugged into that network.
-  5. Optional Global Master Passphrase: Click "Master Passphrase" in the
-     top-right header (to the right of the GitHub button). When active, it opens
-     to an action menu with 0 textboxes and displays only the field(s) needed
-     for your selected action: Change Passphrase (3 boxes: current/new/confirm),
-     "Remove Passphrase" (1 box: current passphrase -> "Continue" prompt with
-     explanatory warning while keeping saved DPAPI creds), or break-glass
-     "Remove Passphrase & All Creds" (0 boxes, no passphrase needed if
-     forgotten). Break-glass opens a two-box confirmation with enlarged text:
-     Box 1 shows a single red warning sentence (explicitly covering your Master
-     Passphrase, Domain Profiles, AD vaults, Microsoft Graph sessions, and
-     Google GAM7 profiles) with "Continue?" beside Yes/No, followed by a
-     separate Box 2 ("Are you sure?" Yes/No) that wipes the Master Passphrase,
-     all Domain Profiles, AD vaults, Microsoft Graph sessions/caches, and Google
-     GAM7 config/OAuth files from the computer (preserving gam.exe). When
-     enabled, startup prompts for the passphrase and closes cleanly after 2
-     failed attempts.
-  6. Click "Connect & Switch Profile" to run an LDAP RootDSE handshake and switch,
-     or "Switch Cloud Only (Skip AD)" for off-VPN Graph/GAM triage.
-  7. Use the Tab 1 "Credential Health & Encrypted AD Vault" panel (plus the
-     scrollable Tab 1 "Integration Setup & Multi-Domain Switching Reference" box
-     that prevents text clipping in non-fullscreen windows) to run "Validate
-     Credential Health", "Detect Network & Auto-Connect", "Configure Saved AD
-     Creds...", or "Purge Saved Creds" (protected by an "Are you sure?" modal).
-  8. On startup, the app automatically checks GitHub Releases and main/VERSION
-     in the background and sets the top-right header button to "v<version>"
-     (e.g., v1.1.69) if up to date or "Update Available" automatically on launch
-     when a newer version exists. Click it anytime to run "Check for Updates",
-     "View Changelog", or "Update & Restart" (uses uncached downloads, version
-     checks, and file-lock retries so restarted builds persist cleanly).
+STEP 2: DOMAIN PROFILES, SAVED CREDENTIALS & MASTER PASSPHRASE
+  1. Click "Manage / AD..." (or "Switch AD Account / Domain") to open the
+     profile and AD switcher.
+  2. Select an existing profile or use "+ New", "Set Primary", "Rename", or
+     "Delete" to manage isolated environments.
+  3. Click "Auto-Detect Domain" to discover the workstation domain or active
+     network DNS suffix, or enter a target domain FQDN or DC hostname/IP.
+  4. Check "Use alternate Domain Admin credentials" when authenticating from a
+     non-domain workstation or elevated admin account. Optionally save
+     credentials in the encrypted Windows DPAPI vault for automatic startup
+     connection.
+  5. Click "Connect & Switch Profile" to verify AD connectivity and switch
+     profiles, or "Switch Cloud Only (Skip AD)" for off-VPN cloud triage.
+  6. Use Tab 1's "Credential Health & Encrypted AD Vault" panel to run
+     "Validate Credential Health", "Detect Network & Auto-Connect",
+     "Configure Saved AD Creds...", or "Purge Saved Creds".
+  7. Optional Master Passphrase: Click "Master Passphrase" in the top-right
+     header to set an application-wide passphrase protecting all saved Domain
+     Profiles. When enabled, the console prompts for your passphrase on launch
+     before connecting. From the Master Passphrase menu you can:
+     - Change Passphrase: Update the active passphrase after confirming the
+       current one.
+     - Remove Passphrase: Disable the startup lock after confirming your
+       current passphrase while keeping saved DPAPI domain credentials intact.
+     - Remove Passphrase & All Creds: Emergency break-glass reset (requires no
+       passphrase if forgotten). Displays a red warning explaining everything
+       that will be wiped (Master Passphrase, Domain Profiles, AD credentials,
+       Microsoft Graph sessions, and Google GAM7 profiles) followed by a final
+       "Are you sure?" confirmation before clearing stored credentials.
+  8. Updates & Changelog: The top-right header badge checks GitHub
+     automatically on launch, showing "v<version>" when current or
+     "Update Available" when a newer release exists. Click it anytime to view
+     the changelog, check for updates, or update and restart.
 
 STEP 3: SEARCHING & VERIFYING COMPROMISED IDENTITIES (TAB 2)
   1. Open Tab 2 ("2. Containment").
-  2. Enter the user's name, username, or email address (minimum 3 characters, e.g.
-     alex.morgan@contoso.com or am8001) and press Enter or click "Find Users".
-  3. Select the target user from the results list.
-  4. The console queries Active Directory, Entra ID, and Google Workspace,
-     populating the 4 live security status cards:
-     - PASSWORD AGE: Days since password last set.
-     - 365 / ENTRA ID STATUS: Live token validity state.
-     - GOOGLE WORKSPACE STATUS: Live Google session state.
-     - AD ACCOUNT STATUS: Active Directory account state (Active/Disabled/Locked).
-  5. Verify user details and check the safety lock box:
+  2. Enter the user's name, username, or email address (minimum 3 characters)
+     and press Enter or click "Find Users".
+  3. Select the target account from the results list to populate the four live
+     status cards (Password Age, 365 / Entra ID Status, Google Workspace Status,
+     and AD Account Status).
+  4. Verify user details and check the safety lock box:
      [X] I confirm I have selected the correct user (Unlocks Actions Deck)
 
 STEP 4: EXECUTING PRIMARY CONTAINMENT ACTIONS (TAB 2)
-  - 1. Reset Password: Opens an inline password reset dialog. Type a custom
-    password or click Generate for a cryptographically secure password. Automatically
-    enforces pwdLastSet = 0 so the user must set a new password at next logon.
-  - 2. Revoke 365 Sessions: Calls Microsoft Graph /revokeSignInSessions,
-    invalidating all active refresh tokens across Outlook, Teams, and mobile apps.
-  - 3. Revoke Google Sessions: Runs "gam user <id> signout", terminating active
-    web browser cookies and mobile app sessions.
-  - 4. Disable Account: Sets the account disabled flag in Active Directory with
-    immediate LDAP read-back verification.
-  - Run Full Playbook (1-Click): Sequentially executes and verifies all four
-    containment steps in under 10 seconds.
+  - 1. Reset Password: Opens the password reset dialog with custom entry or
+    random 16-character generation and optional next-logon password change.
+  - 2. Revoke 365 Sessions: Invalidates active Microsoft 365 / Entra ID refresh
+    tokens across Outlook, Teams, OneDrive, and mobile clients.
+  - 3. Revoke Google Sessions: Terminates active Google Workspace browser
+    cookies and mobile app sessions.
+  - 4. Disable Account: Disables the Active Directory account with immediate
+    read-back verification.
+  - Run Full Playbook (1-Click): Executes all four containment steps
+    sequentially with verification between each stage.
 
-STEP 5: APPLYING DEEP ACCOUNT ISOLATION (TAB 3)
+STEP 5: DEEP ACCOUNT ISOLATION & MAILBOX RULES AUDITOR (TAB 3)
   1. Open Tab 3 ("3. Deep Isolation").
-  2. "Block Entra Sign-In (Instant)": Directly patches accountEnabled = false on
-     Microsoft Graph, blocking cloud access immediately without waiting for directory sync.
-  3. "Suspend Google User": Freezes the user account in Google Admin SDK.
-  4. Granular Cloud Persistence Wipe Buttons (5 Symmetric Red Controls):
-     - "Wipe Entra 2FA Methods": Removes non-password Entra 2FA methods
-       (Authenticator, Phone/SMS, FIDO2, Software OATH, Temporary Access Pass, Email).
-     - "Wipe Entra OAuth Grants": Revokes Entra refresh tokens & 3rd-party OAuth grants.
-     - "Wipe Google 2FA Methods": Runs "gam user <id> turnoff2sv" to turn off
-       Google 2-Step Verification (2FA) enrollments, security keys & backup codes.
-     - "Wipe Google OAuth Grants": Runs "gam user <id> deprovision" to revoke
-       3rd-party Google OAuth app grants, App-Specific Passwords & backup codes.
+  2. "Block Entra Sign-In (Instant)": Disables cloud sign-in directly in Entra
+     ID without waiting for directory synchronization.
+  3. "Suspend Google User (GAM7)": Suspends the user account in Google Admin SDK.
+  4. Cloud Persistence Eradication (run individually or all together):
+     - "Wipe Entra 2FA Methods": Removes non-password Entra MFA methods
+       (Authenticator, Phone/SMS, FIDO2, Software OATH, Temporary Access Pass,
+       and Email).
+     - "Wipe Entra OAuth Grants": Revokes Entra refresh tokens and deletes
+       third-party OAuth permission grants.
+     - "Wipe Google 2FA Methods": Turns off Google 2-Step Verification (2FA)
+       enrollments, security keys, and backup codes.
+     - "Wipe Google OAuth Grants": Revokes third-party Google OAuth app grants,
+       Application-Specific Passwords, and backup codes.
      - "Wipe All (Entra + GAM7)": Executes all four cloud wipes sequentially.
-  5. "Expire AD Account & Restrict Workstations": Sets accountExpires to the past
-     (forcing Kerberos KDC error 0x12) and locks userWorkstations to INCIDENT-LOCK.
+  5. "Expire AD Account & Restrict Workstations": Expires the AD account
+     timestamp to invalidate active Kerberos TGTs (0x12) and locks
+     userWorkstations to INCIDENT-LOCK.
+  6. Mailbox Rules Auditor: Click "Audit M365 & Gmail Rules" to scan Microsoft
+     365 inbox rules and Gmail forwarding/filters. Suspicious external forwards
+     and stealth-delete rules are flagged for single-rule ("Disable Rule",
+     "Delete Rule") or bulk ("Disable Suspicious") remediation.
 
-STEP 6: AUDITING & REMEDIATING MAILBOX RULES (TAB 3)
-  1. On Tab 3, click "Audit M365 & Gmail Rules".
-  2. The auditor inspects all inbox message rules and forwarding configurations.
-  3. Rules flagging external forwarding, auto-redirection, or stealth auto-deletion
-     are highlighted as HIGH RISK or SUSPICIOUS.
-  4. Select a rule to inspect its conditions, then click "Disable Rule", "Delete Rule",
-     or click "Disable Suspicious" to neutralize all rogue rules in one action.
-
-STEP 7: TRIAGING MULTI-SOURCE SECURITY EVENTS (TAB 4)
+STEP 6: TRIAGING MULTI-SOURCE SECURITY EVENTS (TAB 4)
   1. Open Tab 4 ("4. Event Triage").
-  2. Click "Pull Events (AD + Entra + Google)" to query Domain Controller security
-     logs, Entra sign-in audit logs, and Google login reports.
-  3. Filter results by source or severity using the dropdown selectors, or type in
-     the live "Filter:" search box to search across both the result table
-     (Source, Event Code, Severity, Host/IP, Summary) and clicked log details
-     (Meaning, Recommended Decision, Raw Telemetry), dynamically highlighting
-     matching text in both the result rows and the clicked log detail box.
-  4. Select any event to read its highlighted plain-English explanation,
-     recommended decision, and raw telemetry.
-  5. Click "View Event Guide" to browse, filter, and highlight the complete
-     built-in dictionary of security event codes. Click "Show Pulled Events" to
-     return to query results.
+  2. Click "Pull Events (AD + Entra + Google)" to query Domain Controller
+     security logs, Entra ID sign-in events, and Google login reports.
+  3. Filter by source or severity dropdowns, or type in the "Filter:" search
+     box to match across both the results table and the selected event details
+     with live text highlighting.
+  4. Select any event to read its plain-English explanation, recommended
+     response decision, and raw telemetry.
+  5. Click "View Event Guide" to browse and search the built-in security code
+     dictionary offline, then click "Show Pulled Events" to return to pulled
+     query results.
 
-STEP 8: COMPLIANCE AUDIT TRAIL (TAB 5)
+STEP 7: COMPLIANCE AUDIT TRAIL (TAB 5)
   1. Open Tab 5 ("5. Audit Trail").
   2. All containment operations are logged locally to:
      C:\ProgramData\IncidentResponse-Automator\AuditLog.csv
-  3. Filter logs by typing in the search box or selecting a status filter.
-  4. Double-click or click "Inspect Selected Entry" to view complete verification details.
-  5. Click "Export to CSV..." to generate an incident report for compliance audits.
+  3. Search or filter logs by status (SUCCESS, PARTIAL, FAILED).
+  4. Double-click or click "Inspect Selected Entry" to view complete details.
+  5. Click "Export to CSV..." to generate a sanitized compliance report.
 
 ================================================================================
-AVAILABLE COMPANION DOCUMENTATION FILES:
+COMPANION DOCUMENTATION:
 ================================================================================
-- QUICK_START.md / QUICK_START.txt : Rapid deployment & launch options
-- README.md / README.txt           : Complete operator manual & visual walkthrough
-- README-extended.md / .txt        : In-depth technical architecture & API reference
-- CHANGELOG.md                     : Release history and feature timeline
-- DISCLAIMER.md / NOTICE / LICENSE : Legal terms, Apache 2.0 license & liability waiver
-- SECURITY.md                      : Security model, network architecture & self-patching policy
+- QUICK_START.md / QUICK_START.txt : Fast launch & initial setup checklist
+- README.md / README.txt           : Operator user guide & visual walkthrough
+- README-extended.md / .txt        : Technical architecture & API reference
+- CHANGELOG.md                     : Release history and version changes
+- SECURITY.md                      : Security model, network & as-is policy
+- DISCLAIMER.md / NOTICE / LICENSE : Legal terms, Apache 2.0 & liability waiver
 
 ================================================================================
 PERMISSIVE COMMERCIAL USE, FORKING & SHOUT-OUT POLICY:

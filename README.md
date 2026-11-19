@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.68](https://img.shields.io/badge/Version-1.1.68-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.69](https://img.shields.io/badge/Version-1.1.69-emerald.svg)](CHANGELOG.md)
 
 A high-performance, domain-agnostic administrative incident containment console and security forensics triage utility for hybrid enterprise environments spanning **Active Directory Domain Services (AD DS)**, **Microsoft Entra ID (Microsoft 365)**, and **Google Workspace**.
 
@@ -168,7 +168,7 @@ If operating from a non-domain-joined laptop or managing multiple corporate/clie
    * **Startup Lock:** When active, opening the app immediately prompts for your Master Passphrase before probing or logging in (1st wrong attempt warns you; 2nd wrong attempt or Cancel closes the application cleanly).
 6. Click **Connect & Switch Profile** to verify LDAP RootDSE connectivity and switch the active profile, or click **Switch Cloud Only (Skip AD)** for off-VPN cloud triage when an on-premises Domain Controller is unreachable.
 7. Use Tab 1's **Credential Health & Encrypted AD Vault** diagnostic panel (paired with Tab 1's scrollable **Integration Setup & Multi-Domain Switching Reference**) to run **Validate Credential Health** (checks network reachability, Kerberos `pwdLastSet`/`badPwdCount`/`lockoutTime` before binding, and 1-strike circuit-breaker health), **Detect Network & Auto-Connect**, **Configure Saved AD Creds...**, or **Purge Saved Creds** (protected by an **Are you sure?** confirmation dialog).
-8. On startup, the console automatically checks GitHub Releases and `main/VERSION` in the background: the top-right update button displays **`v<version>`** (for example `v1.1.68`) when up to date or **`Update Available`** immediately on launch when a newer release or commit exists. Click it at any time to open the updater dialog, **Check for Updates**, **View Changelog**, or run **Update & Restart** (uses uncached SHA downloads, post-download version validation, and a file-lock retry loop before restarting on the updated `.ps1` or locally recompiled `IncidentResponse.exe`).
+8. On startup, the console automatically checks GitHub Releases and `main/VERSION` in the background: the top-right update button displays **`v<version>`** (for example `v1.1.69`) when up to date or **`Update Available`** immediately on launch when a newer release or commit exists. Click it at any time to open the updater dialog, **Check for Updates**, **View Changelog**, or run **Update & Restart** (uses uncached SHA downloads, post-download version validation, and a file-lock retry loop before restarting on the updated `.ps1` or locally recompiled `IncidentResponse.exe`).
 
 ### 3. Locating and Verifying a Compromised Identity (Tab 2)
 1. Navigate to **Tab 2 (`2. Containment`)**.

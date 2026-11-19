@@ -1,5 +1,5 @@
 # ==============================================================================
-# Security Incident Response Automator (v1.1.68)
+# Security Incident Response Automator (v1.1.69)
 # Standalone Native Windows Form Application (Tabbed UI, Real Verification, Audit Trail)
 # Domain Agnostic | Auto-Detect Domain | Multi-Domain Profiles (AD + Graph + GAM7)
 # Encrypted Per-Profile AD Vault (DPAPI CurrentUser) | Zero-Lockout Credential Health
@@ -34,7 +34,7 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
-$script:AppVersion = "1.1.68"
+$script:AppVersion = "1.1.69"
 $script:updateAvailable = $false
 $script:latestKnownVersionTag = "v$($script:AppVersion)"
 $script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
@@ -10622,6 +10622,8 @@ function Show-ChangelogWindow {
             "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
             "===========================================================`r`n" +
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+            "## [1.1.69] - 2026-11-19`r`n" +
+            "  * testing updater functionality`r`n`r`n" +
             "## [1.1.68] - 2026-11-19`r`n" +
             "### Fixed`r`n" +
             "  * Instant Startup 'Update Available' Detection: Elevated the WinForms timer completion handler from a local closure variable (`$applyResult`) to a script-level function (Invoke-ApplyStartupUpdateCheckResultSafe), tracked the retry timer at script scope, set `$ProgressPreference = 'SilentlyContinue'` inside the background GitHub worker, and switched release probing to `/releases?per_page=1` so the top-right badge automatically flips to 'Update Available' on launch whenever GitHub is ahead.`r`n`r`n" +

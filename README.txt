@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.66)
+SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.67)
 ================================================================================
 
 OVERVIEW:
@@ -81,12 +81,15 @@ STEP 2: DOMAIN PROFILES & SWITCHING TARGET DOMAINS
      "Remove Passphrase" (1 box: current passphrase -> "Continue" prompt with
      explanatory warning while keeping saved DPAPI creds), or break-glass
      "Remove Passphrase & All Creds" (0 boxes, no passphrase needed if
-     forgotten). Break-glass opens a two-box confirmation: Box 1 shows a single
-     red warning sentence with bottom "Continue" (Yes/No), followed by a
-     separate Box 2 ("Are you sure?" Yes/No) that wipes all Domain Profiles,
-     AD vaults, Microsoft Graph sessions/caches, and Google GAM7 config/OAuth
-     files from the computer (preserving gam.exe). When enabled, startup prompts
-     for the passphrase and closes cleanly after 2 failed attempts.
+     forgotten). Break-glass opens a two-box confirmation with enlarged text:
+     Box 1 shows a single red warning sentence (explicitly covering your Master
+     Passphrase, Domain Profiles, AD vaults, Microsoft Graph sessions, and
+     Google GAM7 profiles) with "Continue?" beside Yes/No, followed by a
+     separate Box 2 ("Are you sure?" Yes/No) that wipes the Master Passphrase,
+     all Domain Profiles, AD vaults, Microsoft Graph sessions/caches, and Google
+     GAM7 config/OAuth files from the computer (preserving gam.exe). When
+     enabled, startup prompts for the passphrase and closes cleanly after 2
+     failed attempts.
   6. Click "Connect & Switch Profile" to run an LDAP RootDSE handshake and switch,
      or "Switch Cloud Only (Skip AD)" for off-VPN Graph/GAM triage.
   7. Use the Tab 1 "Credential Health & Encrypted AD Vault" panel (plus the
@@ -96,7 +99,7 @@ STEP 2: DOMAIN PROFILES & SWITCHING TARGET DOMAINS
      Creds...", or "Purge Saved Creds" (protected by an "Are you sure?" modal).
   8. On startup, the app automatically checks GitHub Releases and main/VERSION
      in the background and sets the top-right header button to "v<version>"
-     (e.g., v1.1.66) if up to date or "Update Available" automatically on launch
+     (e.g., v1.1.67) if up to date or "Update Available" automatically on launch
      when a newer version exists. Click it anytime to run "Check for Updates",
      "View Changelog", or "Update & Restart" (uses uncached downloads, version
      checks, and file-lock retries so restarted builds persist cleanly).

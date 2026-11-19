@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.67] - 2026-11-19
+
+### Changed & Clarified
+- **Break-Glass Reset Box 1 & Box 2 Clarity, Alignment & Typography (`Show-MasterPassphraseDialogSafe` / `MasterPassphraseModal.tsx`):**
+  - **Explicit Master Passphrase Wipe Notice:** Updated Break-Glass Box 1's single red warning sentence to explicitly state that **your Master Passphrase** is also permanently wiped alongside all domain profiles, Active Directory credentials, Microsoft Graph sessions, and Google GAM7 profiles from the computer.
+  - **`Continue?` Question Mark & Right Alignment:** Renamed `Continue` to **`Continue?`** and moved it right-aligned immediately next to the **`Yes`** / **`No`** buttons in both the Windows Forms console (`$lblContinue1` `MiddleRight`) and Web Companion (`justify-end gap-3`).
+  - **Larger Prompt Typography on Both Boxes:** Increased text and button sizes by 1 step across both Break-Glass Box 1 (`Confirm Break-Glass Reset`) and Break-Glass Box 2 (`Are you sure?`) for clear readability.
+
+### Fixed & Audited
+- **Password Reset Next-Logon Flag (`Set-ADPasswordSafe` / `Show-PasswordResetCustomDialog`):** Wired `[bool]$RequireChangeAtLogon` through to `Set-ADPasswordSafe` so the dialog's *"Force password change at next logon"* checkbox actually controls `pwdLastSet` (`0` vs `-1`), and escaped `$SamAccount` with `ConvertTo-LdapFilterValueSafe` inside `Set-ADPasswordSafe`.
+- **Microsoft Graph App-Only Error Propagation (`Invoke-GraphMailboxRestSafe`):** Re-threw legitimate non-401 API errors (such as `404 UserNotFound` on secondary proxy aliases) instead of falling through into unexpected interactive delegated sign-in prompts.
+- **Domain Switcher `Purge Saved` Confirmation (`$btnPurgeDlgCred`):** Added an explicit **`Are you sure?`** confirmation dialog before purging saved AD credentials inside `Show-DomainSwitcher`.
+- **Profile-Scoped GAM7 Installer & Reset Base Refresh (`$btnRunGamSetup` / `Remove-GlobalMasterPassphraseAndPurgeAllSafe`):** Scoped `$env:GAMCFGDIR` to the active profile directory before launching the GAM7 setup batch installer and refreshed `$script:BaseDefaultGamCfgDir` after setup or Break-Glass reset.
+- **Empty Audit Export & DataGridView Theme Headers (`$btnExportAudit` / `Apply-AppTheme`):** Added in-memory audit row/header fallback when `AuditLog.csv` does not exist yet on disk, and set `$g.EnableHeadersVisualStyles = $false` across all DataGridViews so Dark/Light column header themes render faithfully on Windows.
+- **Web Companion Update Probe & Profile Sync (`updateVersion.ts` / `CredentialHealthPanel.tsx`):** Switched startup release checks from `/releases/latest` to `/releases?per_page=1` to eliminate harmless `404` console noise when no formal GitHub Release exists yet, and ensured `CredentialHealthPanel` syncs dynamically with custom profiles.
+
 ## [1.1.66] - 2026-11-19
 
 ### Added, Changed & Fixed

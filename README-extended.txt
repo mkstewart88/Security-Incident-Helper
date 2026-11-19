@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.66)
+SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.67)
 ================================================================================
 
 ARCHITECTURAL SPECIFICATION & EXHAUSTIVE CONTROL-BY-CONTROL ENGINEERING REFERENCE
@@ -60,7 +60,7 @@ TOP HEADER BAR:
   Get-GitHubUpdateStatusSafe comparing BOTH GitHub releases/latest and
   commit-SHA-busted main/VERSION (picking whichever is higher).
   Update-HeaderUpdateButtonState immediately renders and refreshes "v<version>"
-  (e.g., v1.1.66) when up to date/offline or "Update Available" automatically on
+  (e.g., v1.1.67) when up to date/offline or "Update Available" automatically on
   launch whenever a newer version or main commit exists. Clicking opens
   Show-UpdateCheckWindow (enforcing trusted github.com/githubusercontent.com
   HTTPS URLs & ref checks) for Check for Updates, View Changelog, and Update &
@@ -84,9 +84,11 @@ TOP HEADER BAR:
   Passphrase (3 boxes: Current/New/Confirm), "Remove Passphrase" (1 box: Current
   -> "Continue" prompt & why-keep warning keeping DPAPI vaults), and break-glass
   "Remove Passphrase & All Creds" (0 boxes, no passphrase needed if forgotten;
-  Box 1 single red sentence + bottom "Continue" Yes/No -> Box 2 "Are you sure?"
-  Yes/No, calling Remove-GlobalMasterPassphraseAndPurgeAllSafe to permanently
-  wipe all Domain Profiles, AD DPAPI vaults, MasterVault.dpapi.json,
+  enlarged Box 1 single red sentence explicitly covering your Master Passphrase,
+  Domain Profiles, AD creds, Graph sessions, and GAM7 profiles + right-aligned
+  "Continue?" beside Yes/No -> enlarged Box 2 "Are you sure?" Yes/No, calling
+  Remove-GlobalMasterPassphraseAndPurgeAllSafe to permanently wipe
+  MasterVault.dpapi.json, all Domain Profiles, AD DPAPI vaults,
   MailboxAuditorApp.json, Microsoft Graph sessions/caches, and Google GAM7
   OAuth/config files while preserving gam.exe). When enabled, startup enforces
   a 2-attempt gate before probing or sign-in.
@@ -110,8 +112,9 @@ TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
   - Profile Controls in Show-DomainSwitcher: $cmbProf, + New ($btnNewProf),
     Set Primary ($btnSetPrimaryProf), Rename ($btnRenameProf), Delete ($btnDelProf),
     Auto-Detect Domain ($btnAutoDetect), Save AD Creds ($chkSaveCred),
-    Purge Saved ($btnPurgeDlgCred), Connect & Switch Profile ($btnConnect),
-    and Switch Cloud Only (Skip AD) ($btnCloudOnly). Saved vaults automatically
+    Purge Saved ($btnPurgeDlgCred, protected by an "Are you sure?" prompt),
+    Connect & Switch Profile ($btnConnect), and Switch Cloud Only (Skip AD)
+    ($btnCloudOnly). Saved vaults automatically
     bind to the global Master Passphrase when configured in the top header.
 - Credential Health & Encrypted AD Vault Panel ($grpCredHealth):
   - Validate Credential Health ($btnValidateCredHealth -> Invoke-ValidateStoredADCredentialHealthSafe):
@@ -141,8 +144,9 @@ TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
 - Column 3 (Google GAM7, X=546):
   - Test Google GAM7 ($btnTestGoogle, Row 1): Verifies gam.exe, oauth2.txt inside active
     profile GAMCFGDIR, and runs gam oauth verify.
-  - 2. Setup Google GAM7 ($btnRunGamSetup, Row 2): Runs Setup-GoogleWorkspace-GAM.bat
-    to install GAM7 and authorize Google Cloud OAuth in active GAMCFGDIR.
+  - 2. Setup Google GAM7 ($btnRunGamSetup, Row 2): Scopes GAMCFGDIR to the
+    active profile and runs Setup-GoogleWorkspace-GAM.bat to install GAM7 and
+    authorize Google Cloud OAuth in active GAMCFGDIR.
   - Switch GAM Account ($btnSwitchGamAcct, Row 3): Runs gam oauth delete + create + verify
     scoped to the active profile GAMCFGDIR.
 
@@ -154,7 +158,8 @@ TAB 2: INCIDENT CONTAINMENT DECK
 - Safety Checkbox ($chkVerified): Hardware interlock preventing containment actions
   until the operator explicitly verifies the target identity.
 - 1. Reset Password ($btnResetPass): Opens Show-PasswordResetCustomDialog, sets password via
-  LDAP DirectoryEntry.Invoke("SetPassword"), sets pwdLastSet = 0, and verifies via LDAP read-back.
+  LDAP DirectoryEntry.Invoke("SetPassword"), enforces pwdLastSet = 0 or -1 per RequireChangeAtLogon,
+  and verifies via LDAP read-back.
 - 2. Revoke 365 Sessions ($btnRevoke365): Calls Invoke-RevokeMgUserSignInSessionSafe
   (POST /v1.0/users/{id}/revokeSignInSessions) to invalidate refresh tokens.
 - 3. Revoke Google Sessions ($btnRevokeGoogle): Executes gam user <id> signout,

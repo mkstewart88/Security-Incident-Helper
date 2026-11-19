@@ -1,24 +1,24 @@
 # ==============================================================================
-# Security Incident Response Automator (v1.1.66)
+# Security Incident Response Automator (v1.1.67)
 # Standalone Native Windows Form Application (Tabbed UI, Real Verification, Audit Trail)
 # Domain Agnostic | Auto-Detect Domain | Multi-Domain Profiles (AD + Graph + GAM7)
 # Encrypted Per-Profile AD Vault (DPAPI CurrentUser) | Zero-Lockout Credential Health
 # Native .NET System.DirectoryServices Fallback (Runs with or without RSAT!)
 #
 # DEVELOPER ARCHITECTURAL NAVIGATION INDEX:
-#   [01] Single-Threaded Apartment (-STA) Auto-Enforcement   (Line ~25)
-#   [02] Embedded Setup Batch Scripts (Base64 UTF-8)        (Line ~70)
-#   [03] Domain Auto-Discovery, Profiles & DPAPI AD Vault   (Line ~1390)
-#   [04] Active Directory Dual-Engine & User Search          (Line ~3270)
-#   [05] Microsoft Graph Identity & Session Revocation       (Line ~3495)
-#   [06] Google Workspace (GAM7) Orchestration & Signout     (Line ~3965)
-#   [07] Deep Isolation, Cloud MFA Wipe & KDC Hard-Lock      (Line ~5165)
-#   [08] Mailbox Forwarding & Inbox Rule Remediation         (Line ~5470)
-#   [09] Security Event Triage & Plain-English Decoder       (Line ~6345)
-#   [10] Windows Forms 5-Tab GUI Architecture & Controls     (Line ~7290)
-#   [11] Domain Switcher, Cred Health, Changelog & Updater   (Line ~8375)
-#   [12] Dynamic Theme Engine (Light / Dark Mode)            (Line ~12735)
-#   [13] High-DPI Responsive Scaling & Pixel Font Cache      (Line ~12885)
+#   [01] Single-Threaded Apartment (-STA) Auto-Enforcement   (Line ~26)
+#   [02] Embedded Setup Batch Scripts (Base64 UTF-8)        (Line ~73)
+#   [03] GAM7 Discovery, Domain Profiles & DPAPI AD Vault   (Line ~1395)
+#   [04] Active Directory Dual-Engine & User Search          (Line ~4795)
+#   [05] Microsoft Graph Identity & Session Revocation       (Line ~5210)
+#   [06] Google Workspace (GAM7) Orchestration & Signout     (Line ~5640)
+#   [07] Deep Isolation, Cloud MFA Wipe & KDC Hard-Lock      (Line ~6505)
+#   [08] Mailbox Forwarding & Inbox Rule Remediation         (Line ~7175)
+#   [09] Security Event Triage & Plain-English Decoder       (Line ~7855)
+#   [10] Windows Forms 5-Tab GUI Architecture & Controls     (Line ~8855)
+#   [11] Domain Switcher, Cred Health, Changelog & Updater   (Line ~9975)
+#   [12] Dynamic Theme Engine (Light / Dark Mode)            (Line ~14755)
+#   [13] High-DPI Responsive Scaling & Pixel Font Cache      (Line ~14960)
 # ==============================================================================
 
 #Requires -Version 5.1
@@ -34,7 +34,7 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
-$script:AppVersion = "1.1.66"
+$script:AppVersion = "1.1.67"
 $script:updateAvailable = $false
 $script:latestKnownVersionTag = "v$($script:AppVersion)"
 $script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
@@ -2155,6 +2155,7 @@ function Remove-GlobalMasterPassphraseAndPurgeAllSafe {
         Profiles          = $cleanList
     }
     $script:activeProfile = $cleanDefProfile
+    $script:BaseDefaultGamCfgDir = Resolve-BaseDefaultGamConfigDirSafe
 
     if (Get-Command Clear-TargetUserWorkspaceSafe -ErrorAction SilentlyContinue) { Clear-TargetUserWorkspaceSafe }
     if (Get-Command Sync-DiagProfileControls -ErrorAction SilentlyContinue) { Sync-DiagProfileControls }
@@ -2721,10 +2722,10 @@ function Show-MasterPassphraseDialogSafe {
     $btnChooseBreakGlass.Add_Click({
         $fgRedWarn = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
 
-        # Box 1: Single red warning sentence + bottom "Continue" prompt with Yes / No
+        # Box 1: Single red warning sentence (including Master Passphrase) + right-aligned "Continue?" prompt beside Yes / No
         $dlgWipe1 = New-Object System.Windows.Forms.Form
         $dlgWipe1.Text = "Confirm Break-Glass Reset"
-        $dlgWipe1.ClientSize = New-Object System.Drawing.Size(470, 176)
+        $dlgWipe1.ClientSize = New-Object System.Drawing.Size(500, 198)
         $dlgWipe1.StartPosition = "CenterParent"
         $dlgWipe1.FormBorderStyle = "FixedDialog"
         $dlgWipe1.MaximizeBox = $false
@@ -2736,27 +2737,28 @@ function Show-MasterPassphraseDialogSafe {
         $lblWipeRed = New-Object System.Windows.Forms.Label
         $lblWipeRed.UseMnemonic = $false
         $lblWipeRed.Location = New-Object System.Drawing.Point(20, 20)
-        $lblWipeRed.Size = New-Object System.Drawing.Size(430, 74)
-        $lblWipeRed.Font = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Bold)
+        $lblWipeRed.Size = New-Object System.Drawing.Size(460, 102)
+        $lblWipeRed.Font = New-Object System.Drawing.Font("Segoe UI", 10.5, [System.Drawing.FontStyle]::Bold)
         $lblWipeRed.ForeColor = $fgRedWarn
-        $lblWipeRed.Text = "This will permanently wipe all domain profiles, Active Directory credentials, Microsoft Graph sessions, and Google GAM7 profiles from the computer."
+        $lblWipeRed.Text = "This will permanently wipe your Master Passphrase, all domain profiles, Active Directory credentials, Microsoft Graph sessions, and Google GAM7 profiles from the computer."
         $dlgWipe1.Controls.Add($lblWipeRed)
 
         $lblContinue1 = New-Object System.Windows.Forms.Label
         $lblContinue1.UseMnemonic = $false
-        $lblContinue1.Location = New-Object System.Drawing.Point(20, 128)
-        $lblContinue1.Size = New-Object System.Drawing.Size(180, 24)
-        $lblContinue1.Font = New-Object System.Drawing.Font("Segoe UI", 9.25, [System.Drawing.FontStyle]::Bold)
+        $lblContinue1.Location = New-Object System.Drawing.Point(174, 144)
+        $lblContinue1.Size = New-Object System.Drawing.Size(110, 36)
+        $lblContinue1.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
+        $lblContinue1.Font = New-Object System.Drawing.Font("Segoe UI", 10.25, [System.Drawing.FontStyle]::Bold)
         $lblContinue1.ForeColor = $fgMain
-        $lblContinue1.Text = "Continue"
+        $lblContinue1.Text = "Continue?"
         $dlgWipe1.Controls.Add($lblContinue1)
 
         $btnYes1 = New-Object System.Windows.Forms.Button
         $btnYes1.UseMnemonic = $false
         $btnYes1.Text = "Yes"
-        $btnYes1.Location = New-Object System.Drawing.Point(272, 122)
-        $btnYes1.Size = New-Object System.Drawing.Size(84, 34)
-        $btnYes1.Font = New-Object System.Drawing.Font("Segoe UI", 8.75, [System.Drawing.FontStyle]::Bold)
+        $btnYes1.Location = New-Object System.Drawing.Point(292, 144)
+        $btnYes1.Size = New-Object System.Drawing.Size(88, 36)
+        $btnYes1.Font = New-Object System.Drawing.Font("Segoe UI", 9.75, [System.Drawing.FontStyle]::Bold)
         $btnYes1.BackColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
         $btnYes1.ForeColor = [System.Drawing.Color]::White
         $btnYes1.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -2766,9 +2768,9 @@ function Show-MasterPassphraseDialogSafe {
         $btnNo1 = New-Object System.Windows.Forms.Button
         $btnNo1.UseMnemonic = $false
         $btnNo1.Text = "No"
-        $btnNo1.Location = New-Object System.Drawing.Point(366, 122)
-        $btnNo1.Size = New-Object System.Drawing.Size(84, 34)
-        $btnNo1.Font = New-Object System.Drawing.Font("Segoe UI", 8.75)
+        $btnNo1.Location = New-Object System.Drawing.Point(390, 144)
+        $btnNo1.Size = New-Object System.Drawing.Size(88, 36)
+        $btnNo1.Font = New-Object System.Drawing.Font("Segoe UI", 9.75)
         $btnNo1.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
         $btnNo1.ForeColor = $fgMain
         $btnNo1.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -2777,7 +2779,7 @@ function Show-MasterPassphraseDialogSafe {
 
         $dlgWipe1.AcceptButton = $btnNo1
         $dlgWipe1.CancelButton = $btnNo1
-        Invoke-ApplyModalResponsiveScale -ModalForm $dlgWipe1 -BaseWidth 470 -BaseHeight 176 -Owner $dlg
+        Invoke-ApplyModalResponsiveScale -ModalForm $dlgWipe1 -BaseWidth 500 -BaseHeight 198 -Owner $dlg
         $ans1 = $dlgWipe1.ShowDialog($dlg)
         $dlgWipe1.Dispose()
         if ($ans1 -ne [System.Windows.Forms.DialogResult]::Yes) { return }
@@ -2785,7 +2787,7 @@ function Show-MasterPassphraseDialogSafe {
         # Box 2: Second separate confirmation dialog ("Are you sure?")
         $dlgWipe2 = New-Object System.Windows.Forms.Form
         $dlgWipe2.Text = "Final Confirmation"
-        $dlgWipe2.ClientSize = New-Object System.Drawing.Size(340, 126)
+        $dlgWipe2.ClientSize = New-Object System.Drawing.Size(360, 138)
         $dlgWipe2.StartPosition = "CenterParent"
         $dlgWipe2.FormBorderStyle = "FixedDialog"
         $dlgWipe2.MaximizeBox = $false
@@ -2797,8 +2799,8 @@ function Show-MasterPassphraseDialogSafe {
         $lblSure2 = New-Object System.Windows.Forms.Label
         $lblSure2.UseMnemonic = $false
         $lblSure2.Location = New-Object System.Drawing.Point(20, 22)
-        $lblSure2.Size = New-Object System.Drawing.Size(300, 30)
-        $lblSure2.Font = New-Object System.Drawing.Font("Segoe UI", 10.5, [System.Drawing.FontStyle]::Bold)
+        $lblSure2.Size = New-Object System.Drawing.Size(320, 34)
+        $lblSure2.Font = New-Object System.Drawing.Font("Segoe UI", 11.5, [System.Drawing.FontStyle]::Bold)
         $lblSure2.ForeColor = $fgRedWarn
         $lblSure2.Text = "Are you sure?"
         $dlgWipe2.Controls.Add($lblSure2)
@@ -2806,9 +2808,9 @@ function Show-MasterPassphraseDialogSafe {
         $btnYes2 = New-Object System.Windows.Forms.Button
         $btnYes2.UseMnemonic = $false
         $btnYes2.Text = "Yes"
-        $btnYes2.Location = New-Object System.Drawing.Point(142, 74)
-        $btnYes2.Size = New-Object System.Drawing.Size(84, 34)
-        $btnYes2.Font = New-Object System.Drawing.Font("Segoe UI", 8.75, [System.Drawing.FontStyle]::Bold)
+        $btnYes2.Location = New-Object System.Drawing.Point(154, 80)
+        $btnYes2.Size = New-Object System.Drawing.Size(88, 36)
+        $btnYes2.Font = New-Object System.Drawing.Font("Segoe UI", 9.75, [System.Drawing.FontStyle]::Bold)
         $btnYes2.BackColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
         $btnYes2.ForeColor = [System.Drawing.Color]::White
         $btnYes2.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -2818,9 +2820,9 @@ function Show-MasterPassphraseDialogSafe {
         $btnNo2 = New-Object System.Windows.Forms.Button
         $btnNo2.UseMnemonic = $false
         $btnNo2.Text = "No"
-        $btnNo2.Location = New-Object System.Drawing.Point(236, 74)
-        $btnNo2.Size = New-Object System.Drawing.Size(84, 34)
-        $btnNo2.Font = New-Object System.Drawing.Font("Segoe UI", 8.75)
+        $btnNo2.Location = New-Object System.Drawing.Point(252, 80)
+        $btnNo2.Size = New-Object System.Drawing.Size(88, 36)
+        $btnNo2.Font = New-Object System.Drawing.Font("Segoe UI", 9.75)
         $btnNo2.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
         $btnNo2.ForeColor = $fgMain
         $btnNo2.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
@@ -2829,7 +2831,7 @@ function Show-MasterPassphraseDialogSafe {
 
         $dlgWipe2.AcceptButton = $btnNo2
         $dlgWipe2.CancelButton = $btnNo2
-        Invoke-ApplyModalResponsiveScale -ModalForm $dlgWipe2 -BaseWidth 340 -BaseHeight 126 -Owner $dlg
+        Invoke-ApplyModalResponsiveScale -ModalForm $dlgWipe2 -BaseWidth 360 -BaseHeight 138 -Owner $dlg
         $ans2 = $dlgWipe2.ShowDialog($dlg)
         $dlgWipe2.Dispose()
 
@@ -6303,7 +6305,13 @@ function Query-ADUsersSafe {
 }
 
 function Set-ADPasswordSafe {
-    param([string]$SamAccount, [string]$NewPassword, [string]$Server, [System.Management.Automation.PSCredential]$Cred)
+    param(
+        [string]$SamAccount,
+        [string]$NewPassword,
+        [string]$Server,
+        [System.Management.Automation.PSCredential]$Cred,
+        [bool]$RequireChangeAtLogon = $true
+    )
 
     if ([string]::IsNullOrWhiteSpace($SamAccount)) {
         throw "Target sAMAccountName is empty."
@@ -6319,9 +6327,9 @@ function Set-ADPasswordSafe {
         if ($hasServer) { $p['Server'] = $Server }
         if ($Cred) { $p['Credential'] = $Cred }
         Set-ADAccountPassword @p -Identity $SamAccount -NewPassword $secStr -Reset -ErrorAction Stop
-        Set-ADUser @p -Identity $SamAccount -ChangePasswordAtLogon $true -ErrorAction Stop
+        Set-ADUser @p -Identity $SamAccount -ChangePasswordAtLogon $RequireChangeAtLogon -ErrorAction Stop
 
-        # Verify that the user object reflects ChangePasswordAtLogon (PasswordLastSet == $null)
+        # Re-query user object to verify update took effect cleanly
         $verifyUser = Get-ADUser @p -Identity $SamAccount -Properties PasswordLastSet -ErrorAction Stop
         if (-not $verifyUser) {
             throw "Password reset verification failed: Could not re-query user '$SamAccount'."
@@ -6329,7 +6337,7 @@ function Set-ADPasswordSafe {
         return
     }
 
-    # Native .NET ADSI Fallback with explicit verification
+    # Native .NET ADSI Fallback with RFC 4515 LDAP escaping and explicit commit
     $targetDomain = $(if ($hasServer) { $Server } else { $script:targetDomain })
     $path = $(if (Test-ValidADServer $targetDomain) { "LDAP://$targetDomain" } else { "LDAP://" })
 
@@ -6341,7 +6349,8 @@ function Set-ADPasswordSafe {
 
     try {
         $searcher = New-Object System.DirectoryServices.DirectorySearcher($root)
-        $searcher.Filter = "(&(objectCategory=person)(objectClass=user)(sAMAccountName=$SamAccount))"
+        $escapedSam = ConvertTo-LdapFilterValueSafe $SamAccount
+        $searcher.Filter = "(&(objectCategory=person)(objectClass=user)(sAMAccountName=$escapedSam))"
         $match = $searcher.FindOne()
         if ($null -eq $match) {
             throw "User '$SamAccount' was not found in Active Directory."
@@ -6354,7 +6363,11 @@ function Set-ADPasswordSafe {
         })
         try {
             $userEntry.Invoke("SetPassword", @($NewPassword))
-            $userEntry.Properties["pwdLastSet"].Value = 0
+            if ($RequireChangeAtLogon) {
+                $userEntry.Properties["pwdLastSet"].Value = 0
+            } else {
+                $userEntry.Properties["pwdLastSet"].Value = -1
+            }
             $userEntry.CommitChanges()
         } finally {
             if ($userEntry) { $userEntry.Dispose() }
@@ -7219,6 +7232,7 @@ function Invoke-GraphMailboxRestSafe {
                         return (Invoke-RestMethod @invokeParams)
                     }
                 }
+                throw
             }
         }
     }
@@ -10309,6 +10323,14 @@ function Show-DomainSwitcher {
     $btnPurgeDlgCred.Add_Click({
         $pr = $dlgState.SelectedProfile
         if (-not $pr) { return }
+        $ansPurgeDlg = [System.Windows.Forms.MessageBox]::Show(
+            $dlg,
+            "Are you sure you want to permanently purge the saved encrypted AD credentials and reset the circuit breaker for '$($pr.Name)'?",
+            "Confirm Purge Saved Credentials",
+            [System.Windows.Forms.MessageBoxButtons]::YesNo,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        )
+        if ($ansPurgeDlg -ne [System.Windows.Forms.DialogResult]::Yes) { return }
         Remove-SavedADCredentialVaultSafe -ProfileObj $pr
         & $loadSelectedProfileFields
         if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
@@ -10600,6 +10622,10 @@ function Show-ChangelogWindow {
             "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
             "===========================================================`r`n" +
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+            "## [1.1.67] - 2026-11-19`r`n" +
+            "### Added, Changed & Fixed`r`n" +
+            "  * Break-Glass Prompt Clarification, Alignment & Typography: Updated Box 1 red text to explicitly state that your Master Passphrase is wiped alongside all Domain Profiles, AD credentials, Microsoft Graph sessions, and Google GAM7 profiles; changed 'Continue' to 'Continue?' right-aligned beside Yes/No; and bumped text size one step larger on both Box 1 and Box 2 ('Are you sure?').`r`n" +
+            "  * Security & Reliability Bug Fixes: Honored the 'Require user to change password at next logon' toggle and RFC 4515 LDAP escaping in Set-ADPasswordSafe; stopped App-Only Graph mailbox 404/403 API errors from triggering spurious delegated prompts; ensured GAM setup scopes & refreshes BaseDefaultGamCfgDir; added Yes/No confirmation to Domain Switcher's 'Purge Saved' button; handled empty CSV audit exports gracefully; and enabled dark/light DataGridView column header styling.`r`n`r`n" +
             "## [1.1.66] - 2026-11-19`r`n" +
             "### Added, Changed & Fixed`r`n" +
             "  * Tab 1 Purge Confirmation & Scrollable Reference: Added an 'Are you sure?' confirmation modal before 'Purge Saved Creds' executes, enabled Tab 1 AutoScroll, and made the 'Integration Setup & Multi-Domain Switching Reference' box vertically scrollable so text is never clipped in non-fullscreen windows.`r`n" +
@@ -12128,11 +12154,12 @@ function Show-PasswordResetCustomDialog {
 
         Write-AppLog "Executing Active Directory password reset for '$($u.SamAccountName)' ($($u.UserPrincipalName)) with custom chosen password..." "INFO"
         try {
-            Set-ADPasswordSafe -SamAccount $u.SamAccountName -NewPassword $chosenPass -Server $script:targetServer -Cred $script:adCredential
+            $reqChange = [bool]$chkMustChange.Checked
+            Set-ADPasswordSafe -SamAccount $u.SamAccountName -NewPassword $chosenPass -Server $script:targetServer -Cred $script:adCredential -RequireChangeAtLogon $reqChange
             $lblCardPassVal.Text = "0 days (Reset)"
-            $lblCardPassSub.Text = $(if ($chkMustChange.Checked) { "Must change at logon" } else { "Password updated" })
+            $lblCardPassSub.Text = $(if ($reqChange) { "Must change at logon" } else { "Password updated" })
             if ($txtCustomPass) { $txtCustomPass.Text = $chosenPass }
-            Write-AppLog "SUCCESS: Active Directory password successfully reset and verified for '$($u.SamAccountName)'. New password active." "SUCCESS"
+            Write-AppLog "SUCCESS: Active Directory password successfully reset and verified for '$($u.SamAccountName)' (Force logon change: $reqChange)." "SUCCESS"
             Add-AuditEntry "Reset Password" "SUCCESS" "Active Directory password reset and verified for sAM '$($u.SamAccountName)'."
             [System.Windows.Forms.MessageBox]::Show($form, "Active Directory password for '$($u.DisplayName)' has been successfully reset!`n`nTemporary Password: $chosenPass", "Password Reset Successful", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
         } catch {
@@ -12976,9 +13003,19 @@ $btnRunGraphSetup.Add_Click({
 
 $btnRunGamSetup.Add_Click({
     try {
-        Write-DiagLog "Launching Setup-GoogleWorkspace-GAM.bat..."
+        $activeGamDir = Get-ActiveGamConfigDir
+        if (-not [string]::IsNullOrWhiteSpace($activeGamDir)) {
+            $isNonDefaultGam = (-not [string]::IsNullOrWhiteSpace($script:BaseDefaultGamCfgDir)) -and ($activeGamDir.TrimEnd('\') -ine $script:BaseDefaultGamCfgDir.TrimEnd('\'))
+            if ($isNonDefaultGam -and (-not (Test-Path -LiteralPath $activeGamDir -PathType Container))) {
+                New-Item -ItemType Directory -Path $activeGamDir -Force -ErrorAction SilentlyContinue | Out-Null
+            }
+            $env:GAMCFGDIR = $activeGamDir
+        }
+        Write-DiagLog "Launching Setup-GoogleWorkspace-GAM.bat (Profile: '$($script:activeProfile.Name)' | GAMCFGDIR: '$($env:GAMCFGDIR)')..."
         $exitCode = Invoke-SetupBatchScript -FileName "Setup-GoogleWorkspace-GAM.bat" -Base64Payload $script:EmbeddedGamBatB64
-        Write-DiagLog "Setup-GoogleWorkspace-GAM.bat exited with code $exitCode. Running post-setup verification..."
+        Write-DiagLog "Setup-GoogleWorkspace-GAM.bat exited with code $exitCode. Refreshing GAM7 path & running post-setup verification..."
+        $script:BaseDefaultGamCfgDir = Resolve-BaseDefaultGamConfigDirSafe
+        $env:GAMCFGDIR = Get-ActiveGamConfigDir
         $gamCheck = Invoke-VerifyGAM
         if ($gamCheck.Verified) {
             Write-DiagLog "[SUCCESS] GAM7 v$($gamCheck.Version) installed at $($gamCheck.Executable) and OAuth verified."
@@ -14685,9 +14722,20 @@ $btnExportAudit.Add_Click({
     $saveDlg.Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*"
     $saveDlg.FileName = "IncidentAuditLog-$((Get-Date).ToString('yyyyMMdd-HHmmss')).csv"
     if ($saveDlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-        Copy-Item -Path $script:auditCsv -Destination $saveDlg.FileName -Force
-        Write-AppLog "Audit log exported to: $($saveDlg.FileName)" "SUCCESS"
-        Show-ActionPopup -ActionTitle "Export Audit Log" -Succeeded $true -Details "Audit log exported to $($saveDlg.FileName)"
+        try {
+            if (Test-Path -LiteralPath $script:auditCsv -PathType Leaf) {
+                Copy-Item -LiteralPath $script:auditCsv -Destination $saveDlg.FileName -Force -ErrorAction Stop
+            } elseif ($null -ne $script:inMemoryAuditLog -and $script:inMemoryAuditLog.Count -gt 0) {
+                $script:inMemoryAuditLog | Export-Csv -LiteralPath $saveDlg.FileName -NoTypeInformation -Encoding UTF8 -Force
+            } else {
+                Set-Content -LiteralPath $saveDlg.FileName -Value "Timestamp,Admin,TargetUPN,TargetName,Action,Status,Details" -Encoding UTF8 -Force
+            }
+            Write-AppLog "Audit log exported to: $($saveDlg.FileName)" "SUCCESS"
+            Show-ActionPopup -ActionTitle "Export Audit Log" -Succeeded $true -Details "Audit log exported to $($saveDlg.FileName)"
+        } catch {
+            Write-AppLog "ERROR exporting audit log: $($_.Exception.Message)" "ERROR"
+            Show-ActionPopup -ActionTitle "Export Audit Log" -Succeeded $false -Details $_.Exception.Message
+        }
     }
 })
 
@@ -14827,6 +14875,7 @@ function Apply-AppTheme {
     $allGrids = @($gridAudit, $gridRules, $gridEvents)
     foreach ($g in $allGrids) {
         if ($g) {
+            $g.EnableHeadersVisualStyles = $false
             $g.BackgroundColor = $bgInput
             $g.DefaultCellStyle.BackColor = $bgCard
             $g.DefaultCellStyle.ForeColor = $fgText

@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.66)
+SECURITY INCIDENT RESPONSE AUTOMATOR - QUICK START GUIDE (v1.1.67)
 ================================================================================
 
 Security Incident Response Automator can be launched or compiled in seconds
@@ -36,10 +36,11 @@ To package the script and its embedded setup scripts into a single standalone bi
   menu (0 textboxes) and shows only the input(s) required for the button you
   click: Change Passphrase (3 boxes), "Remove Passphrase" (1 box -> "Continue"
   prompt + why-keep warning while keeping saved creds), or break-glass "Remove
-  Passphrase & All Creds" (0 boxes, no passphrase needed if forgotten; Box 1 red
-  warning + bottom "Continue" Yes/No -> Box 2 "Are you sure?" Yes/No before
-  wiping all Domain Profiles, AD vaults, Microsoft Graph sessions/caches, and
-  Google GAM7 OAuth/config files while preserving gam.exe).
+  Passphrase & All Creds" (0 boxes, no passphrase needed if forgotten; enlarged
+  Box 1 red warning sentence explicitly covering your Master Passphrase, Domain
+  Profiles, AD credentials, Microsoft Graph sessions, and Google GAM7 profiles
+  with "Continue?" beside Yes/No -> enlarged Box 2 "Are you sure?" Yes/No
+  before wiping all data while preserving gam.exe).
 - Automatic Plugged-In Domain Detection: On startup, the console detects any
   configured domain reachable on your active network (even on non-joined PCs),
   switches to its Domain Profile, unlocks saved DPAPI AD credentials, and logs

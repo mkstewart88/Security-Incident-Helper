@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.63)
+SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.66)
 ================================================================================
 
 ARCHITECTURAL SPECIFICATION & EXHAUSTIVE CONTROL-BY-CONTROL ENGINEERING REFERENCE
@@ -56,17 +56,21 @@ TOP HEADER BAR:
 - Update Status Button ($btnCheckUpdates: "v<version>" / "Update Available") &
   View Changelog ($btnViewChangelog):
   On startup ($form.Add_Shown), Start-StartupUpdateCheckAsync runs an
-  asynchronous background check via Get-GitHubUpdateStatusSafe against GitHub
-  releases/latest and VERSION (with UTF-8 decoding and commit SHA cache bypass).
-  Update-HeaderUpdateButtonState displays "v<version>" (e.g., v1.1.63) when up
-  to date/offline or "Update Available" with theme-aware amber highlight when a
-  newer release exists. Clicking opens Show-UpdateCheckWindow (enforcing trusted
-  github.com/githubusercontent.com HTTPS download URLs & ref checks) for Check for
-  Updates, View Changelog, and Update & Restart (.ps1 syntax check or local
-  PS2EXE compilation with MZ header validation before hot-swapping).
-- [ Light Mode ] / [ Dark Mode ] ($btnThemeToggle):
-  Invokes Apply-AppTheme($Dark). Dynamically recolors all forms, headers,
-  action logs, decision boxes, input controls, and data grids without reloading.
+  asynchronous background check (with single-retry transient resilience) via
+  Get-GitHubUpdateStatusSafe comparing BOTH GitHub releases/latest and
+  commit-SHA-busted main/VERSION (picking whichever is higher).
+  Update-HeaderUpdateButtonState immediately renders and refreshes "v<version>"
+  (e.g., v1.1.66) when up to date/offline or "Update Available" automatically on
+  launch whenever a newer version or main commit exists. Clicking opens
+  Show-UpdateCheckWindow (enforcing trusted github.com/githubusercontent.com
+  HTTPS URLs & ref checks) for Check for Updates, View Changelog, and Update &
+  Restart (uncached commit-SHA download, AST + post-download AppVersion check,
+  optional local PS2EXE compilation with MZ header check, and a 30-attempt
+  file-lock retry loop updating sibling files before relaunch).
+- [ Light Mode ] / [ Dark Mode ] ($btnThemeToggle -> Invoke-ThemeCrossFadeTransitionSafe):
+  Captures a client snapshot overlay, applies Apply-AppTheme($Dark) cleanly
+  underneath, and smoothly fades overlay opacity (~240ms) across all panels,
+  headers, action logs, decision boxes, inputs, and data grids.
 - GitHub Repository Icon ($btnGitHub):
   Positioned immediately to the right of [ Light Mode ] / [ Dark Mode ].
   Renders a DPI-aware vector GitHub mark and launches
@@ -74,17 +78,24 @@ TOP HEADER BAR:
 - Master Passphrase ($btnMasterPassphrase -> Show-MasterPassphraseDialogSafe /
   Show-StartupMasterPassphraseGateSafe):
   Positioned immediately to the right of $btnGitHub. Manages an optional global
-  application-wide passphrase (MasterVault.json) applied to all saved Domain
-  Profiles using an action-first panel flow: when unset, shows 2 boxes (New +
-  Confirm); when active, opens to $pnlMenu (0 boxes) with Change Passphrase
-  (3 boxes: Current/New/Confirm), "Remove Passphrase" (1 box: Current, showing
-  a why-keep warning while preserving saved vaults under DPAPI CurrentUser),
-  and break-glass "Remove Passphrase & All Creds" (0 boxes, no passphrase needed
-  if forgotten; confirms wipe of all saved credentials back to default). When
-  enabled, startup enforces a 2-attempt gate before any probing or sign-in; when
-  unset, startup skips the prompt and auto-connects.
+  application-wide passphrase (MasterVault.dpapi.json) applied to all saved
+  Domain Profiles using an action-first panel flow: when unset, shows 2 boxes
+  (New + Confirm); when active, opens to $pnlMenu (0 boxes) with Change
+  Passphrase (3 boxes: Current/New/Confirm), "Remove Passphrase" (1 box: Current
+  -> "Continue" prompt & why-keep warning keeping DPAPI vaults), and break-glass
+  "Remove Passphrase & All Creds" (0 boxes, no passphrase needed if forgotten;
+  Box 1 single red sentence + bottom "Continue" Yes/No -> Box 2 "Are you sure?"
+  Yes/No, calling Remove-GlobalMasterPassphraseAndPurgeAllSafe to permanently
+  wipe all Domain Profiles, AD DPAPI vaults, MasterVault.dpapi.json,
+  MailboxAuditorApp.json, Microsoft Graph sessions/caches, and Google GAM7
+  OAuth/config files while preserving gam.exe). When enabled, startup enforces
+  a 2-attempt gate before probing or sign-in.
 
 TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
+- Scrollability & Reference Box ($tabDiag.AutoScroll = $true, $lblDiagGuide):
+  Tab 1 enables AutoScroll and uses a vertically scrollable read-only TextBox
+  inside $grpDiagGuide ("Integration Setup & Multi-Domain Switching Reference")
+  so wrapped guidance text is never clipped in non-fullscreen windows.
 - Active Profile Bar ($cmbDiagProfile, Switch Profile $btnDiagSwitchProfile,
   + New Profile $btnDiagNewProfile, Manage / AD... $btnDiagManageProfiles) &
   Show-PrimaryProfilePromptSafe:
@@ -113,7 +124,8 @@ TAB 1: INTEGRATIONS & PRE-FLIGHT SETUP
     plugged-in unjoined networks), auto-connects AD via saved vault credentials,
     and runs unified preflight across Active Directory + Microsoft Graph + GAM7
     while staying cleanly on Tab 1.
-  - Configure Saved AD Creds... ($btnManageSavedCred) & Purge Saved Creds ($btnPurgeSavedCred).
+  - Configure Saved AD Creds... ($btnManageSavedCred) & Purge Saved Creds
+    ($btnPurgeSavedCred, protected by an "Are you sure?" modal Yes/No prompt).
 - Column 1 (Active Directory, X=15):
   - Test Active Directory ($btnTestAD, Row 1): Performs live LDAP RootDSE bind.
   - Install RSAT (Optional) ($btnRunRsatSetup, Row 2): Runs Setup-RSAT-ActiveDirectory.bat

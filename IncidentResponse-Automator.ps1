@@ -1,5 +1,5 @@
 # ==============================================================================
-# Security Incident Response Automator (v1.1.63)
+# Security Incident Response Automator (v1.1.66)
 # Standalone Native Windows Form Application (Tabbed UI, Real Verification, Audit Trail)
 # Domain Agnostic | Auto-Detect Domain | Multi-Domain Profiles (AD + Graph + GAM7)
 # Encrypted Per-Profile AD Vault (DPAPI CurrentUser) | Zero-Lockout Credential Health
@@ -34,7 +34,7 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
-$script:AppVersion = "1.1.65"
+$script:AppVersion = "1.1.66"
 $script:updateAvailable = $false
 $script:latestKnownVersionTag = "v$($script:AppVersion)"
 $script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
@@ -1967,15 +1967,124 @@ function Remove-GlobalMasterPassphraseKeepCredsSafe {
 
 function Remove-GlobalMasterPassphraseAndPurgeAllSafe {
     $purgedProfiles = 0
+    $gamDirsToWipe = [System.Collections.Generic.List[string]]::new()
+    $graphDirsToWipe = [System.Collections.Generic.List[string]]::new()
+    $addUniqueDir = {
+        param([System.Collections.Generic.List[string]]$List, [string]$RawDir)
+        if ([string]::IsNullOrWhiteSpace($RawDir)) { return }
+        try {
+            $norm = [Environment]::ExpandEnvironmentVariables($RawDir.Trim().Trim('"')).TrimEnd('\')
+            if ([string]::IsNullOrWhiteSpace($norm)) { return }
+            if (-not ($List -contains $norm)) { [void]$List.Add($norm) }
+        } catch {}
+    }
+
+    # 1. Wipe all per-profile AD DPAPI vaults and gather all profile GAM/Graph folders
     if ($script:domainProfilesData -and $script:domainProfilesData.Profiles) {
         foreach ($pr in $script:domainProfilesData.Profiles) {
             $meta = Get-ADCredentialHealthMetaSafe -ProfileObj $pr
             if ($meta.HasSavedCred -or $meta.CircuitBreakerTripped) {
                 Remove-SavedADCredentialVaultSafe -ProfileObj $pr
-                $purgedProfiles++
             }
+            $purgedProfiles++
+            try {
+                $pPaths = Get-DomainProfilePaths -ProfileObj $pr
+                & $addUniqueDir $gamDirsToWipe $pPaths.GamDir
+                & $addUniqueDir $graphDirsToWipe $pPaths.GraphDir
+                & $addUniqueDir $graphDirsToWipe $pPaths.MgDir
+            } catch {}
         }
     }
+
+    # 2. Disconnect and wipe Microsoft Graph sessions, MSAL caches, and Mailbox Auditor secrets
+    $script:cachedGraphAppToken = $null
+    $script:cachedGraphAppTokenExpiry = [datetime]::MinValue
+    $script:attemptedSchemaV2Upgrade = $false
+    try {
+        if (Get-Command -Name 'Disconnect-MgGraph' -ErrorAction SilentlyContinue) {
+            Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
+        }
+    } catch {}
+
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        & $addUniqueDir $graphDirsToWipe (Join-Path $env:USERPROFILE '.mg')
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        & $addUniqueDir $graphDirsToWipe (Join-Path $env:LOCALAPPDATA 'MicrosoftGraphSetup')
+    }
+    & $addUniqueDir $graphDirsToWipe $script:BaseDefaultGraphDir
+    & $addUniqueDir $graphDirsToWipe $env:IR_GRAPH_SETUP_DIR
+
+    foreach ($gDir in $graphDirsToWipe) {
+        if (Test-Path -LiteralPath $gDir -PathType Container) {
+            try {
+                Get-ChildItem -LiteralPath $gDir -Force -ErrorAction SilentlyContinue | ForEach-Object {
+                    try { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+                }
+            } catch {}
+        }
+    }
+
+    # 3. Wipe Google GAM7 OAuth tokens, service keys, and config across all GAM locations (preserving gam.exe)
+    & $addUniqueDir $gamDirsToWipe $script:BaseDefaultGamCfgDir
+    & $addUniqueDir $gamDirsToWipe $env:GAMCFGDIR
+    try { & $addUniqueDir $gamDirsToWipe ([Environment]::GetEnvironmentVariable('GAMCFGDIR', 'User')) } catch {}
+    try { & $addUniqueDir $gamDirsToWipe ([Environment]::GetEnvironmentVariable('GAMCFGDIR', 'Machine')) } catch {}
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        & $addUniqueDir $gamDirsToWipe (Join-Path $env:USERPROFILE '.gam')
+        & $addUniqueDir $gamDirsToWipe (Join-Path $env:USERPROFILE 'GAMConfig')
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        & $addUniqueDir $gamDirsToWipe (Join-Path $env:LOCALAPPDATA 'GAM7')
+        & $addUniqueDir $gamDirsToWipe (Join-Path $env:LOCALAPPDATA 'GAM')
+    }
+    & $addUniqueDir $gamDirsToWipe 'C:\GAMConfig'
+    & $addUniqueDir $gamDirsToWipe 'C:\GAM7'
+    & $addUniqueDir $gamDirsToWipe 'C:\GAM'
+    try {
+        $resolvedGamExe = Resolve-GamExecutable
+        if ($resolvedGamExe) { & $addUniqueDir $gamDirsToWipe (Split-Path -Parent $resolvedGamExe) }
+    } catch {}
+
+    $gamSensitivePatterns = @(
+        'oauth2.txt', 'oauth2.txt.lock', 'oauth2service.json', 'client_secrets.json',
+        'gam.cfg', 'extra_args.txt', 'nobrowser.txt', 'lastupdatecheck.txt',
+        'oauth2.txt.backup-*', 'client_secrets.json.backup-*', 'gam.cfg.backup-*'
+    )
+    foreach ($gamDir in $gamDirsToWipe) {
+        if (-not (Test-Path -LiteralPath $gamDir -PathType Container)) { continue }
+        foreach ($pat in $gamSensitivePatterns) {
+            try {
+                Get-ChildItem -LiteralPath $gamDir -Filter $pat -Force -ErrorAction SilentlyContinue | ForEach-Object {
+                    try {
+                        if (-not $_.PSIsContainer -and $_.Length -gt 0 -and $_.Length -lt 262144) {
+                            $z = New-Object byte[] $_.Length
+                            [System.IO.File]::WriteAllBytes($_.FullName, $z)
+                        }
+                    } catch {}
+                    try { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } catch {}
+                }
+            } catch {}
+        }
+        $gamCacheDir = Join-Path $gamDir 'gamcache'
+        if (Test-Path -LiteralPath $gamCacheDir -PathType Container) {
+            try { Remove-Item -LiteralPath $gamCacheDir -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+        }
+    }
+
+    # Clear process-scoped and IRA-scoped User GAMCFGDIR pointing at wiped folders
+    $env:GAMCFGDIR = $null
+    $env:IR_GRAPH_SETUP_DIR = $null
+    try {
+        $userGamEnv = [Environment]::GetEnvironmentVariable('GAMCFGDIR', 'User')
+        if (-not [string]::IsNullOrWhiteSpace($userGamEnv) -and -not [string]::IsNullOrWhiteSpace($script:ProfilesRootDir)) {
+            if ($userGamEnv.StartsWith($script:ProfilesRootDir.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
+                [Environment]::SetEnvironmentVariable('GAMCFGDIR', $null, 'User')
+            }
+        }
+    } catch {}
+
+    # 4. Wipe MasterVault, Profiles folder, Profiles.json, LastDomainConnection.json, and MailboxAuditorApp.json
     $path = Get-GlobalMasterVaultPathSafe
     if (Test-Path -LiteralPath $path -PathType Leaf) {
         try {
@@ -1987,9 +2096,70 @@ function Remove-GlobalMasterPassphraseAndPurgeAllSafe {
         } catch {}
         Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
     }
+
+    $iraRoots = [System.Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        [void]$iraRoots.Add((Join-Path $env:LOCALAPPDATA 'IncidentResponse-Automator'))
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        [void]$iraRoots.Add((Join-Path $env:USERPROFILE '.incident-response'))
+    }
+    foreach ($rootDir in $iraRoots) {
+        if (-not (Test-Path -LiteralPath $rootDir -PathType Container)) { continue }
+        foreach ($subFile in @('Profiles.json', 'LastDomainConnection.json', 'MasterVault.dpapi.json', 'MailboxAuditorApp.json')) {
+            $fp = Join-Path $rootDir $subFile
+            if (Test-Path -LiteralPath $fp -PathType Leaf) {
+                try { Remove-Item -LiteralPath $fp -Force -ErrorAction SilentlyContinue } catch {}
+            }
+        }
+        $pSub = Join-Path $rootDir 'Profiles'
+        if (Test-Path -LiteralPath $pSub -PathType Container) {
+            try { Remove-Item -LiteralPath $pSub -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($script:ProfilesRootDir) -and (Test-Path -LiteralPath $script:ProfilesRootDir -PathType Container)) {
+        try { Remove-Item -LiteralPath $script:ProfilesRootDir -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+    }
+
+    # 5. Reset in-memory profile, AD session, and target user workspace back to clean defaults
     $script:sessionMasterPassphrase = ""
     $script:adCredential = $null
     $script:lastCredHealthResult = $null
+    $script:lastNetworkProbeSummary = $null
+    $script:useExplicitCreds = $false
+    $script:targetDomain = $(if ($script:isDomainJoined) { Get-DiscoveredLocalDomainSafe } else { "Not Connected (Workgroup)" })
+    $script:targetServer = $script:targetDomain
+    $script:adminAccount = $(if (-not [string]::IsNullOrEmpty($env:USERDNSDOMAIN)) { "$env:USERNAME@$($env:USERDNSDOMAIN.ToLower())" } elseif ($env:USERNAME) { $env:USERNAME } else { "admin" })
+
+    $cleanDefProfile = [PSCustomObject]@{
+        Id                = 'default'
+        Name              = 'Default Profile'
+        IsDefault         = $true
+        IsPrimary         = $false
+        TargetDomain      = $(if ($script:isDomainJoined) { $script:targetDomain } else { "" })
+        TargetServer      = $(if ($script:isDomainJoined) { $script:targetDomain } else { "" })
+        AdminUsername     = $script:adminAccount
+        UseExplicitCreds  = $false
+        GamConfigDir      = ''
+        GraphSetupDir     = ''
+        GraphAccountHint  = ''
+        GraphTenantIdHint = ''
+        LastUsedUtc       = (Get-Date).ToUniversalTime().ToString('o')
+    }
+    $cleanList = [System.Collections.Generic.List[psobject]]::new()
+    [void]$cleanList.Add($cleanDefProfile)
+    $script:domainProfilesData = [PSCustomObject]@{
+        SchemaVersion     = 2
+        PrimaryConfigured = $false
+        ActiveProfileId   = 'default'
+        Profiles          = $cleanList
+    }
+    $script:activeProfile = $cleanDefProfile
+
+    if (Get-Command Clear-TargetUserWorkspaceSafe -ErrorAction SilentlyContinue) { Clear-TargetUserWorkspaceSafe }
+    if (Get-Command Sync-DiagProfileControls -ErrorAction SilentlyContinue) { Sync-DiagProfileControls }
+    if (Get-Command Update-HeaderSubLabelSafe -ErrorAction SilentlyContinue) { Update-HeaderSubLabelSafe }
+
     return $purgedProfiles
 }
 
@@ -2549,32 +2719,130 @@ function Show-MasterPassphraseDialogSafe {
     $btnBackKeep.Add_Click({ & $showPassPanel 'Menu' })
 
     $btnChooseBreakGlass.Add_Click({
-        $nl = [System.Environment]::NewLine
-        $promptWipe =
-            "EMERGENCY BREAK-GLASS RESET (Forgotten Passphrase):$nl" +
-            "Does NOT require your current Master Passphrase.$nl$nl" +
-            "What this will do:$nl" +
-            "- Permanently WIPE ALL stored AD credentials across every Domain Profile ($savedCount saved vault(s))$nl" +
-            "- Remove the application Master Passphrase and clear session vault keys$nl" +
-            "- Reset the application's saved credentials back to its clean default state (you will need to manually re-enter and re-save AD credentials)$nl$nl" +
-            "Are you sure you want to wipe all stored credentials and reset?"
-        $ans = [System.Windows.Forms.MessageBox]::Show(
-            $dlg,
-            $promptWipe,
-            "Confirm Break-Glass Reset & Wipe All Stored Credentials",
-            [System.Windows.Forms.MessageBoxButtons]::YesNo,
-            [System.Windows.Forms.MessageBoxIcon]::Warning
-        )
-        if ($ans -eq [System.Windows.Forms.DialogResult]::Yes) {
+        $fgRedWarn = $(if ($isDark) { [System.Drawing.Color]::FromArgb(248, 113, 113) } else { [System.Drawing.Color]::FromArgb(220, 38, 38) })
+
+        # Box 1: Single red warning sentence + bottom "Continue" prompt with Yes / No
+        $dlgWipe1 = New-Object System.Windows.Forms.Form
+        $dlgWipe1.Text = "Confirm Break-Glass Reset"
+        $dlgWipe1.ClientSize = New-Object System.Drawing.Size(470, 176)
+        $dlgWipe1.StartPosition = "CenterParent"
+        $dlgWipe1.FormBorderStyle = "FixedDialog"
+        $dlgWipe1.MaximizeBox = $false
+        $dlgWipe1.MinimizeBox = $false
+        $dlgWipe1.TopMost = $true
+        $dlgWipe1.BackColor = $bgDlg
+        $dlgWipe1.ForeColor = $fgMain
+
+        $lblWipeRed = New-Object System.Windows.Forms.Label
+        $lblWipeRed.UseMnemonic = $false
+        $lblWipeRed.Location = New-Object System.Drawing.Point(20, 20)
+        $lblWipeRed.Size = New-Object System.Drawing.Size(430, 74)
+        $lblWipeRed.Font = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Bold)
+        $lblWipeRed.ForeColor = $fgRedWarn
+        $lblWipeRed.Text = "This will permanently wipe all domain profiles, Active Directory credentials, Microsoft Graph sessions, and Google GAM7 profiles from the computer."
+        $dlgWipe1.Controls.Add($lblWipeRed)
+
+        $lblContinue1 = New-Object System.Windows.Forms.Label
+        $lblContinue1.UseMnemonic = $false
+        $lblContinue1.Location = New-Object System.Drawing.Point(20, 128)
+        $lblContinue1.Size = New-Object System.Drawing.Size(180, 24)
+        $lblContinue1.Font = New-Object System.Drawing.Font("Segoe UI", 9.25, [System.Drawing.FontStyle]::Bold)
+        $lblContinue1.ForeColor = $fgMain
+        $lblContinue1.Text = "Continue"
+        $dlgWipe1.Controls.Add($lblContinue1)
+
+        $btnYes1 = New-Object System.Windows.Forms.Button
+        $btnYes1.UseMnemonic = $false
+        $btnYes1.Text = "Yes"
+        $btnYes1.Location = New-Object System.Drawing.Point(272, 122)
+        $btnYes1.Size = New-Object System.Drawing.Size(84, 34)
+        $btnYes1.Font = New-Object System.Drawing.Font("Segoe UI", 8.75, [System.Drawing.FontStyle]::Bold)
+        $btnYes1.BackColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
+        $btnYes1.ForeColor = [System.Drawing.Color]::White
+        $btnYes1.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $btnYes1.DialogResult = [System.Windows.Forms.DialogResult]::Yes
+        $dlgWipe1.Controls.Add($btnYes1)
+
+        $btnNo1 = New-Object System.Windows.Forms.Button
+        $btnNo1.UseMnemonic = $false
+        $btnNo1.Text = "No"
+        $btnNo1.Location = New-Object System.Drawing.Point(366, 122)
+        $btnNo1.Size = New-Object System.Drawing.Size(84, 34)
+        $btnNo1.Font = New-Object System.Drawing.Font("Segoe UI", 8.75)
+        $btnNo1.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+        $btnNo1.ForeColor = $fgMain
+        $btnNo1.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $btnNo1.DialogResult = [System.Windows.Forms.DialogResult]::No
+        $dlgWipe1.Controls.Add($btnNo1)
+
+        $dlgWipe1.AcceptButton = $btnNo1
+        $dlgWipe1.CancelButton = $btnNo1
+        Invoke-ApplyModalResponsiveScale -ModalForm $dlgWipe1 -BaseWidth 470 -BaseHeight 176 -Owner $dlg
+        $ans1 = $dlgWipe1.ShowDialog($dlg)
+        $dlgWipe1.Dispose()
+        if ($ans1 -ne [System.Windows.Forms.DialogResult]::Yes) { return }
+
+        # Box 2: Second separate confirmation dialog ("Are you sure?")
+        $dlgWipe2 = New-Object System.Windows.Forms.Form
+        $dlgWipe2.Text = "Final Confirmation"
+        $dlgWipe2.ClientSize = New-Object System.Drawing.Size(340, 126)
+        $dlgWipe2.StartPosition = "CenterParent"
+        $dlgWipe2.FormBorderStyle = "FixedDialog"
+        $dlgWipe2.MaximizeBox = $false
+        $dlgWipe2.MinimizeBox = $false
+        $dlgWipe2.TopMost = $true
+        $dlgWipe2.BackColor = $bgDlg
+        $dlgWipe2.ForeColor = $fgMain
+
+        $lblSure2 = New-Object System.Windows.Forms.Label
+        $lblSure2.UseMnemonic = $false
+        $lblSure2.Location = New-Object System.Drawing.Point(20, 22)
+        $lblSure2.Size = New-Object System.Drawing.Size(300, 30)
+        $lblSure2.Font = New-Object System.Drawing.Font("Segoe UI", 10.5, [System.Drawing.FontStyle]::Bold)
+        $lblSure2.ForeColor = $fgRedWarn
+        $lblSure2.Text = "Are you sure?"
+        $dlgWipe2.Controls.Add($lblSure2)
+
+        $btnYes2 = New-Object System.Windows.Forms.Button
+        $btnYes2.UseMnemonic = $false
+        $btnYes2.Text = "Yes"
+        $btnYes2.Location = New-Object System.Drawing.Point(142, 74)
+        $btnYes2.Size = New-Object System.Drawing.Size(84, 34)
+        $btnYes2.Font = New-Object System.Drawing.Font("Segoe UI", 8.75, [System.Drawing.FontStyle]::Bold)
+        $btnYes2.BackColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
+        $btnYes2.ForeColor = [System.Drawing.Color]::White
+        $btnYes2.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $btnYes2.DialogResult = [System.Windows.Forms.DialogResult]::Yes
+        $dlgWipe2.Controls.Add($btnYes2)
+
+        $btnNo2 = New-Object System.Windows.Forms.Button
+        $btnNo2.UseMnemonic = $false
+        $btnNo2.Text = "No"
+        $btnNo2.Location = New-Object System.Drawing.Point(236, 74)
+        $btnNo2.Size = New-Object System.Drawing.Size(84, 34)
+        $btnNo2.Font = New-Object System.Drawing.Font("Segoe UI", 8.75)
+        $btnNo2.BackColor = $(if ($isDark) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+        $btnNo2.ForeColor = $fgMain
+        $btnNo2.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $btnNo2.DialogResult = [System.Windows.Forms.DialogResult]::No
+        $dlgWipe2.Controls.Add($btnNo2)
+
+        $dlgWipe2.AcceptButton = $btnNo2
+        $dlgWipe2.CancelButton = $btnNo2
+        Invoke-ApplyModalResponsiveScale -ModalForm $dlgWipe2 -BaseWidth 340 -BaseHeight 126 -Owner $dlg
+        $ans2 = $dlgWipe2.ShowDialog($dlg)
+        $dlgWipe2.Dispose()
+
+        if ($ans2 -eq [System.Windows.Forms.DialogResult]::Yes) {
             $purged = Remove-GlobalMasterPassphraseAndPurgeAllSafe
             Update-HeaderMasterPassphraseButtonState
             Refresh-IntegrationStatusLabelsSafe -Quick:$true
             if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) { Refresh-CredHealthPanelSafe }
-            Write-AppLog "Executed Break-Glass Reset: removed Global Master Passphrase and wiped all stored AD credentials across $purged profile(s)." "WARN"
+            Write-AppLog "Executed Break-Glass Reset: removed Master Passphrase and permanently wiped all domain profiles, AD credentials, Microsoft Graph sessions, and Google GAM7 profiles across $purged profile(s)." "WARN"
             [System.Windows.Forms.MessageBox]::Show(
                 $dlg,
-                "Break-glass reset complete. Master Passphrase removed and all stored AD credentials ($purged profile(s)) were permanently wiped.",
-                "Application Credentials Reset",
+                "Break-glass reset complete. All domain profiles, Active Directory credentials ($purged profile(s)), Microsoft Graph sessions, and Google GAM7 profiles have been permanently wiped from this computer.",
+                "Application Credentials & Profiles Reset",
                 [System.Windows.Forms.MessageBoxButtons]::OK,
                 [System.Windows.Forms.MessageBoxIcon]::Information
             ) | Out-Null
@@ -8549,6 +8817,7 @@ $form.Controls.Add($tabControl)
 
 $tabDiag = New-Object System.Windows.Forms.TabPage
 $tabDiag.Text = "1. Setup"
+$tabDiag.AutoScroll = $true
 $tabDiag.BackColor = [System.Drawing.Color]::FromArgb(248, 250, 252)
 $tabControl.TabPages.Add($tabDiag)
 
@@ -10331,10 +10600,18 @@ function Show-ChangelogWindow {
             "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
             "===========================================================`r`n" +
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+            "## [1.1.66] - 2026-11-19`r`n" +
+            "### Added, Changed & Fixed`r`n" +
+            "  * Tab 1 Purge Confirmation & Scrollable Reference: Added an 'Are you sure?' confirmation modal before 'Purge Saved Creds' executes, enabled Tab 1 AutoScroll, and made the 'Integration Setup & Multi-Domain Switching Reference' box vertically scrollable so text is never clipped in non-fullscreen windows.`r`n" +
+            "  * Break-Glass Full System Wipe & Two-Box Red Warning: 'Remove Passphrase & All Creds' now wipes all Domain Profiles, AD DPAPI vaults, Microsoft Graph sessions/tokens, and Google GAM7 config/OAuth files (preserving gam.exe), behind a two-box confirmation flow (Box 1: single red warning + bottom 'Continue' Yes/No; Box 2: separate 'Are you sure?' Yes/No).`r`n" +
+            "  * Smooth Theme Cross-Fade Transition: Added a bitmap overlay opacity cross-fade animation when toggling between Light and Dark modes.`r`n" +
+            "  * Startup Auto-Update Badge & Reliable Self-Updater Persistence: Startup update checks now compare both GitHub Releases and main/VERSION with extended concurrency resilience so 'Update Available' renders automatically on launch, while 'Update & Restart' uses uncached GitHub Contents API downloads, post-download version validation, and a 30-attempt file-lock retry loop so restarted builds always reflect the updated version.`r`n`r`n" +
             "## [1.1.65] - 2026-11-18`r`n" +
             "### Added & Fixed`r`n" +
-            "  * Instant Startup Update Check: Fixed startup update probing so the header button immediately renders 'Update Available' on launch when a newer release exists without waiting for a manual click.`r`n" +
-            "  * Robust Self-Updater Hot-Swap: Fixed post-update version persistence by ensuring downloaded updates correctly overwrite and swap the executing binary before restarting.`r`n`r`n" +
+            "  * Reliable Dual-Channel Update Detection Foundation & Clean 'Continue' Prompt Labels.`r`n`r`n" +
+            "## [1.1.64] - 2026-11-18`r`n" +
+            "### Added & Improved`r`n" +
+            "  * Smooth View-Transition Cross-Fade & Full Profile/AD/Graph/GAM Wipe Foundation in Companion UI.`r`n`r`n" +
             "## [1.1.63] - 2026-11-18`r`n" +
             "### Changed & Improved`r`n" +
             "  * Action-First Master Passphrase Dialog: When enabled, opening Master Passphrase now presents an action menu with zero textboxes ('Change Passphrase', 'Remove Passphrase', 'Remove Passphrase & All Creds') and reveals only the exact input field(s) needed for your chosen action (3 for Change, 1 for Remove Passphrase + 'Continue', 0 for Break-Glass Reset, 2 when enabling).`r`n" +
@@ -10454,6 +10731,7 @@ function Update-HeaderUpdateButtonState {
             $headerToolTip.SetToolTip($btnCheckUpdates, $tip)
         }
     }
+    try { $btnCheckUpdates.Invalidate(); $btnCheckUpdates.Refresh() } catch {}
 }
 
 $script:GitHubUpdateWorkerScript = {
@@ -10473,6 +10751,15 @@ $script:GitHubUpdateWorkerScript = {
             [string]$Resp.Content
         })
         return $txt.TrimStart([char]0xFEFF)
+    }
+
+    $parseVerObj = {
+        param([string]$VerStr)
+        $clean = (([string]$VerStr) -replace '[^0-9\.]', '').Trim('.')
+        if ([string]::IsNullOrWhiteSpace($clean)) { return $null }
+        $parts = @($clean.Split('.') | Where-Object { $_ -ne '' })
+        if ($parts.Count -lt 2) { $clean = "$clean.0" }
+        try { return [version]$clean } catch { return $null }
     }
 
     $normalizedRepo = ([string]$RepoTarget).Trim()
@@ -10500,84 +10787,118 @@ $script:GitHubUpdateWorkerScript = {
 
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-        $apiUrl = "https://api.github.com/repos/$normalizedRepo/releases/latest"
         $headers = @{
             'User-Agent'    = 'SecurityIncidentAutomator-App'
             'Accept'        = 'application/vnd.github+json'
             'Cache-Control' = 'no-cache'
+            'Pragma'        = 'no-cache'
+        }
+        $rawApiHeaders = @{
+            'User-Agent'    = 'SecurityIncidentAutomator-App'
+            'Accept'        = 'application/vnd.github.raw+json'
+            'Cache-Control' = 'no-cache'
+            'Pragma'        = 'no-cache'
         }
 
-        $latestTag = ""
+        # 1. Check /releases/latest (non-fatal if 404 or behind main)
+        $relObj = $null
+        $relTag = ""
+        $relErr = $null
         try {
-            $relObj = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec $TimeoutSec -ErrorAction Stop
-            $res.ReleaseData = $relObj
-            $latestTag = $(if ($relObj.tag_name) { [string]$relObj.tag_name } else { "v$InstalledVersion" })
-        } catch {
-            $isNotFound = $false
-            try {
-                if ($_.Exception.Response -and ([int]$_.Exception.Response.StatusCode -eq 404)) {
-                    $isNotFound = $true
-                }
-            } catch {}
-            if (-not $isNotFound -and ($_.Exception.Message -match '404')) { $isNotFound = $true }
-            if (-not $isNotFound) { throw }
-
-            $fallbackRef = "main"
-            try {
-                $commitObj = Invoke-RestMethod -Uri "https://api.github.com/repos/$normalizedRepo/commits/main" -Headers $headers -TimeoutSec $TimeoutSec -ErrorAction Stop
-                if ($commitObj -and $commitObj.sha) {
-                    $fallbackRef = [string]$commitObj.sha
-                }
-            } catch {}
-            $res.FallbackRef = $fallbackRef
-
-            $rawApiHeaders = @{
-                'User-Agent'    = 'SecurityIncidentAutomator-App'
-                'Accept'        = 'application/vnd.github.raw+json'
-                'Cache-Control' = 'no-cache'
+            $relObj = Invoke-RestMethod -Uri "https://api.github.com/repos/$normalizedRepo/releases/latest" -Headers $headers -TimeoutSec $TimeoutSec -ErrorAction Stop
+            if ($relObj -and $relObj.tag_name) {
+                $relTag = [string]$relObj.tag_name
             }
+        } catch {
+            $relErr = $_.Exception.Message
+        }
 
+        # 2. Always check main branch VERSION via commit SHA + GitHub Contents API (bypasses CDN caches and catches main commits ahead of release tags)
+        $mainRef = "main"
+        try {
+            $commitObj = Invoke-RestMethod -Uri "https://api.github.com/repos/$normalizedRepo/commits/main" -Headers $headers -TimeoutSec $TimeoutSec -ErrorAction Stop
+            if ($commitObj -and $commitObj.sha) {
+                $mainRef = [string]$commitObj.sha
+            }
+        } catch {}
+
+        $mainVerTag = ""
+        $mainErr = $null
+        try {
             $cleanRaw = ""
             try {
-                $apiVerResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$normalizedRepo/contents/VERSION?ref=$fallbackRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec $TimeoutSec -ErrorAction Stop
+                $apiVerResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$normalizedRepo/contents/VERSION?ref=$mainRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec $TimeoutSec -ErrorAction Stop
                 $cleanRaw = (& $decodeWebContent $apiVerResp).Trim()
             } catch {
-                $rawVerUrl = "https://raw.githubusercontent.com/$normalizedRepo/$fallbackRef/VERSION"
+                $ts = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+                $rawVerUrl = "https://raw.githubusercontent.com/$normalizedRepo/$mainRef/VERSION?t=$ts"
                 $rawVerResp = Invoke-WebRequest -Uri $rawVerUrl -Headers $headers -UseBasicParsing -TimeoutSec $TimeoutSec -ErrorAction Stop
                 $cleanRaw = (& $decodeWebContent $rawVerResp).Trim()
             }
+            if (-not [string]::IsNullOrWhiteSpace($cleanRaw)) {
+                $mainVerTag = $(if ($cleanRaw.StartsWith('v', [StringComparison]::OrdinalIgnoreCase)) { $cleanRaw } else { "v$cleanRaw" })
+            }
+        } catch {
+            $mainErr = $_.Exception.Message
+        }
 
-            if ([string]::IsNullOrWhiteSpace($cleanRaw)) { throw "Empty VERSION response from GitHub." }
-            $latestTag = $(if ($cleanRaw.StartsWith('v', [StringComparison]::OrdinalIgnoreCase)) { $cleanRaw } else { "v$cleanRaw" })
-            $res.UseRawMainFallback = $true
+        if ([string]::IsNullOrWhiteSpace($relTag) -and [string]::IsNullOrWhiteSpace($mainVerTag)) {
+            $combinedErr = @($relErr, $mainErr | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join ' | '
+            if ([string]::IsNullOrWhiteSpace($combinedErr)) { $combinedErr = "Unable to query GitHub releases or main/VERSION." }
+            throw $combinedErr
+        }
 
-            if ($IncludeChangelog) {
-                try {
-                    $rawChgResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$normalizedRepo/contents/CHANGELOG.md?ref=$fallbackRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec ([Math]::Min($TimeoutSec, 8)) -ErrorAction Stop
-                    if ($rawChgResp -and $rawChgResp.Content) {
-                        $res.RawFallbackNotes = ((& $decodeWebContent $rawChgResp) -replace "`r?`n", "`r`n")
-                    }
-                } catch {
-                    try {
-                        $rawChgResp = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$normalizedRepo/$fallbackRef/CHANGELOG.md" -Headers $headers -UseBasicParsing -TimeoutSec ([Math]::Min($TimeoutSec, 8)) -ErrorAction SilentlyContinue
-                        if ($rawChgResp -and $rawChgResp.Content) {
-                            $res.RawFallbackNotes = ((& $decodeWebContent $rawChgResp) -replace "`r?`n", "`r`n")
-                        }
-                    } catch {}
+        # Pick whichever tag is higher between releases/latest and main/VERSION
+        $vRel  = (& $parseVerObj $relTag)
+        $vMain = (& $parseVerObj $mainVerTag)
+        $chosenTag = $relTag
+        $useRawMain = $false
+
+        if ([string]::IsNullOrWhiteSpace($relTag)) {
+            $chosenTag = $mainVerTag
+            $useRawMain = $true
+        } elseif (-not [string]::IsNullOrWhiteSpace($mainVerTag)) {
+            if ($vMain -and $vRel) {
+                if ($vMain -gt $vRel) {
+                    $chosenTag = $mainVerTag
+                    $useRawMain = $true
                 }
+            } elseif ($vMain -and (-not $vRel)) {
+                $chosenTag = $mainVerTag
+                $useRawMain = $true
             }
         }
 
-        $res.LatestTag = $latestTag
-        $cleanLat = ($latestTag -replace '[^0-9\.]', '').Trim('.')
-        $cleanInst = ($InstalledVersion -replace '[^0-9\.]', '').Trim('.')
+        $res.ReleaseData        = $relObj
+        $res.LatestTag          = $chosenTag
+        $res.FallbackRef        = $mainRef
+        $res.UseRawMainFallback = $useRawMain
 
+        if ($IncludeChangelog -and ($useRawMain -or (-not ($relObj -and $relObj.body)))) {
+            try {
+                $rawChgResp = Invoke-WebRequest -Uri "https://api.github.com/repos/$normalizedRepo/contents/CHANGELOG.md?ref=$mainRef" -Headers $rawApiHeaders -UseBasicParsing -TimeoutSec ([Math]::Min($TimeoutSec, 8)) -ErrorAction Stop
+                if ($rawChgResp -and $rawChgResp.Content) {
+                    $res.RawFallbackNotes = ((& $decodeWebContent $rawChgResp) -replace "`r?`n", "`r`n")
+                }
+            } catch {
+                try {
+                    $ts = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+                    $rawChgResp = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$normalizedRepo/$mainRef/CHANGELOG.md?t=$ts" -Headers $headers -UseBasicParsing -TimeoutSec ([Math]::Min($TimeoutSec, 8)) -ErrorAction SilentlyContinue
+                    if ($rawChgResp -and $rawChgResp.Content) {
+                        $res.RawFallbackNotes = ((& $decodeWebContent $rawChgResp) -replace "`r?`n", "`r`n")
+                    }
+                } catch {}
+            }
+        }
+
+        $vInst = (& $parseVerObj $InstalledVersion)
+        $vChosen = (& $parseVerObj $chosenTag)
         $isNewer = $false
-        try {
-            $vI = [version]$cleanInst
-            $vL = [version]$cleanLat
-            if ($vL -gt $vI) { $isNewer = $true }
-        } catch {
+        if ($vInst -and $vChosen) {
+            if ($vChosen -gt $vInst) { $isNewer = $true }
+        } else {
+            $cleanLat = ($chosenTag -replace '[^0-9\.]', '').Trim('.')
+            $cleanInst = ($InstalledVersion -replace '[^0-9\.]', '').Trim('.')
             if (-not [string]::Equals($cleanInst, $cleanLat, [StringComparison]::OrdinalIgnoreCase)) {
                 $isNewer = $true
             }
@@ -10606,6 +10927,7 @@ $script:startupUpdatePs = $null
 $script:startupUpdateHandle = $null
 $script:startupUpdateTimer = $null
 $script:startupUpdateStartedAt = $null
+$script:startupUpdateAttempt = 0
 
 function Stop-StartupUpdateCheckAsync {
     try {
@@ -10626,7 +10948,9 @@ function Stop-StartupUpdateCheckAsync {
 }
 
 function Start-StartupUpdateCheckAsync {
+    param([int]$Attempt = 1)
     Stop-StartupUpdateCheckAsync
+    $script:startupUpdateAttempt = $Attempt
     $defaultRepo = "mkstewart88/Security-Incident-Helper"
 
     $applyResult = {
@@ -10641,6 +10965,20 @@ function Start-StartupUpdateCheckAsync {
             }
         } else {
             $errReason = $(if ($chkRes -and (-not [string]::IsNullOrWhiteSpace($chkRes.Error))) { $chkRes.Error } else { "GitHub unreachable or timed out" })
+            if ($script:startupUpdateAttempt -lt 2) {
+                Write-AppLog "Update check transient issue ($errReason) - retrying once automatically..." "INFO"
+                $retryTimer = New-Object System.Windows.Forms.Timer
+                $retryTimer.Interval = 2500
+                $retryTimer.Add_Tick({
+                    param($s, $e)
+                    try { $s.Stop(); $s.Dispose() } catch {}
+                    if ($form -and (-not $form.IsDisposed)) {
+                        Start-StartupUpdateCheckAsync -Attempt 2
+                    }
+                })
+                $retryTimer.Start()
+                return
+            }
             Update-HeaderUpdateButtonState -UpdateAvailable $false -StatusDetail "Installed: v$($script:AppVersion) (Startup update check unavailable) - Click to check GitHub manually."
             Write-AppLog "Update check skipped: $errReason" "INFO"
         }
@@ -10648,7 +10986,7 @@ function Start-StartupUpdateCheckAsync {
 
     try {
         $ps = [System.Management.Automation.PowerShell]::Create()
-        [void]$ps.AddScript($script:GitHubUpdateWorkerScript.ToString()).AddArgument([string]$script:AppVersion).AddArgument($defaultRepo).AddArgument(6).AddArgument($false)
+        [void]$ps.AddScript($script:GitHubUpdateWorkerScript.ToString()).AddArgument([string]$script:AppVersion).AddArgument($defaultRepo).AddArgument(12).AddArgument($false)
         $script:startupUpdatePs = $ps
         $script:startupUpdateHandle = $ps.BeginInvoke()
         $script:startupUpdateStartedAt = [DateTime]::UtcNow
@@ -10667,7 +11005,7 @@ function Start-StartupUpdateCheckAsync {
                 }
                 $timedOut = $false
                 if ($script:startupUpdateStartedAt) {
-                    if (([DateTime]::UtcNow - $script:startupUpdateStartedAt).TotalSeconds -ge 15) {
+                    if (([DateTime]::UtcNow - $script:startupUpdateStartedAt).TotalSeconds -ge 30) {
                         $timedOut = $true
                     }
                 }
@@ -10683,7 +11021,7 @@ function Start-StartupUpdateCheckAsync {
                             $chkRes = [PSCustomObject]@{ Success = $false; Error = $_.Exception.Message }
                         }
                     } else {
-                        $chkRes = [PSCustomObject]@{ Success = $false; Error = "GitHub update check timed out after 15s" }
+                        $chkRes = [PSCustomObject]@{ Success = $false; Error = "GitHub update check timed out after 30s" }
                     }
                     Stop-StartupUpdateCheckAsync
                     & $applyResult $chkRes
@@ -10696,7 +11034,7 @@ function Start-StartupUpdateCheckAsync {
     } catch {
         Stop-StartupUpdateCheckAsync
         try {
-            $syncRes = Get-GitHubUpdateStatusSafe -RepoTarget $defaultRepo -InstalledVersion $script:AppVersion -TimeoutSec 4
+            $syncRes = Get-GitHubUpdateStatusSafe -RepoTarget $defaultRepo -InstalledVersion $script:AppVersion -TimeoutSec 6
             & $applyResult $syncRes
         } catch {
             & $applyResult ([PSCustomObject]@{ Success = $false; Error = $_.Exception.Message })
@@ -10994,6 +11332,55 @@ function Show-UpdateCheckWindow {
             $dlHeaders = @{
                 'User-Agent'    = 'SecurityIncidentAutomator-App'
                 'Cache-Control' = 'no-cache'
+                'Pragma'        = 'no-cache'
+            }
+            $dlRawApiHeaders = @{
+                'User-Agent'    = 'SecurityIncidentAutomator-App'
+                'Accept'        = 'application/vnd.github.raw+json'
+                'Cache-Control' = 'no-cache'
+                'Pragma'        = 'no-cache'
+            }
+
+            $downloadRepoFileUncached = {
+                param([string]$RelFilePath, [string]$OutFilePath, [int]$TimeoutSecVal = 45)
+                $tsDl = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+                $rawUrl = "https://raw.githubusercontent.com/$repoTarget/$refName/${RelFilePath}?t=$tsDl"
+                $apiUrl = "https://api.github.com/repos/$repoTarget/contents/${RelFilePath}?ref=$refName"
+                if (-not (& $testGitHubDlUrl $rawUrl)) { throw "Blocked untrusted raw download URL for '$RelFilePath'." }
+                if (-not (& $testGitHubDlUrl $apiUrl)) { throw "Blocked untrusted API download URL for '$RelFilePath'." }
+
+                $preferRaw = ($refName -match '^[0-9a-f]{7,40}$') -or ($RelFilePath -match '\.ps1$')
+                if ($preferRaw) {
+                    try {
+                        Invoke-WebRequest -Uri $rawUrl -Headers $dlHeaders -OutFile $OutFilePath -UseBasicParsing -TimeoutSec $TimeoutSecVal -ErrorAction Stop
+                        return
+                    } catch {}
+                    Invoke-WebRequest -Uri $apiUrl -Headers $dlRawApiHeaders -OutFile $OutFilePath -UseBasicParsing -TimeoutSec $TimeoutSecVal -ErrorAction Stop
+                } else {
+                    try {
+                        Invoke-WebRequest -Uri $apiUrl -Headers $dlRawApiHeaders -OutFile $OutFilePath -UseBasicParsing -TimeoutSec $TimeoutSecVal -ErrorAction Stop
+                        return
+                    } catch {}
+                    Invoke-WebRequest -Uri $rawUrl -Headers $dlHeaders -OutFile $OutFilePath -UseBasicParsing -TimeoutSec $TimeoutSecVal -ErrorAction Stop
+                }
+            }
+
+            $assertDownloadedPs1IsNewer = {
+                param([string]$StagedScriptPath)
+                $rawText = [System.IO.File]::ReadAllText($StagedScriptPath, [System.Text.Encoding]::UTF8)
+                $mVer = [regex]::Match($rawText, '\$script:AppVersion\s*=\s*"([^"]+)"')
+                if (-not $mVer.Success) {
+                    throw "Downloaded script does not declare `$script:AppVersion."
+                }
+                $dlVerStr = $mVer.Groups[1].Value.Trim()
+                $vCur = $null
+                $vDl  = $null
+                [void][version]::TryParse((($script:AppVersion -replace '[^0-9\.]', '').Trim('.')), [ref]$vCur)
+                [void][version]::TryParse((($dlVerStr -replace '[^0-9\.]', '').Trim('.')), [ref]$vDl)
+                if ($vCur -and $vDl -and ($vDl -le $vCur)) {
+                    throw "Downloaded script version ($dlVerStr) is not newer than currently running version ($($script:AppVersion)). GitHub cache or ref '$refName' may still be propagating."
+                }
+                return $dlVerStr
             }
 
             $stageDir = Join-Path $env:TEMP ("IRAutomatorUpdate_" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
@@ -11013,7 +11400,7 @@ function Show-UpdateCheckWindow {
                 }
 
                 $exeAsset = $null
-                if ($updState.ReleaseData -and $updState.ReleaseData.assets) {
+                if (-not $updState.UseRawMainFallback -and $updState.ReleaseData -and $updState.ReleaseData.assets) {
                     $exeAsset = $updState.ReleaseData.assets | Where-Object { $_.name -match '\.exe$' } | Select-Object -First 1
                 }
 
@@ -11030,31 +11417,36 @@ function Show-UpdateCheckWindow {
                     $prgUpd.Value = 75
                     $dlgUpd.Refresh()
                 } else {
-                    # Auto-recompile locally from GitHub .ps1 when no .exe release asset is published
-                    & $appendUpdLine "[BUILD] Pulling updated PowerShell script for local EXE rebuild..." $fgLog
+                    # Auto-recompile locally from GitHub .ps1 when main is ahead or no .exe release asset is published
+                    & $appendUpdLine "[BUILD] Pulling updated PowerShell script ($refName) for local EXE rebuild..." $fgLog
                     $prgUpd.Value = 35
                     $dlgUpd.Refresh()
 
-                    $ps1Url = $null
-                    if ($updState.ReleaseData -and $updState.ReleaseData.assets) {
-                        $ps1Asset = $updState.ReleaseData.assets | Where-Object { $_.name -eq 'IncidentResponse-Automator.ps1' } | Select-Object -First 1
-                        if ($ps1Asset) { $ps1Url = [string]$ps1Asset.browser_download_url }
-                    }
-                    if ([string]::IsNullOrWhiteSpace($ps1Url)) {
-                        $ps1Url = "https://raw.githubusercontent.com/$repoTarget/$refName/IncidentResponse-Automator.ps1"
-                    }
-                    if (-not (& $testGitHubDlUrl $ps1Url)) {
-                        throw "Blocked untrusted download URL for script update."
-                    }
-
                     $stagedPs1 = Join-Path $buildWorkDir "IncidentResponse-Automator.ps1"
-                    Invoke-WebRequest -Uri $ps1Url -Headers $dlHeaders -OutFile $stagedPs1 -UseBasicParsing -TimeoutSec 45 -ErrorAction Stop
+                    $usedAssetPs1 = $false
+                    if (-not $updState.UseRawMainFallback -and $updState.ReleaseData -and $updState.ReleaseData.assets) {
+                        $ps1Asset = $updState.ReleaseData.assets | Where-Object { $_.name -eq 'IncidentResponse-Automator.ps1' } | Select-Object -First 1
+                        if ($ps1Asset -and (-not [string]::IsNullOrWhiteSpace($ps1Asset.browser_download_url)) -and (& $testGitHubDlUrl ([string]$ps1Asset.browser_download_url))) {
+                            Invoke-WebRequest -Uri $ps1Asset.browser_download_url -Headers $dlHeaders -OutFile $stagedPs1 -UseBasicParsing -TimeoutSec 45 -ErrorAction Stop
+                            $usedAssetPs1 = $true
+                        }
+                    }
+                    if (-not $usedAssetPs1) {
+                        & $downloadRepoFileUncached "IncidentResponse-Automator.ps1" $stagedPs1 45
+                    }
 
                     $tokens = $null
                     $parseErrs = $null
                     [void][System.Management.Automation.Language.Parser]::ParseFile($stagedPs1, [ref]$tokens, [ref]$parseErrs)
                     if ($parseErrs -and $parseErrs.Count -gt 0) {
                         throw "Downloaded script failed PowerShell syntax validation ($($parseErrs[0].Message)). Update aborted."
+                    }
+                    $verifiedDlVer = (& $assertDownloadedPs1IsNewer $stagedPs1)
+                    & $appendUpdLine "[VERIFY] Downloaded script v$verifiedDlVer passed AST & version checks." $fgGreen
+
+                    # Stage sibling files if running alongside repository files
+                    foreach ($extraFile in @('VERSION', 'CHANGELOG.md')) {
+                        try { & $downloadRepoFileUncached $extraFile (Join-Path $buildWorkDir $extraFile) 15 } catch {}
                     }
 
                     $cleanVer = ($updState.LatestTag -replace '[^0-9\.]', '').Trim('.')
@@ -11139,23 +11531,52 @@ Invoke-ps2exe @compileParams
 
                 $safeStagedExe    = $stagedExe.Replace("'", "''")
                 $safeProcPath     = $procPath.Replace("'", "''")
+                $safeProcDir      = $procDir.Replace("'", "''")
                 $safeStageDir     = $stageDir.Replace("'", "''")
                 $safeBuildWorkDir = $buildWorkDir.Replace("'", "''")
                 $safeSwapPs1      = $swapPs1.Replace("'", "''")
                 $swapScript = @'
+$ErrorActionPreference = 'Stop'
 $parentPid = __PARENT_PID__
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
-while ($sw.Elapsed.TotalSeconds -lt 20) {
+while ($sw.Elapsed.TotalSeconds -lt 30) {
     if (-not (Get-Process -Id $parentPid -ErrorAction SilentlyContinue)) { break }
     Start-Sleep -Milliseconds 250
 }
-Start-Sleep -Milliseconds 500
-Move-Item -LiteralPath '__STAGED_EXE__' -Destination '__PROC_PATH__' -Force
-Start-Process -FilePath '__PROC_PATH__'
+Start-Sleep -Milliseconds 700
+
+$destExe = '__PROC_PATH__'
+$srcExe  = '__STAGED_EXE__'
+$swapped = $false
+for ($attempt = 1; $attempt -le 30; $attempt++) {
+    try {
+        if (Test-Path -LiteralPath $destExe) {
+            try { (Get-Item -LiteralPath $destExe -Force).Attributes = 'Normal' } catch {}
+        }
+        Copy-Item -LiteralPath $srcExe -Destination $destExe -Force -ErrorAction Stop
+        if ((Get-Item -LiteralPath $destExe).Length -eq (Get-Item -LiteralPath $srcExe).Length) {
+            $swapped = $true
+            break
+        }
+    } catch {
+        Start-Sleep -Milliseconds 500
+    }
+}
+if ($swapped) {
+    Remove-Item -LiteralPath $srcExe -Force -ErrorAction SilentlyContinue
+    foreach ($sib in @('IncidentResponse-Automator.ps1', 'VERSION', 'CHANGELOG.md')) {
+        $sibSrc = Join-Path '__BUILD_WORK_DIR__' $sib
+        $sibDst = Join-Path '__PROC_DIR__' $sib
+        if ((Test-Path -LiteralPath $sibSrc -PathType Leaf) -and (Test-Path -LiteralPath $sibDst -PathType Leaf)) {
+            try { Copy-Item -LiteralPath $sibSrc -Destination $sibDst -Force -ErrorAction SilentlyContinue } catch {}
+        }
+    }
+    Start-Process -FilePath $destExe -WorkingDirectory '__PROC_DIR__'
+}
 if (Test-Path -LiteralPath '__BUILD_WORK_DIR__') { Remove-Item -LiteralPath '__BUILD_WORK_DIR__' -Recurse -Force -ErrorAction SilentlyContinue }
 if (Test-Path -LiteralPath '__STAGE_DIR__') { Remove-Item -LiteralPath '__STAGE_DIR__' -Recurse -Force -ErrorAction SilentlyContinue }
 if (Test-Path -LiteralPath '__SWAP_PS1__') { Remove-Item -LiteralPath '__SWAP_PS1__' -Force -ErrorAction SilentlyContinue }
-'@.Replace('__PARENT_PID__', [string]$PID).Replace('__STAGED_EXE__', $safeStagedExe).Replace('__PROC_PATH__', $safeProcPath).Replace('__BUILD_WORK_DIR__', $safeBuildWorkDir).Replace('__STAGE_DIR__', $safeStageDir).Replace('__SWAP_PS1__', $safeSwapPs1)
+'@.Replace('__PARENT_PID__', [string]$PID).Replace('__STAGED_EXE__', $safeStagedExe).Replace('__PROC_PATH__', $safeProcPath).Replace('__PROC_DIR__', $safeProcDir).Replace('__BUILD_WORK_DIR__', $safeBuildWorkDir).Replace('__STAGE_DIR__', $safeStageDir).Replace('__SWAP_PS1__', $safeSwapPs1)
             } else {
                 $targetPs1 = $script:MainScriptPath
                 if ([string]::IsNullOrWhiteSpace($targetPs1) -or (-not (Test-Path -LiteralPath $targetPs1))) {
@@ -11163,20 +11584,18 @@ if (Test-Path -LiteralPath '__SWAP_PS1__') { Remove-Item -LiteralPath '__SWAP_PS
                 }
                 $targetDir = Split-Path -Parent $targetPs1
 
-                $ps1Url = $null
-                if ($updState.ReleaseData -and $updState.ReleaseData.assets) {
-                    $ps1Asset = $updState.ReleaseData.assets | Where-Object { $_.name -eq 'IncidentResponse-Automator.ps1' } | Select-Object -First 1
-                    if ($ps1Asset) { $ps1Url = [string]$ps1Asset.browser_download_url }
-                }
-                if ([string]::IsNullOrWhiteSpace($ps1Url)) {
-                    $ps1Url = "https://raw.githubusercontent.com/$repoTarget/$refName/IncidentResponse-Automator.ps1"
-                }
-                if (-not (& $testGitHubDlUrl $ps1Url)) {
-                    throw "Blocked untrusted download URL for script update."
-                }
-
                 $stagedPs1 = Join-Path $stageDir "IncidentResponse-Automator.ps1"
-                Invoke-WebRequest -Uri $ps1Url -Headers $dlHeaders -OutFile $stagedPs1 -UseBasicParsing -TimeoutSec 45 -ErrorAction Stop
+                $usedAssetPs1 = $false
+                if (-not $updState.UseRawMainFallback -and $updState.ReleaseData -and $updState.ReleaseData.assets) {
+                    $ps1Asset = $updState.ReleaseData.assets | Where-Object { $_.name -eq 'IncidentResponse-Automator.ps1' } | Select-Object -First 1
+                    if ($ps1Asset -and (-not [string]::IsNullOrWhiteSpace($ps1Asset.browser_download_url)) -and (& $testGitHubDlUrl ([string]$ps1Asset.browser_download_url))) {
+                        Invoke-WebRequest -Uri $ps1Asset.browser_download_url -Headers $dlHeaders -OutFile $stagedPs1 -UseBasicParsing -TimeoutSec 45 -ErrorAction Stop
+                        $usedAssetPs1 = $true
+                    }
+                }
+                if (-not $usedAssetPs1) {
+                    & $downloadRepoFileUncached "IncidentResponse-Automator.ps1" $stagedPs1 45
+                }
                 $prgUpd.Value = 65
                 $dlgUpd.Refresh()
 
@@ -11186,16 +11605,14 @@ if (Test-Path -LiteralPath '__SWAP_PS1__') { Remove-Item -LiteralPath '__SWAP_PS
                 if ($parseErrs -and $parseErrs.Count -gt 0) {
                     throw "Downloaded script failed PowerShell syntax validation ($($parseErrs[0].Message)). Update aborted."
                 }
+                $verifiedDlVer = (& $assertDownloadedPs1IsNewer $stagedPs1)
+                & $appendUpdLine "[VERIFY] Downloaded script v$verifiedDlVer passed AST & version checks." $fgGreen
 
-                foreach ($extraFile in @('VERSION', 'CHANGELOG.md', 'Launch-IncidentAutomator.bat', 'Compile-To-EXE.cmd', 'Setup-MicrosoftGraph.bat', 'Setup-GoogleWorkspace-GAM.bat', 'Setup-RSAT-ActiveDirectory.bat')) {
-                    try {
-                        $extraUrl = "https://raw.githubusercontent.com/$repoTarget/$refName/$extraFile"
-                        $extraDest = Join-Path $stageDir $extraFile
-                        Invoke-WebRequest -Uri $extraUrl -Headers $dlHeaders -OutFile $extraDest -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
-                    } catch {}
+                foreach ($extraFile in @('VERSION', 'CHANGELOG.md', 'README.md', 'README.txt', 'README-extended.md', 'README-extended.txt', 'QUICK_START.md', 'QUICK_START.txt', 'Launch-IncidentAutomator.bat', 'Compile-To-EXE.cmd', 'Setup-MicrosoftGraph.bat', 'Setup-GoogleWorkspace-GAM.bat', 'Setup-RSAT-ActiveDirectory.bat')) {
+                    try { & $downloadRepoFileUncached $extraFile (Join-Path $stageDir $extraFile) 15 } catch {}
                 }
 
-                & $appendUpdLine "[HOT-SWAP] Updating script files and restarting console..." $fgLog
+                & $appendUpdLine "[HOT-SWAP] Updating script files to v$verifiedDlVer and restarting console..." $fgLog
                 $prgUpd.Value = 95
                 $dlgUpd.Refresh()
 
@@ -11213,18 +11630,40 @@ if (Test-Path -LiteralPath '__SWAP_PS1__') { Remove-Item -LiteralPath '__SWAP_PS
                 })
 
                 $swapScript = @'
+$ErrorActionPreference = 'Stop'
 $parentPid = __PARENT_PID__
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
-while ($sw.Elapsed.TotalSeconds -lt 20) {
+while ($sw.Elapsed.TotalSeconds -lt 30) {
     if (-not (Get-Process -Id $parentPid -ErrorAction SilentlyContinue)) { break }
     Start-Sleep -Milliseconds 250
 }
-Start-Sleep -Milliseconds 400
-Copy-Item -Path '__STAGE_DIR__\*' -Destination '__TARGET_DIR__' -Force
-Remove-Item -LiteralPath '__STAGE_DIR__' -Recurse -Force -ErrorAction SilentlyContinue
-__RELAUNCH_CMD__
+Start-Sleep -Milliseconds 600
+
+$copiedOk = $false
+$stagedMain = Join-Path '__STAGE_DIR__' 'IncidentResponse-Automator.ps1'
+for ($attempt = 1; $attempt -le 30; $attempt++) {
+    try {
+        Get-ChildItem -LiteralPath '__STAGE_DIR__' -File | ForEach-Object {
+            $dstFile = Join-Path '__TARGET_DIR__' $_.Name
+            if (Test-Path -LiteralPath $dstFile) {
+                try { (Get-Item -LiteralPath $dstFile -Force).Attributes = 'Normal' } catch {}
+            }
+            Copy-Item -LiteralPath $_.FullName -Destination $dstFile -Force -ErrorAction Stop
+        }
+        if ((Get-Item -LiteralPath '__TARGET_PS1__').Length -eq (Get-Item -LiteralPath $stagedMain).Length) {
+            $copiedOk = $true
+            break
+        }
+    } catch {
+        Start-Sleep -Milliseconds 500
+    }
+}
+if ($copiedOk) {
+    Remove-Item -LiteralPath '__STAGE_DIR__' -Recurse -Force -ErrorAction SilentlyContinue
+    __RELAUNCH_CMD__
+}
 if (Test-Path -LiteralPath '__SWAP_PS1__') { Remove-Item -LiteralPath '__SWAP_PS1__' -Force -ErrorAction SilentlyContinue }
-'@.Replace('__PARENT_PID__', [string]$PID).Replace('__STAGE_DIR__', $safeStageDir).Replace('__TARGET_DIR__', $safeTargetDir).Replace('__RELAUNCH_CMD__', $relaunchCmd).Replace('__SWAP_PS1__', $safeSwapPs1)
+'@.Replace('__PARENT_PID__', [string]$PID).Replace('__STAGE_DIR__', $safeStageDir).Replace('__TARGET_DIR__', $safeTargetDir).Replace('__TARGET_PS1__', $safeTargetPs1).Replace('__RELAUNCH_CMD__', $relaunchCmd).Replace('__SWAP_PS1__', $safeSwapPs1)
             }
 
             Set-Content -LiteralPath $swapPs1 -Value $swapScript -Encoding UTF8 -Force
@@ -12298,6 +12737,71 @@ $btnManageSavedCred.Add_Click({
 
 $btnPurgeSavedCred.Add_Click({
     if (-not $script:activeProfile) { return }
+    $isDarkLocal = $(if ($null -ne $script:isDark) { [bool]$script:isDark } else { $true })
+    $bgPurge = $(if ($isDarkLocal) { [System.Drawing.Color]::FromArgb(15, 23, 42) } else { [System.Drawing.Color]::FromArgb(248, 250, 252) })
+    $fgPurge = $(if ($isDarkLocal) { [System.Drawing.Color]::FromArgb(248, 250, 252) } else { [System.Drawing.Color]::FromArgb(15, 23, 42) })
+    $fgMutedPurge = $(if ($isDarkLocal) { [System.Drawing.Color]::FromArgb(148, 163, 184) } else { [System.Drawing.Color]::FromArgb(71, 85, 105) })
+
+    $dlgPurge = New-Object System.Windows.Forms.Form
+    $dlgPurge.Text = "Confirm Purge Saved Credentials"
+    $dlgPurge.ClientSize = New-Object System.Drawing.Size(390, 150)
+    $dlgPurge.StartPosition = "CenterParent"
+    $dlgPurge.FormBorderStyle = "FixedDialog"
+    $dlgPurge.MaximizeBox = $false
+    $dlgPurge.MinimizeBox = $false
+    $dlgPurge.TopMost = $true
+    $dlgPurge.BackColor = $bgPurge
+    $dlgPurge.ForeColor = $fgPurge
+
+    $lblPurgeTitle = New-Object System.Windows.Forms.Label
+    $lblPurgeTitle.UseMnemonic = $false
+    $lblPurgeTitle.Location = New-Object System.Drawing.Point(20, 18)
+    $lblPurgeTitle.Size = New-Object System.Drawing.Size(350, 26)
+    $lblPurgeTitle.Font = New-Object System.Drawing.Font("Segoe UI", 10.5, [System.Drawing.FontStyle]::Bold)
+    $lblPurgeTitle.ForeColor = $fgPurge
+    $lblPurgeTitle.Text = "Are you sure?"
+    $dlgPurge.Controls.Add($lblPurgeTitle)
+
+    $lblPurgeDesc = New-Object System.Windows.Forms.Label
+    $lblPurgeDesc.UseMnemonic = $false
+    $lblPurgeDesc.Location = New-Object System.Drawing.Point(20, 48)
+    $lblPurgeDesc.Size = New-Object System.Drawing.Size(350, 38)
+    $lblPurgeDesc.Font = New-Object System.Drawing.Font("Segoe UI", 8.5)
+    $lblPurgeDesc.ForeColor = $fgMutedPurge
+    $lblPurgeDesc.Text = "This will delete the encrypted local AD credential vault and reset the circuit breaker for '$($script:activeProfile.Name)'."
+    $dlgPurge.Controls.Add($lblPurgeDesc)
+
+    $btnPurgeYes = New-Object System.Windows.Forms.Button
+    $btnPurgeYes.UseMnemonic = $false
+    $btnPurgeYes.Text = "Yes"
+    $btnPurgeYes.Location = New-Object System.Drawing.Point(192, 98)
+    $btnPurgeYes.Size = New-Object System.Drawing.Size(84, 34)
+    $btnPurgeYes.Font = New-Object System.Drawing.Font("Segoe UI", 8.75, [System.Drawing.FontStyle]::Bold)
+    $btnPurgeYes.BackColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
+    $btnPurgeYes.ForeColor = [System.Drawing.Color]::White
+    $btnPurgeYes.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $btnPurgeYes.DialogResult = [System.Windows.Forms.DialogResult]::Yes
+    $dlgPurge.Controls.Add($btnPurgeYes)
+
+    $btnPurgeNo = New-Object System.Windows.Forms.Button
+    $btnPurgeNo.UseMnemonic = $false
+    $btnPurgeNo.Text = "No"
+    $btnPurgeNo.Location = New-Object System.Drawing.Point(286, 98)
+    $btnPurgeNo.Size = New-Object System.Drawing.Size(84, 34)
+    $btnPurgeNo.Font = New-Object System.Drawing.Font("Segoe UI", 8.75)
+    $btnPurgeNo.BackColor = $(if ($isDarkLocal) { [System.Drawing.Color]::FromArgb(51, 65, 85) } else { [System.Drawing.Color]::FromArgb(226, 232, 240) })
+    $btnPurgeNo.ForeColor = $fgPurge
+    $btnPurgeNo.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $btnPurgeNo.DialogResult = [System.Windows.Forms.DialogResult]::No
+    $dlgPurge.Controls.Add($btnPurgeNo)
+
+    $dlgPurge.AcceptButton = $btnPurgeNo
+    $dlgPurge.CancelButton = $btnPurgeNo
+    Invoke-ApplyModalResponsiveScale -ModalForm $dlgPurge -BaseWidth 390 -BaseHeight 150 -Owner $form
+    $ansPurge = $dlgPurge.ShowDialog($form)
+    $dlgPurge.Dispose()
+    if ($ansPurge -ne [System.Windows.Forms.DialogResult]::Yes) { return }
+
     Remove-SavedADCredentialVaultSafe -ProfileObj $script:activeProfile
     Refresh-IntegrationStatusLabelsSafe -Quick:$true
     Refresh-CredHealthPanelSafe
@@ -12305,18 +12809,23 @@ $btnPurgeSavedCred.Add_Click({
     Show-ActionPopup -ActionTitle "Purge Saved AD Credentials" -Succeeded $true -Details "Removed local DPAPI credential file and cleared in-memory session for '$($script:activeProfile.Name)'."
 })
 
-# Setup Readiness & Architecture Reference Card (Fits cleanly above the shared global log)
+# Setup Readiness & Architecture Reference Card (Scrollable so wrapped text is never cut off in non-fullscreen windows)
 $grpDiagGuide = New-Object System.Windows.Forms.GroupBox
 $grpDiagGuide.Text = " Integration Setup && Multi-Domain Switching Reference "
 $grpDiagGuide.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
 $grpDiagGuide.Location = New-Object System.Drawing.Point(10, 440)
-$grpDiagGuide.Size = New-Object System.Drawing.Size(820, 82)
+$grpDiagGuide.Size = New-Object System.Drawing.Size(820, 86)
 $tabDiag.Controls.Add($grpDiagGuide)
 
-$lblDiagGuide = New-Object System.Windows.Forms.Label
-$lblDiagGuide.UseMnemonic = $false
-$lblDiagGuide.Location = New-Object System.Drawing.Point(16, 16)
-$lblDiagGuide.Size = New-Object System.Drawing.Size(788, 60)
+$lblDiagGuide = New-Object System.Windows.Forms.TextBox
+$lblDiagGuide.Multiline = $true
+$lblDiagGuide.ReadOnly = $true
+$lblDiagGuide.WordWrap = $true
+$lblDiagGuide.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
+$lblDiagGuide.BorderStyle = [System.Windows.Forms.BorderStyle]::None
+$lblDiagGuide.TabStop = $false
+$lblDiagGuide.Location = New-Object System.Drawing.Point(14, 18)
+$lblDiagGuide.Size = New-Object System.Drawing.Size(792, 62)
 $lblDiagGuide.Font = New-Object System.Drawing.Font("Segoe UI", 7.75)
 $lblDiagGuide.Text = "1. ENCRYPTED AD VAULT & MASTER PASSPHRASE: Saved credentials lock strictly to this PC+User via DPAPI. Use the top-right 'Master Passphrase' button to require an app-wide startup unlock across all profiles.`r`n" +
                      "2. STARTUP PLUG-IN AUTO-CONNECT: On launch, active NIC DNS-suffix & parallel 700ms TCP probes detect reachable domains (even if unjoined) and auto-connect AD + Graph + GAM7 cleanly.`r`n" +
@@ -14225,7 +14734,7 @@ function Apply-AppTheme {
 
     if ($lblDiagProfile) { $lblDiagProfile.ForeColor = $fgLabel }
     if ($cmbDiagProfile) { $cmbDiagProfile.BackColor = $bgInput; $cmbDiagProfile.ForeColor = $fgText }
-    if ($lblDiagGuide) { $lblDiagGuide.ForeColor = $fgLabel }
+    if ($lblDiagGuide) { $lblDiagGuide.BackColor = $bgCard; $lblDiagGuide.ForeColor = $fgLabel }
     if (Get-Command Refresh-CredHealthPanelSafe -ErrorAction SilentlyContinue) {
         Refresh-CredHealthPanelSafe
     }
@@ -14344,9 +14853,60 @@ function Apply-AppTheme {
     Update-HeaderMasterPassphraseButtonState
 }
 
+function Invoke-ThemeCrossFadeTransitionSafe {
+    param([bool]$DarkTarget)
+    if ($null -eq $form -or $form.IsDisposed -or (-not $form.Visible) -or $form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
+        Apply-AppTheme $DarkTarget
+        return
+    }
+    $fadeBmp = $null
+    $fadeOverlay = $null
+    try {
+        $bounds = $form.Bounds
+        if ($bounds.Width -lt 100 -or $bounds.Height -lt 100) {
+            Apply-AppTheme $DarkTarget
+            return
+        }
+        $fadeBmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height)
+        $g = [System.Drawing.Graphics]::FromImage($fadeBmp)
+        try {
+            $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+        } finally {
+            $g.Dispose()
+        }
+
+        $fadeOverlay = New-Object System.Windows.Forms.Form
+        $fadeOverlay.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+        $fadeOverlay.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+        $fadeOverlay.Bounds = $bounds
+        $fadeOverlay.ShowInTaskbar = $false
+        $fadeOverlay.Opacity = 1.0
+        $fadeOverlay.BackgroundImage = $fadeBmp
+        $fadeOverlay.BackgroundImageLayout = [System.Windows.Forms.ImageLayout]::None
+        $fadeOverlay.Enabled = $false
+        $fadeOverlay.Show($form)
+        $fadeOverlay.Refresh()
+
+        Apply-AppTheme $DarkTarget
+        $form.Refresh()
+
+        foreach ($op in @(0.88, 0.74, 0.58, 0.42, 0.28, 0.16, 0.08, 0.0)) {
+            if ($fadeOverlay.IsDisposed) { break }
+            $fadeOverlay.Opacity = $op
+            $fadeOverlay.Refresh()
+            Start-Sleep -Milliseconds 22
+        }
+    } catch {
+        Apply-AppTheme $DarkTarget
+    } finally {
+        try { if ($fadeOverlay -and (-not $fadeOverlay.IsDisposed)) { $fadeOverlay.Close(); $fadeOverlay.Dispose() } } catch {}
+        try { if ($fadeBmp) { $fadeBmp.Dispose() } } catch {}
+    }
+}
+
 $btnThemeToggle.Add_Click({
     $script:isDark = -not $script:isDark
-    Apply-AppTheme $script:isDark
+    Invoke-ThemeCrossFadeTransitionSafe -DarkTarget $script:isDark
 })
 
 # =============================================================================

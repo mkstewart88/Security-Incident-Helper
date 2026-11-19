@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.63)
+SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.66)
 ================================================================================
 
 OVERVIEW:
@@ -78,25 +78,28 @@ STEP 2: DOMAIN PROFILES & SWITCHING TARGET DOMAINS
      top-right header (to the right of the GitHub button). When active, it opens
      to an action menu with 0 textboxes and displays only the field(s) needed
      for your selected action: Change Passphrase (3 boxes: current/new/confirm),
-     "Remove Passphrase" (1 box: current passphrase, plus a warning explaining
-     what it does & why you should keep one while keeping saved DPAPI creds),
-     or break-glass "Remove Passphrase & All Creds" (0 boxes, no passphrase
-     needed if forgotten; warns and wipes all saved AD credentials back to
-     default). When enabled, startup prompts for the passphrase and closes
-     cleanly after 2 failed attempts; when unset, the app opens directly on
-     Tab 1 and auto-connects AD + Graph + GAM7.
+     "Remove Passphrase" (1 box: current passphrase -> "Continue" prompt with
+     explanatory warning while keeping saved DPAPI creds), or break-glass
+     "Remove Passphrase & All Creds" (0 boxes, no passphrase needed if
+     forgotten). Break-glass opens a two-box confirmation: Box 1 shows a single
+     red warning sentence with bottom "Continue" (Yes/No), followed by a
+     separate Box 2 ("Are you sure?" Yes/No) that wipes all Domain Profiles,
+     AD vaults, Microsoft Graph sessions/caches, and Google GAM7 config/OAuth
+     files from the computer (preserving gam.exe). When enabled, startup prompts
+     for the passphrase and closes cleanly after 2 failed attempts.
   6. Click "Connect & Switch Profile" to run an LDAP RootDSE handshake and switch,
      or "Switch Cloud Only (Skip AD)" for off-VPN Graph/GAM triage.
-  7. Use the Tab 1 "Credential Health & Encrypted AD Vault" panel to run
-     "Validate Credential Health", "Detect Network & Auto-Connect" (uses
-     non-blocking DNS SRV + 700ms TCP 389/636 pre-checks and a 1-strike
-     anti-lockout circuit breaker), "Configure Saved AD Creds...", or
-     "Purge Saved Creds".
-  8. On startup, the app automatically checks GitHub in the background and sets
-     the top-right header button to "v<version>" (e.g., v1.1.63) if up to date
-     or "Update Available" if a newer release exists. Click it anytime to run
-     "Check for Updates", "View Changelog", or "Update & Restart" (auto-recompiles
-     .exe when needed).
+  7. Use the Tab 1 "Credential Health & Encrypted AD Vault" panel (plus the
+     scrollable Tab 1 "Integration Setup & Multi-Domain Switching Reference" box
+     that prevents text clipping in non-fullscreen windows) to run "Validate
+     Credential Health", "Detect Network & Auto-Connect", "Configure Saved AD
+     Creds...", or "Purge Saved Creds" (protected by an "Are you sure?" modal).
+  8. On startup, the app automatically checks GitHub Releases and main/VERSION
+     in the background and sets the top-right header button to "v<version>"
+     (e.g., v1.1.66) if up to date or "Update Available" automatically on launch
+     when a newer version exists. Click it anytime to run "Check for Updates",
+     "View Changelog", or "Update & Restart" (uses uncached downloads, version
+     checks, and file-lock retries so restarted builds persist cleanly).
 
 STEP 3: SEARCHING & VERIFYING COMPROMISED IDENTITIES (TAB 2)
   1. Open Tab 2 ("2. Containment").

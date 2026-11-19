@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.64](https://img.shields.io/badge/Version-1.1.64-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.66](https://img.shields.io/badge/Version-1.1.66-emerald.svg)](CHANGELOG.md)
 
 A high-performance, domain-agnostic administrative incident containment console and security forensics triage utility for hybrid enterprise environments spanning **Active Directory Domain Services (AD DS)**, **Microsoft Entra ID (Microsoft 365)**, and **Google Workspace**.
 
@@ -100,7 +100,7 @@ Filterable, searchable audit logging with CSV field sanitization, recording ever
   * Forces immediate Kerberos KDC ticket invalidation by expiring the AD account timestamp (`0x12: KDC_ERR_CLIENT_REVOKED`) and restricts allowed workstations to sentinel values.
 * **Business Email Compromise (BEC) Remediation:** Audits Microsoft 365 inbox message rules and Gmail routing filters, flagging external forwarding targets, stealth deletion, and hide-hole routing with one-click single or bulk remediation.
 * **Plain-English Event Decoder:** Pulls real-time security events across Windows Domain Controllers, Entra ID, and Google Workspace, translating obscure error codes into human-readable triage intelligence with recommended incident response steps.
-* **Theme Customization:** Instant one-click toggle between High-Contrast Dark Mode and Professional Light Mode across all windows, headers, text controls, and data grids.
+* **Theme Customization:** Instant one-click toggle between High-Contrast Dark Mode and Professional Light Mode with a smooth cross-fade animation across windows, headers, text controls, and data grids.
 
 ---
 
@@ -163,11 +163,12 @@ If operating from a non-domain-joined laptop or managing multiple corporate/clie
 4. Check **Use alternate Domain Admin credentials (same domain or remote DC)** and enter administrative credentials (`DOMAIN\admin` and Password) if switching AD accounts or connecting from a workgroup PC. Optionally check **Save AD credentials securely on this PC (DPAPI CurrentUser encrypted, zero-lockout)** to lock credentials strictly to the current workstation and Windows user account for automatic startup detection and login.
 5. Click **`Master Passphrase`** in the top-right header (immediately to the right of the GitHub icon) if you want an optional application-wide passphrase protecting **all** saved Domain Profiles (when active, clicking an action reveals only the specific input field(s) needed for that action):
    * **Not Set:** Displays only the 2 fields (`New` + `Confirm`) to enable the passphrase; when unset, the app opens directly and auto-connects to any detected domain on launch.
-   * **Active Action Menu (0 textboxes):** Choose **Change Passphrase** (reveals 3 fields: `Current` + `New` + `Confirm`), **Remove Passphrase** (reveals only 1 field for `Current`, then explains what removing it does and why you should keep one while keeping saved DPAPI credentials), or break-glass **Remove Passphrase & All Creds** (0 fields, no passphrase needed if forgotten; warns before wiping all saved credentials across every profile back to default).
+   * **Active Action Menu (0 textboxes):** Choose **Change Passphrase** (reveals 3 fields: `Current` + `New` + `Confirm`), **Remove Passphrase** (reveals only 1 field for `Current`, then clicks **Continue** to review what removing it does and why you should keep one while keeping saved DPAPI credentials), or break-glass **Remove Passphrase & All Creds** (0 fields, no passphrase needed if forgotten).
+   * **Break-Glass Two-Box Full System Wipe:** Clicking **Remove Passphrase & All Creds** opens **Box 1** with a single red warning sentence explaining that it permanently wipes all Domain Profiles, Active Directory credentials, Microsoft Graph sessions, and Google GAM7 profiles from the computer (`Continue` with **Yes** / **No**), followed by a separate **Box 2 (`Are you sure?`)** confirmation before wiping all AD vaults, Graph contexts/caches, and GAM7 OAuth/config files (preserving `gam.exe`).
    * **Startup Lock:** When active, opening the app immediately prompts for your Master Passphrase before probing or logging in (1st wrong attempt warns you; 2nd wrong attempt or Cancel closes the application cleanly).
 6. Click **Connect & Switch Profile** to verify LDAP RootDSE connectivity and switch the active profile, or click **Switch Cloud Only (Skip AD)** for off-VPN cloud triage when an on-premises Domain Controller is unreachable.
-7. Use Tab 1's **Credential Health & Encrypted AD Vault** diagnostic panel to run **Validate Credential Health** (checks network reachability, Kerberos `pwdLastSet`/`badPwdCount`/`lockoutTime` before binding, and 1-strike circuit-breaker health), **Detect Network & Auto-Connect**, **Configure Saved AD Creds...**, or **Purge Saved Creds**.
-8. On startup, the console automatically checks GitHub in the background: the top-right update button displays **`v<version>`** (for example `v1.1.63`) when up to date or **`Update Available`** when a newer release exists. Click it at any time to open the updater dialog, **Check for Updates**, **View Changelog**, or run **Update & Restart** (which validates and auto-recompiles `IncidentResponse.exe` locally when running as an `.exe`).
+7. Use Tab 1's **Credential Health & Encrypted AD Vault** diagnostic panel (paired with Tab 1's scrollable **Integration Setup & Multi-Domain Switching Reference**) to run **Validate Credential Health** (checks network reachability, Kerberos `pwdLastSet`/`badPwdCount`/`lockoutTime` before binding, and 1-strike circuit-breaker health), **Detect Network & Auto-Connect**, **Configure Saved AD Creds...**, or **Purge Saved Creds** (protected by an **Are you sure?** confirmation dialog).
+8. On startup, the console automatically checks GitHub Releases and `main/VERSION` in the background: the top-right update button displays **`v<version>`** (for example `v1.1.66`) when up to date or **`Update Available`** immediately on launch when a newer release or commit exists. Click it at any time to open the updater dialog, **Check for Updates**, **View Changelog**, or run **Update & Restart** (uses uncached SHA downloads, post-download version validation, and a file-lock retry loop before restarting on the updated `.ps1` or locally recompiled `IncidentResponse.exe`).
 
 ### 3. Locating and Verifying a Compromised Identity (Tab 2)
 1. Navigate to **Tab 2 (`2. Containment`)**.

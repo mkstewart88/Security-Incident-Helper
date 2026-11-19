@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.66] - 2026-11-19
+
+### Added, Changed & Fixed
+- **Tab 1 `Purge Saved Creds` Confirmation Dialog (`IncidentResponse-Automator.ps1` & `CredentialHealthPanel.tsx`):**
+  - Added an explicit **"Are you sure?"** confirmation dialog (`Yes` / `No`) before purging the local encrypted AD credential vault (`ad_cred.dpapi.json` / Web Crypto envelope) and resetting the circuit breaker on Tab 1 (`1. Setup`). The purge action only executes if confirmed.
+- **Scrollable Tab 1 Setup & Multi-Domain Reference (`$tabDiag` / `$grpDiagGuide` / `App.tsx`):**
+  - Enabled `AutoScroll = $true` on Tab 1 (`$tabDiag`) and upgraded `$lblDiagGuide` inside **"Integration Setup & Multi-Domain Switching Reference"** to a borderless scrollable `TextBox` (`ScrollBars = Vertical`) paired with `overflow-y-auto max-h-96` on the Web Companion card so setup instructions are never cut off when the window is not full-screen.
+- **Smooth Light/Dark Theme Cross-Fade Transition (`Invoke-ThemeCrossFadeTransitionSafe` / `src/index.css`):**
+  - Added a bitmap overlay opacity cross-fade animation (~240ms) in the PowerShell WinForms console and CSS View Transitions (`360ms cubic-bezier(0.22, 1, 0.36, 1)`) in the Web Companion when toggling between Light and Dark modes.
+- **Complete Break-Glass Wipe (Profiles + AD + Microsoft Graph + Google GAM7) & Two-Box Red Warning (`Remove-GlobalMasterPassphraseAndPurgeAllSafe` / `MasterPassphraseModal.tsx`):**
+  - Upgraded **`Remove Passphrase & All Creds`** so emergency break-glass reset permanently wipes **all Domain Profiles (`Profiles\`, `Profiles.json`, `LastDomainConnection.json`), all AD DPAPI vaults, `MasterVault.dpapi.json`, `MailboxAuditorApp.json`, Microsoft Graph sessions & MSAL caches (`Disconnect-MgGraph`, `.mg`, `MicrosoftGraphSetup`), and Google GAM7 OAuth/config files (`oauth2.txt`, `oauth2service.json`, `client_secrets.json`, `gam.cfg`, `gamcache`) without deleting `gam.exe`**, then resets in-memory profiles back to clean default state.
+  - Replaced the single warning dialog with a clean two-box flow:
+    - **Box 1:** Displays **one concise warning sentence in red text** stating that all profiles, AD, Graph, and GAM7 data will be wiped from the computer, with a bottom **`Continue`** label and **`Yes`** / **`No`** buttons.
+    - **Box 2 (Separate Confirmation Box):** Prompts **`Are you sure?`** with **`Yes`** / **`No`** before executing the wipe.
+- **Instant Startup `Update Available` Badge & Reliable `Update & Restart` Persistence (`$GitHubUpdateWorkerScript` / `updateVersion.ts`):**
+  - Fixed startup update probing to compare **both** `/releases/latest` and `main/VERSION` (via commit SHA + uncached GitHub Contents API, picking whichever version is higher) with extended concurrency resilience and automatic transient retry so **`Update Available`** appears automatically on launch whenever a newer release or commit exists.
+  - Fixed **`Update & Restart`** returning on the old version by downloading from immutable commit SHA / uncached API URLs, validating that the downloaded `.ps1`'s `$script:AppVersion` is strictly greater than the installed version, adding a 30-attempt file-lock retry loop in `$swapScript` (for both `.exe` and `.ps1`), and syncing sibling `IncidentResponse-Automator.ps1`, `VERSION`, and `CHANGELOG.md` files alongside compiled executables.
+
+## [1.1.65] - 2026-11-18
+
+### Added & Fixed
+- **Action-First Prompt Cleanup & Dual-Channel Update Detection Foundation:** Refined prompt `"Continue"` button labels and updated `checkGitHubLatestVersion` / updater plumbing to evaluate `main/VERSION` alongside GitHub Releases.
+
 ## [1.1.64] - 2026-11-18
 
 ### Added & Improved

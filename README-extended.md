@@ -4,7 +4,7 @@
 [![PowerShell: 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?logo=powershell)](https://learn.microsoft.com/powershell/)
 [![Framework: .NET 4.8+](https://img.shields.io/badge/.NET%20Framework-4.8%2B-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version: 1.1.64](https://img.shields.io/badge/Version-1.1.64-emerald.svg)](CHANGELOG.md)
+[![Version: 1.1.66](https://img.shields.io/badge/Version-1.1.66-emerald.svg)](CHANGELOG.md)
 
 ### Exhaustive Architectural Specification & Control-by-Control Engineering Reference
 **Target Audience:** Cybersecurity Engineers, SOC Leads, Systems Architects, and Security Developers
@@ -86,9 +86,9 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 
 ### Top Header Controls & Theme Engine
 
-#### `[ Light Mode ]` / `[ Dark Mode ]` (`$btnThemeToggle`)
-* **Underlying Function:** `Apply-AppTheme([bool]$Dark)`
-* **Mechanics:** Inverts `$script:isDark`. Traverses the visual tree and applies color styles:
+#### `[ Light Mode ]` / `[ Dark Mode ]` (`$btnThemeToggle` -> `Invoke-ThemeCrossFadeTransitionSafe`)
+* **Underlying Function:** `Invoke-ThemeCrossFadeTransitionSafe([bool]$DarkTarget)` / `Apply-AppTheme([bool]$Dark)`
+* **Mechanics:** Captures a client bitmap snapshot onto a borderless fade overlay window (or triggers CSS View Transitions in the Web Companion), runs `Apply-AppTheme` underneath, and fades overlay opacity smoothly to `0.0` (~240ms) across all panels, headers, text controls, and grids:
   * Form background: `#0f172a` (Dark) vs `#f8fafc` (Light)
   * Header panel: `#0f172a` (Dark) vs `#f1f5f9` (Light)
   * Title and subtext: `#ffffff` / `#94a3b8` (Dark) vs `#0f172a` / `#475569` (Light)
@@ -97,7 +97,7 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 
 #### Update Status Button (`v<version>` / `Update Available`, `$btnCheckUpdates`) & `View Changelog` (`$btnViewChangelog`)
 * **Underlying Functions:** `Start-StartupUpdateCheckAsync`, `Get-GitHubUpdateStatusSafe`, `Update-HeaderUpdateButtonState`, `Show-UpdateCheckWindow`, `Show-ChangelogWindow`
-* **Mechanics:** On application load (`$form.Add_Shown`), `Start-StartupUpdateCheckAsync` launches a non-blocking background PowerShell runspace that calls `Get-GitHubUpdateStatusSafe` against GitHub Releases (`releases/latest`) with commit-SHA-busted `VERSION` fallback and UTF-8 byte decoding. `Update-HeaderUpdateButtonState` sets `$btnCheckUpdates` to **`v<version>`** (e.g., `v1.1.63`) when up to date or offline, or **`Update Available`** with theme-aware amber/gold highlight styling (preserved across Dark/Light mode changes by `Apply-AppTheme`) when a newer version is found. Clicking the button opens `Show-UpdateCheckWindow` (enforcing trusted `github.com` / `githubusercontent.com` HTTPS download URLs and safe git ref validation) with full **Check for Updates**, **View Changelog**, and **Update & Restart** (`.ps1` AST validation or local `PS2EXE` `IncidentResponse.exe` rebuild with `MZ` verification) functionality.
+* **Mechanics:** On application load (`$form.Add_Shown`), `Start-StartupUpdateCheckAsync` launches a non-blocking background PowerShell runspace (with transient single-retry resilience) that calls `Get-GitHubUpdateStatusSafe` against **both** GitHub `/releases/latest` and commit-SHA-busted `main/VERSION` (`Api + Raw` with UTF-8 BOM stripping), picking whichever version is higher. `Update-HeaderUpdateButtonState` immediately renders and repaints **`v<version>`** (e.g., `v1.1.66`) when up to date or **`Update Available`** with theme-aware amber/gold highlight styling whenever a newer release or commit is detected on startup. Clicking opens `Show-UpdateCheckWindow` (enforcing trusted `github.com` / `githubusercontent.com` HTTPS download URLs and safe git ref validation) with **Check for Updates**, **View Changelog**, and **Update & Restart** (uncached commit-SHA script downloads, AST + post-download `$script:AppVersion` progression validation, optional local `PS2EXE` `IncidentResponse.exe` rebuild with `MZ` validation, and a 30-attempt file-lock retry loop in `$swapScript` syncing sibling `.ps1`/`VERSION`/`CHANGELOG.md` files cleanly before relaunch).
 
 #### `GitHub Repository Shortcut` (`$btnGitHub`)
 * **Location:** Top-right header bar immediately to the right of `[ Light Mode ]` / `[ Dark Mode ]`.
@@ -105,9 +105,9 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 
 #### `Master Passphrase` (`$btnMasterPassphrase`, `Show-MasterPassphraseDialogSafe`, `Show-StartupMasterPassphraseGateSafe`)
 * **Location:** Top-right header bar immediately to the right of `$btnGitHub`.
-* **Mechanics:** Manages a single optional application-wide passphrase (`MasterVault.json`) layered atop Windows DPAPI `CurrentUser` for **all** saved Domain Profiles (PBKDF2 + AES-256-CBC + HMAC-SHA256) using an action-first subpanel state machine so only the textboxes required for the chosen operation are displayed:
+* **Mechanics:** Manages a single optional application-wide passphrase (`MasterVault.dpapi.json`) layered atop Windows DPAPI `CurrentUser` for **all** saved Domain Profiles (PBKDF2 + AES-256-CBC + HMAC-SHA256) using an action-first subpanel state machine so only the textboxes required for the chosen operation are displayed:
   * **Not Configured:** Shows 2 inputs (`$txtNewSet`, `$txtConfSet`) to enable the passphrase.
-  * **Active Menu (`$pnlMenu`, 0 inputs):** Offers **Change Passphrase** (`$pnlChange`, 3 inputs: `Current`, `New`, `Confirm`), **`Remove Passphrase`** (`$pnlKeep`, **1 input**: `Current`, verifying before showing the DPAPI-fallback & why-keep warning prompt via `Remove-GlobalMasterPassphraseKeepCredsSafe`), and emergency break-glass **`Remove Passphrase & All Creds`** (0 inputs, immediately showing the destructive wipe warning via `Remove-GlobalMasterPassphraseAndPurgeAllSafe`).
+  * **Active Menu (`$pnlMenu`, 0 inputs):** Offers **Change Passphrase** (`$pnlChange`, 3 inputs: `Current`, `New`, `Confirm`), **`Remove Passphrase`** (`$pnlKeep`, **1 input**: `Current`, verifying via **`Continue`** before showing the DPAPI-fallback & why-keep warning prompt via `Remove-GlobalMasterPassphraseKeepCredsSafe`), and emergency break-glass **`Remove Passphrase & All Creds`** (0 inputs, opening **Box 1** with a single red warning sentence + bottom `Continue` `Yes`/`No` followed by **Box 2** `Are you sure?` `Yes`/`No` before calling `Remove-GlobalMasterPassphraseAndPurgeAllSafe` to permanently wipe all Domain Profiles, AD DPAPI vaults, `MasterVault.dpapi.json`, `MailboxAuditorApp.json`, Microsoft Graph sessions/caches, and Google GAM7 OAuth/config files while preserving `gam.exe`).
   * **Startup Gate (`Show-StartupMasterPassphraseGateSafe`):** Runs on launch before any domain probing or login when enabled: attempt #1 mismatch shows an error (`1 attempt remaining`), and attempt #2 failure or Cancel closes the application cleanly. When unset, the console skips the gate and auto-connects directly.
 
 #### Domain Profile & AD Switcher (`Show-DomainSwitcher` via Tab 1 `Manage / AD...` & `Switch AD Account / Domain`) & Startup Prompt (`Show-PrimaryProfilePromptSafe`)
@@ -132,7 +132,7 @@ In modern hybrid enterprises, on-premises Active Directory accounts rarely posse
 #### Credential Health & Encrypted AD Vault (`$grpCredHealth` -> `Invoke-ValidateStoredADCredentialHealthSafe`, `Start-StartupADAutoConnectAsync`)
 * **Zero-Credential Network Domain Detection & Unified AD + Graph + GAM7 Auto-Connect (`Test-ADDomainNetworkReachableSafe`, `Start-StartupADAutoConnectAsync`, `Invoke-ApplyStartupDiscoveryResultSafe`, `Invoke-StartupUnifiedPreflightSafe`):** Inspects active NIC DNS suffixes (even on non-domain-joined workstations), resolves `_ldap._tcp.dc._msdcs.<domain>` DNS SRV records, and performs non-blocking async 700ms TCP `389`/`636` probes before touching authentication—never freezing offline workstations or spamming credentials to unreachable domains. When a configured profile's domain is reachable, startup automatically unlocks its DPAPI/Master-Passphrase vault and runs `Invoke-StartupUnifiedPreflightSafe` to connect **Active Directory + Microsoft Graph + Google GAM7** together while staying on **Tab 1 (`1. Setup`)**.
 * **Anti-Lockout Pre-Flight & 1-Strike Circuit Breaker:** Stores non-secret state in `ad_cred_health.json`; when domain-joined to the target domain, inspects `pwdLastSet`, `badPwdCount`, `lockoutTime`, and `lockoutThreshold` via ambient Kerberos before ever submitting the saved admin password (purging rotated secrets with `0` failed binds). For cross-domain/workgroup binds, enforces a 1-strike circuit breaker that zeroes and deletes `ad_cred.dpapi.json` immediately on any bad-credential error.
-* **Controls:** **`Validate Credential Health`** (`$btnValidateCredHealth`), **`Detect Network & Auto-Connect`** (`$btnAutoConnectProfile`), **`Configure Saved AD Creds...`** (`$btnManageSavedCred`), and **`Purge Saved Creds`** (`$btnPurgeSavedCred`).
+* **Controls:** **`Validate Credential Health`** (`$btnValidateCredHealth`), **`Detect Network & Auto-Connect`** (`$btnAutoConnectProfile`), **`Configure Saved AD Creds...`** (`$btnManageSavedCred`), and **`Purge Saved Creds`** (`$btnPurgeSavedCred`, gated behind an **`Are you sure?`** confirmation dialog before calling `Remove-SavedADCredentialVaultSafe`). Tab 1 (`$tabDiag`) also enables `AutoScroll = $true` and uses a vertically scrollable `$lblDiagGuide` inside **`Integration Setup & Multi-Domain Switching Reference`** (`$grpDiagGuide`) so reference copy is never clipped when non-fullscreen.
 
 #### Service-Column Action Matrix (Columns 1–3)
 * **Column 1 — Active Directory (`X = 15`):**

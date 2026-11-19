@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.1.68] - 2026-11-19
+
+### Fixed
+- **Automatic Startup `Update Available` Header Badge (`Start-StartupUpdateCheckAsync` / `Invoke-ApplyStartupUpdateCheckResultSafe`):**
+  - Fixed a PowerShell 5.1 WinForms `Timer.Tick` scope bug where `Start-StartupUpdateCheckAsync` stored its completion handler in a local scriptblock (`$applyResult`) that became `$null` once `Start-StartupUpdateCheckAsync` returned, causing the background tick handler to throw and silently swallow the exception before updating the header button.
+  - Elevated completion handling to a named script-level function (`Invoke-ApplyStartupUpdateCheckResultSafe`), tracked `$script:startupUpdateRetryTimer` at script scope for reliable disposal, set `$ProgressPreference = 'SilentlyContinue'` inside `$script:GitHubUpdateWorkerScript` so background HTTP checks never stall on progress records, and switched release probing to `/releases?per_page=1` to match the Web Companion. As a result, **`Update Available`** renders automatically on launch without needing a manual click whenever GitHub has a newer version or commit.
+
 ## [1.1.67] - 2026-11-19
 
 ### Changed & Clarified

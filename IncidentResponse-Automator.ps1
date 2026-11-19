@@ -1,5 +1,5 @@
 # ==============================================================================
-# Security Incident Response Automator (v1.1.67)
+# Security Incident Response Automator (v1.1.68)
 # Standalone Native Windows Form Application (Tabbed UI, Real Verification, Audit Trail)
 # Domain Agnostic | Auto-Detect Domain | Multi-Domain Profiles (AD + Graph + GAM7)
 # Encrypted Per-Profile AD Vault (DPAPI CurrentUser) | Zero-Lockout Credential Health
@@ -34,7 +34,7 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
 
 $global:MaximumFunctionCount = 32768
 $global:MaximumVariableCount = 32768
-$script:AppVersion = "1.1.67"
+$script:AppVersion = "1.1.68"
 $script:updateAvailable = $false
 $script:latestKnownVersionTag = "v$($script:AppVersion)"
 $script:MainScriptPath = if ($MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
@@ -10622,6 +10622,9 @@ function Show-ChangelogWindow {
             "SECURITY INCIDENT RESPONSE AUTOMATOR - CHANGELOG`r`n" +
             "===========================================================`r`n" +
             "Current Installed Release: v$($script:AppVersion)`r`n`r`n" +
+            "## [1.1.68] - 2026-11-19`r`n" +
+            "### Fixed`r`n" +
+            "  * Instant Startup 'Update Available' Detection: Elevated the WinForms timer completion handler from a local closure variable (`$applyResult`) to a script-level function (Invoke-ApplyStartupUpdateCheckResultSafe), tracked the retry timer at script scope, set `$ProgressPreference = 'SilentlyContinue'` inside the background GitHub worker, and switched release probing to `/releases?per_page=1` so the top-right badge automatically flips to 'Update Available' on launch whenever GitHub is ahead.`r`n`r`n" +
             "## [1.1.67] - 2026-11-19`r`n" +
             "### Added, Changed & Fixed`r`n" +
             "  * Break-Glass Prompt Clarification, Alignment & Typography: Updated Box 1 red text to explicitly state that your Master Passphrase is wiped alongside all Domain Profiles, AD credentials, Microsoft Graph sessions, and Google GAM7 profiles; changed 'Continue' to 'Continue?' right-aligned beside Yes/No; and bumped text size one step larger on both Box 1 and Box 2 ('Are you sure?').`r`n" +
@@ -10768,6 +10771,8 @@ $script:GitHubUpdateWorkerScript = {
         [bool]$IncludeChangelog = $false
     )
 
+    $ProgressPreference = 'SilentlyContinue'
+
     $decodeWebContent = {
         param($Resp)
         if ($null -eq $Resp -or $null -eq $Resp.Content) { return "" }
@@ -10826,12 +10831,13 @@ $script:GitHubUpdateWorkerScript = {
             'Pragma'        = 'no-cache'
         }
 
-        # 1. Check /releases/latest (non-fatal if 404 or behind main)
+        # 1. Check /releases?per_page=1 (avoids 404 when no formal Release is published; non-fatal if behind main)
         $relObj = $null
         $relTag = ""
         $relErr = $null
         try {
-            $relObj = Invoke-RestMethod -Uri "https://api.github.com/repos/$normalizedRepo/releases/latest" -Headers $headers -TimeoutSec $TimeoutSec -ErrorAction Stop
+            $relResp = Invoke-RestMethod -Uri "https://api.github.com/repos/$normalizedRepo/releases?per_page=1" -Headers $headers -TimeoutSec $TimeoutSec -ErrorAction Stop
+            $relObj = @($relResp | Where-Object { $_ -and $_.tag_name }) | Select-Object -First 1
             if ($relObj -and $relObj.tag_name) {
                 $relTag = [string]$relObj.tag_name
             }
@@ -10952,10 +10958,22 @@ function Get-GitHubUpdateStatusSafe {
 $script:startupUpdatePs = $null
 $script:startupUpdateHandle = $null
 $script:startupUpdateTimer = $null
+$script:startupUpdateRetryTimer = $null
 $script:startupUpdateStartedAt = $null
 $script:startupUpdateAttempt = 0
 
+function Stop-StartupUpdateRetryTimerSafe {
+    try {
+        if ($script:startupUpdateRetryTimer) {
+            $script:startupUpdateRetryTimer.Stop()
+            $script:startupUpdateRetryTimer.Dispose()
+            $script:startupUpdateRetryTimer = $null
+        }
+    } catch {}
+}
+
 function Stop-StartupUpdateCheckAsync {
+    Stop-StartupUpdateRetryTimerSafe
     try {
         if ($script:startupUpdateTimer) {
             $script:startupUpdateTimer.Stop()
@@ -10973,42 +10991,43 @@ function Stop-StartupUpdateCheckAsync {
     $script:startupUpdateHandle = $null
 }
 
+function Invoke-ApplyStartupUpdateCheckResultSafe {
+    param($CheckResult)
+    if ($CheckResult -and $CheckResult.Success) {
+        if ($CheckResult.UpdateAvailable) {
+            Update-HeaderUpdateButtonState -UpdateAvailable $true -LatestTag $CheckResult.LatestTag
+            Write-AppLog "Update check: Newer release $($CheckResult.LatestTag) is available (Installed: v$($script:AppVersion)). Click 'Update Available' in the header to update." "WARN"
+        } else {
+            Update-HeaderUpdateButtonState -UpdateAvailable $false -LatestTag $CheckResult.LatestTag -StatusDetail "Up to date (v$($script:AppVersion)) - Click to check GitHub for updates & changelog."
+            Write-AppLog "Update check: Running latest version (v$($script:AppVersion))." "INFO"
+        }
+        return
+    }
+
+    $errReason = $(if ($CheckResult -and (-not [string]::IsNullOrWhiteSpace($CheckResult.Error))) { $CheckResult.Error } else { "GitHub unreachable or timed out" })
+    if ($script:startupUpdateAttempt -lt 2) {
+        Write-AppLog "Update check transient issue ($errReason) - retrying once automatically..." "INFO"
+        Stop-StartupUpdateRetryTimerSafe
+        $script:startupUpdateRetryTimer = New-Object System.Windows.Forms.Timer
+        $script:startupUpdateRetryTimer.Interval = 2500
+        $script:startupUpdateRetryTimer.Add_Tick({
+            Stop-StartupUpdateRetryTimerSafe
+            if ($form -and (-not $form.IsDisposed)) {
+                Start-StartupUpdateCheckAsync -Attempt 2
+            }
+        })
+        $script:startupUpdateRetryTimer.Start()
+        return
+    }
+    Update-HeaderUpdateButtonState -UpdateAvailable $false -StatusDetail "Installed: v$($script:AppVersion) (Startup update check unavailable) - Click to check GitHub manually."
+    Write-AppLog "Update check skipped: $errReason" "INFO"
+}
+
 function Start-StartupUpdateCheckAsync {
     param([int]$Attempt = 1)
     Stop-StartupUpdateCheckAsync
     $script:startupUpdateAttempt = $Attempt
     $defaultRepo = "mkstewart88/Security-Incident-Helper"
-
-    $applyResult = {
-        param($chkRes)
-        if ($chkRes -and $chkRes.Success) {
-            if ($chkRes.UpdateAvailable) {
-                Update-HeaderUpdateButtonState -UpdateAvailable $true -LatestTag $chkRes.LatestTag
-                Write-AppLog "Update check: Newer release $($chkRes.LatestTag) is available (Installed: v$($script:AppVersion)). Click 'Update Available' in the header to update." "WARN"
-            } else {
-                Update-HeaderUpdateButtonState -UpdateAvailable $false -LatestTag $chkRes.LatestTag -StatusDetail "Up to date (v$($script:AppVersion)) - Click to check GitHub for updates & changelog."
-                Write-AppLog "Update check: Running latest version (v$($script:AppVersion))." "INFO"
-            }
-        } else {
-            $errReason = $(if ($chkRes -and (-not [string]::IsNullOrWhiteSpace($chkRes.Error))) { $chkRes.Error } else { "GitHub unreachable or timed out" })
-            if ($script:startupUpdateAttempt -lt 2) {
-                Write-AppLog "Update check transient issue ($errReason) - retrying once automatically..." "INFO"
-                $retryTimer = New-Object System.Windows.Forms.Timer
-                $retryTimer.Interval = 2500
-                $retryTimer.Add_Tick({
-                    param($s, $e)
-                    try { $s.Stop(); $s.Dispose() } catch {}
-                    if ($form -and (-not $form.IsDisposed)) {
-                        Start-StartupUpdateCheckAsync -Attempt 2
-                    }
-                })
-                $retryTimer.Start()
-                return
-            }
-            Update-HeaderUpdateButtonState -UpdateAvailable $false -StatusDetail "Installed: v$($script:AppVersion) (Startup update check unavailable) - Click to check GitHub manually."
-            Write-AppLog "Update check skipped: $errReason" "INFO"
-        }
-    }
 
     try {
         $ps = [System.Management.Automation.PowerShell]::Create()
@@ -11040,8 +11059,11 @@ function Start-StartupUpdateCheckAsync {
                     if ($script:startupUpdateHandle.IsCompleted -and (-not $timedOut)) {
                         try {
                             $rawOut = $script:startupUpdatePs.EndInvoke($script:startupUpdateHandle)
-                            if ($rawOut -and $rawOut.Count -gt 0) {
-                                $chkRes = $rawOut[$rawOut.Count - 1]
+                            if ($rawOut) {
+                                $chkRes = $rawOut | Where-Object { $null -ne $_ -and ($null -ne $_.PSObject.Properties['Success']) } | Select-Object -Last 1
+                            }
+                            if ($null -eq $chkRes -and $script:startupUpdatePs.HadErrors -and $script:startupUpdatePs.Streams.Error.Count -gt 0) {
+                                $chkRes = [PSCustomObject]@{ Success = $false; Error = [string]$script:startupUpdatePs.Streams.Error[0].Exception.Message }
                             }
                         } catch {
                             $chkRes = [PSCustomObject]@{ Success = $false; Error = $_.Exception.Message }
@@ -11050,10 +11072,12 @@ function Start-StartupUpdateCheckAsync {
                         $chkRes = [PSCustomObject]@{ Success = $false; Error = "GitHub update check timed out after 30s" }
                     }
                     Stop-StartupUpdateCheckAsync
-                    & $applyResult $chkRes
+                    Invoke-ApplyStartupUpdateCheckResultSafe -CheckResult $chkRes
                 }
             } catch {
+                $tickErr = $_.Exception.Message
                 Stop-StartupUpdateCheckAsync
+                Write-AppLog "Startup update check handler error: $tickErr" "WARN"
             }
         })
         $script:startupUpdateTimer.Start()
@@ -11061,9 +11085,9 @@ function Start-StartupUpdateCheckAsync {
         Stop-StartupUpdateCheckAsync
         try {
             $syncRes = Get-GitHubUpdateStatusSafe -RepoTarget $defaultRepo -InstalledVersion $script:AppVersion -TimeoutSec 6
-            & $applyResult $syncRes
+            Invoke-ApplyStartupUpdateCheckResultSafe -CheckResult $syncRes
         } catch {
-            & $applyResult ([PSCustomObject]@{ Success = $false; Error = $_.Exception.Message })
+            Invoke-ApplyStartupUpdateCheckResultSafe -CheckResult ([PSCustomObject]@{ Success = $false; Error = $_.Exception.Message })
         }
     }
 }

@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.67)
+SECURITY INCIDENT RESPONSE AUTOMATOR - EXTENDED TECHNICAL MANUAL (v1.1.68)
 ================================================================================
 
 ARCHITECTURAL SPECIFICATION & EXHAUSTIVE CONTROL-BY-CONTROL ENGINEERING REFERENCE
@@ -56,11 +56,13 @@ TOP HEADER BAR:
 - Update Status Button ($btnCheckUpdates: "v<version>" / "Update Available") &
   View Changelog ($btnViewChangelog):
   On startup ($form.Add_Shown), Start-StartupUpdateCheckAsync runs an
-  asynchronous background check (with single-retry transient resilience) via
-  Get-GitHubUpdateStatusSafe comparing BOTH GitHub releases/latest and
-  commit-SHA-busted main/VERSION (picking whichever is higher).
-  Update-HeaderUpdateButtonState immediately renders and refreshes "v<version>"
-  (e.g., v1.1.67) when up to date/offline or "Update Available" automatically on
+  asynchronous background check ($ProgressPreference = 'SilentlyContinue', with
+  script-scoped retry timer $script:startupUpdateRetryTimer) via
+  Get-GitHubUpdateStatusSafe comparing BOTH GitHub releases?per_page=1 and
+  commit-SHA-busted main/VERSION (picking whichever is higher). When complete,
+  the WinForms timer calls Invoke-ApplyStartupUpdateCheckResultSafe ->
+  Update-HeaderUpdateButtonState, immediately rendering "v<version>"
+  (e.g., v1.1.68) when up to date/offline or "Update Available" automatically on
   launch whenever a newer version or main commit exists. Clicking opens
   Show-UpdateCheckWindow (enforcing trusted github.com/githubusercontent.com
   HTTPS URLs & ref checks) for Check for Updates, View Changelog, and Update &

@@ -1,5 +1,5 @@
 ================================================================================
-SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.67)
+SECURITY INCIDENT RESPONSE AUTOMATOR - OPERATOR USER GUIDE (v1.1.68)
 ================================================================================
 
 OVERVIEW:
@@ -99,7 +99,7 @@ STEP 2: DOMAIN PROFILES & SWITCHING TARGET DOMAINS
      Creds...", or "Purge Saved Creds" (protected by an "Are you sure?" modal).
   8. On startup, the app automatically checks GitHub Releases and main/VERSION
      in the background and sets the top-right header button to "v<version>"
-     (e.g., v1.1.67) if up to date or "Update Available" automatically on launch
+     (e.g., v1.1.68) if up to date or "Update Available" automatically on launch
      when a newer version exists. Click it anytime to run "Check for Updates",
      "View Changelog", or "Update & Restart" (uses uncached downloads, version
      checks, and file-lock retries so restarted builds persist cleanly).
